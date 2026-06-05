@@ -3,8 +3,12 @@ defineProps({
   iconPaths: { type: Object, required: true },
   previewDialogues: { type: Array, required: true },
   scriptChapters: { type: Array, required: true },
+  schemaValidation: { type: Object, required: true },
+  statusNotice: { type: String, default: '' },
   yamlLines: { type: Array, required: true },
 })
+
+defineEmits(['copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'validate-yaml'])
 </script>
 
 <template>
@@ -16,29 +20,35 @@ defineProps({
           <span>自动保存中...</span>
         </div>
         <div class="editor-actions" aria-label="剧本操作">
-          <button class="editor-tool" type="button">
+          <button class="editor-tool" type="button" @click="$emit('open-schema')">
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path v-for="path in iconPaths.format" :key="path" :d="path" />
+              <path v-for="path in iconPaths.help" :key="path" :d="path" />
             </svg>
-            <span>格式说明</span>
+            <span>查看 Schema 文档</span>
           </button>
-          <button class="editor-tool is-safe" type="button">
+          <button class="editor-tool is-safe" type="button" @click="$emit('validate-yaml')">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path v-for="path in iconPaths.shield" :key="path" :d="path" />
             </svg>
-            <span>校验</span>
+            <span>校验格式</span>
           </button>
-          <button class="editor-tool" type="button">
+          <button class="editor-tool" type="button" @click="$emit('copy-yaml')">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path v-for="path in iconPaths.copy" :key="path" :d="path" />
             </svg>
-            <span>复制</span>
+            <span>复制 YAML</span>
           </button>
-          <button class="editor-tool is-primary" type="button">
+          <button class="editor-tool" type="button" @click="$emit('download-yaml')">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path v-for="path in iconPaths.download" :key="path" :d="path" />
             </svg>
-            <span>导出</span>
+            <span>下载 YAML</span>
+          </button>
+          <button class="editor-tool is-primary" type="button" @click="$emit('open-preview')">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path v-for="path in iconPaths.eye" :key="path" :d="path" />
+            </svg>
+            <span>打开完整预览</span>
             <svg class="button-chevron" viewBox="0 0 24 24" aria-hidden="true">
               <path v-for="path in iconPaths.chevron" :key="path" :d="path" />
             </svg>
@@ -91,6 +101,45 @@ defineProps({
           </button>
           <pre><code><span v-for="(line, index) in yamlLines" :key="index" class="code-line"><span class="line-number">{{ index + 1 }}</span><span class="line-content"><template v-for="(token, tokenIndex) in line" :key="`${index}-${tokenIndex}`"><span :class="`yaml-${token.tone}`">{{ token.text }}</span></template></span></span></code></pre>
         </div>
+
+        <aside class="schema-panel" aria-labelledby="schema-title">
+          <div class="schema-panel-header">
+            <div>
+              <span>Schema 校验</span>
+              <h3 id="schema-title">结构检查结果</h3>
+            </div>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path v-for="path in iconPaths.shield" :key="path" :d="path" />
+            </svg>
+          </div>
+
+          <dl class="schema-check-list">
+            <div>
+              <dt>YAML 格式</dt>
+              <dd :class="{ 'is-valid': schemaValidation.yamlValid }">
+                {{ schemaValidation.yamlValid ? '正确' : '需要修正' }}
+              </dd>
+            </div>
+            <div>
+              <dt>必填字段</dt>
+              <dd :class="{ 'is-valid': schemaValidation.requiredFieldsValid }">
+                {{ schemaValidation.requiredFieldsValid ? '完整' : '缺失' }}
+              </dd>
+            </div>
+            <div>
+              <dt>章节数量</dt>
+              <dd>{{ schemaValidation.chapterCount }}</dd>
+            </div>
+            <div>
+              <dt>场景数量</dt>
+              <dd>{{ schemaValidation.sceneCount }}</dd>
+            </div>
+          </dl>
+
+          <p class="schema-message">{{ schemaValidation.message }}</p>
+          <p class="schema-time">{{ schemaValidation.checkedAt }}</p>
+          <p v-if="statusNotice" class="inline-note schema-status">{{ statusNotice }}</p>
+        </aside>
       </div>
     </section>
 

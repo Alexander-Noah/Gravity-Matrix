@@ -18,6 +18,15 @@ export const generationSettingOptions = {
   contentOptions: ['动作描写', '情绪提示', '镜头建议', '转场提示'],
 }
 
+export const schemaValidationMock = {
+  yamlValid: true,
+  requiredFieldsValid: true,
+  chapterCount: 5,
+  sceneCount: 28,
+  checkedAt: '尚未手动校验',
+  message: '当前 YAML 结构可用于生成剧本编辑稿。',
+}
+
 export const workflowSteps = [
   { number: '1', title: '导入小说', description: '上传或粘贴小说内容', status: 'done' },
   { number: '2', title: 'AI 解析', description: '智能识别人物、场景与剧情', status: 'done' },

@@ -25,6 +25,7 @@ import {
   previewDialogues,
   projectStages,
   quickActions,
+  schemaValidationMock,
   scriptChapters,
   workflowSteps,
   yamlLines,
@@ -38,6 +39,8 @@ const analysisProgress = ref(100)
 const analysisNotice = ref('')
 const isGenerationSettingsOpen = ref(false)
 const generatedSettings = ref(null)
+const schemaValidation = ref(schemaValidationMock)
+const editorNotice = ref('')
 
 const activeNavItems = computed(() =>
   navItems.map((item) => ({
@@ -109,6 +112,9 @@ const generatedYamlLines = computed(() => {
     ...yamlLines.slice(6),
   ]
 })
+const generatedYamlText = computed(() =>
+  generatedYamlLines.value.map((line) => line.map((token) => token.text).join('')).join('\n'),
+)
 
 const goToPage = (pageId) => {
   if (pageId !== 'workbench') {
@@ -145,7 +151,52 @@ const openGenerationSettings = () => {
 const confirmGenerationSettings = (settings) => {
   generatedSettings.value = settings
   isGenerationSettingsOpen.value = false
+  editorNotice.value = ''
+  schemaValidation.value = schemaValidationMock
   activePage.value = 'script'
+}
+
+const validateYaml = () => {
+  schemaValidation.value = {
+    ...schemaValidationMock,
+    checkedAt: `刚刚校验 · ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`,
+    message: '校验通过：YAML 格式正确，必填字段完整。',
+  }
+  editorNotice.value = 'Schema 校验已完成。'
+}
+
+const copyYaml = async () => {
+  if (!navigator.clipboard) {
+    editorNotice.value = '当前浏览器不支持剪贴板 API。'
+    return
+  }
+
+  try {
+    await navigator.clipboard.writeText(generatedYamlText.value)
+    editorNotice.value = 'YAML 已复制到剪贴板。'
+  } catch {
+    editorNotice.value = '复制失败，请检查浏览器剪贴板权限。'
+  }
+}
+
+const downloadYaml = () => {
+  const blob = new Blob([generatedYamlText.value], { type: 'text/yaml;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = 'generated-script.yaml'
+  link.click()
+  URL.revokeObjectURL(url)
+  editorNotice.value = 'YAML 文件已开始下载。'
+}
+
+const showSchemaPlaceholder = () => {
+  editorNotice.value = 'Schema 文档将在下一步功能中实现。'
+}
+
+const showPreviewPlaceholder = () => {
+  editorNotice.value = '完整预览将在下一步功能中实现。'
 }
 
 const handleFileUpload = async (event) => {
@@ -217,8 +268,15 @@ const handleFileUpload = async (event) => {
           <ScriptWorkspace
             :icon-paths="iconPaths"
             :preview-dialogues="previewDialogues"
+            :schema-validation="schemaValidation"
             :script-chapters="scriptChapters"
+            :status-notice="editorNotice"
             :yaml-lines="generatedYamlLines"
+            @copy-yaml="copyYaml"
+            @download-yaml="downloadYaml"
+            @open-preview="showPreviewPlaceholder"
+            @open-schema="showSchemaPlaceholder"
+            @validate-yaml="validateYaml"
           />
         </div>
 

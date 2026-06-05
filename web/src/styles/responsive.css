@@ -85,6 +85,11 @@
     border-bottom: 1px solid var(--border);
   }
 
+  .schema-panel {
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+
   .preview-body {
     grid-template-columns: 1fr 1fr;
   }

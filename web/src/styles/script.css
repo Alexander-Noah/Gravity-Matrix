@@ -36,8 +36,10 @@
 .editor-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 10px;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
 }
 
 .editor-tool {
@@ -97,7 +99,7 @@
 
 .script-editor-layout {
   display: grid;
-  grid-template-columns: 250px minmax(0, 1fr);
+  grid-template-columns: 250px minmax(360px, 1fr) 280px;
   min-height: 520px;
 }
 
@@ -317,4 +319,99 @@
 
 .yaml-value {
   color: oklch(86% 0.04 255);
+}
+
+.schema-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 18px;
+  border-left: 1px solid var(--border);
+  background: oklch(99% 0.004 275);
+}
+
+.schema-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.schema-panel-header span {
+  color: var(--primary-strong);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.schema-panel-header h3 {
+  margin: 4px 0 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 780;
+  line-height: 1.3;
+}
+
+.schema-panel-header svg {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: var(--primary-strong);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.75;
+}
+
+.schema-check-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.schema-check-list div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--primary-faint);
+}
+
+.schema-check-list dt {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 680;
+}
+
+.schema-check-list dd {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.schema-check-list dd.is-valid {
+  color: oklch(46% 0.1 165);
+}
+
+.schema-message {
+  margin: 18px 0 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.schema-time {
+  margin: 8px 0 0;
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.schema-status {
+  margin-top: auto;
 }
