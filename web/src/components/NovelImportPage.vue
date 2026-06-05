@@ -5,6 +5,7 @@ defineProps({
   fileName: { type: String, default: '' },
   iconPaths: { type: Object, required: true },
   importNotice: { type: String, default: '' },
+  isSubmitting: { type: Boolean, default: false },
   isValid: { type: Boolean, required: true },
   novelText: { type: String, required: true },
 })
@@ -67,8 +68,8 @@ defineEmits(['file-upload', 'next', 'update:novelText'])
       </ul>
 
       <div class="import-actions">
-        <button class="editor-tool is-primary" type="button" :disabled="!isValid" @click="$emit('next')">
-          <span>下一步：AI解析</span>
+        <button class="editor-tool is-primary" type="button" :disabled="!isValid || isSubmitting" @click="$emit('next')">
+          <span>{{ isSubmitting ? '正在提交项目...' : '下一步：AI解析' }}</span>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
           </svg>

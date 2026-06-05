@@ -39,6 +39,10 @@ export const getApiErrorMessage = (error) => {
     return '请求超时，请稍后重试。'
   }
 
+  if (error?.message) {
+    return error.message
+  }
+
   if (!error?.response) {
     return '暂时无法连接服务，请确认后端接口已启动。'
   }

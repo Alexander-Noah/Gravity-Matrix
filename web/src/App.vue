@@ -2,6 +2,8 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { clearAuthSession } from './api/auth'
+import { getApiErrorMessage } from './api/http'
+import { createProject, getJob, getProjectAnalysis, startAnalysisJob } from './api/workbench'
 import AddSceneDialog from './components/AddSceneDialog.vue'
 import AiAnalysisPage from './components/AiAnalysisPage.vue'
 import AppSidebar from './components/AppSidebar.vue'
@@ -61,6 +63,8 @@ const selectedFileName = ref('')
 const importNotice = ref('')
 const analysisProgress = ref(100)
 const analysisNotice = ref('')
+const currentProjectId = ref(null)
+const isImportSubmitting = ref(false)
 const isGenerationSettingsOpen = ref(false)
 const isAddSceneOpen = ref(false)
 const generatedSettings = ref(null)
@@ -68,6 +72,12 @@ const schemaValidation = ref(schemaValidationMock)
 const editorNotice = ref('')
 const previewNotice = ref('')
 const selectedTemplateId = ref('')
+const displayedAnalysisCharacters = ref(analysisCharacters)
+const displayedAnalysisMetrics = ref(analysisMetrics)
+const displayedAnalysisScenes = ref(analysisScenes)
+const displayedPlotEvents = ref(plotEvents)
+const displayedCharacterRelations = ref(characterRelations)
+const displayedDialogueExtracts = ref(dialogueExtracts)
 
 const activeRoute = computed(() => getRouteById(route.name))
 const isAuthRoute = computed(() => activeRoute.value.id === 'auth')
@@ -127,16 +137,22 @@ const currentWorkflowSteps = computed(() => {
 })
 
 const detectedChapters = computed(() => {
-  const matches = [...novelText.value.matchAll(/(?:^|\n)\s*((?:第[\d一二三四五六七八九十百]+章|Chapter\s*\d+)[^\n]*)/gi)]
+  const matches = [
+    ...novelText.value.matchAll(
+      /(?:^|\n)\s*((?:第\s*[\d一二三四五六七八九十百千万零〇两]+\s*[章节回]|Chapter\s*\d+)[^\n]*)/gi,
+    ),
+  ]
 
   return matches.map((match, index) => {
     const start = match.index || 0
     const end = matches[index + 1]?.index ?? novelText.value.length
-    const body = novelText.value.slice(start, end).replace(match[1], '').trim()
+    const chapterText = novelText.value.slice(start, end).trim()
+    const body = chapterText.replace(match[1], '').trim()
     const excerpt = body.replace(/\s+/g, ' ').slice(0, 46)
 
     return {
       title: match[1].trim(),
+      content: body || chapterText,
       excerpt: excerpt ? `${excerpt}...` : '等待补充正文',
     }
   })
@@ -185,6 +201,85 @@ const markdownPreview = computed(() =>
     })
     .join('\n\n'),
 )
+
+const waitForJob = async (jobId) => {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const job = await getJob(jobId)
+
+    analysisProgress.value = job.progress ?? analysisProgress.value
+    analysisNotice.value = job.current_step || analysisNotice.value
+
+    if (job.status === 'succeeded') {
+      return job
+    }
+
+    if (job.status === 'failed') {
+      throw new Error(job.error_message || 'AI 解析任务失败。')
+    }
+
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 600)
+    })
+  }
+
+  throw new Error('AI 解析任务仍在处理中，请稍后重试。')
+}
+
+const applyAnalysisResult = (analysis) => {
+  const raw = analysis?.analysis || analysis || {}
+  const characters = raw.characters || []
+  const locations = raw.locations || []
+  const chapterSummaries = raw.chapter_summaries || []
+  const conflicts = raw.conflicts || []
+  const themes = raw.themes || []
+
+  displayedAnalysisCharacters.value = characters.length
+    ? characters.map((character, index) => ({
+        name: character.name || `人物 ${index + 1}`,
+        role: character.role || '角色',
+        age: character.age ?? '-',
+        trait: character.description || '等待作者继续补充人物说明',
+      }))
+    : analysisCharacters
+
+  displayedAnalysisScenes.value = locations.length
+    ? locations.map((location, index) => ({
+        title: location.name || `场景 ${index + 1}`,
+        chapter: `第${index + 1}章`,
+        time: '待定',
+        mood: location.description || '由 AI 根据章节内容识别',
+      }))
+    : analysisScenes
+
+  displayedPlotEvents.value = chapterSummaries.length
+    ? chapterSummaries.map((chapter, index) => ({
+        step: String(index + 1).padStart(2, '0'),
+        chapter: `第${chapter.chapter_number || index + 1}章`,
+        title: chapter.title || `章节事件 ${index + 1}`,
+        detail: chapter.summary || '等待 AI 补充章节摘要',
+      }))
+    : plotEvents
+
+  displayedAnalysisMetrics.value = [
+    { label: '人物', value: String(characters.length), icon: 'users', tone: 'violet' },
+    { label: '场景', value: String(locations.length), icon: 'scene', tone: 'blue' },
+    { label: '章节', value: String(chapterSummaries.length || chapterCount.value), icon: 'chapter', tone: 'mint' },
+    { label: '冲突事件', value: String(conflicts.length), icon: 'conflict', tone: 'orange' },
+  ]
+
+  displayedCharacterRelations.value = characters.length >= 2
+    ? [
+        {
+          source: characters[0].name || '主角',
+          target: characters[1].name || '重要人物',
+          relation: '主要关系',
+          note: conflicts[0] || themes.join('、') || '可在后续剧本编辑中继续细化人物关系。',
+        },
+      ]
+    : characterRelations
+
+  displayedDialogueExtracts.value = dialogueExtracts
+}
 
 const goToPage = (pageId) => {
   const targetRoute = getRouteById(pageId)
@@ -240,10 +335,46 @@ const previewLibraryScript = () => {
   activePage.value = 'preview'
 }
 
-const goToAnalysis = () => {
-  analysisProgress.value = 100
-  analysisNotice.value = ''
-  activePage.value = 'analysis'
+const goToAnalysis = async () => {
+  if (!isNovelValid.value || isImportSubmitting.value) {
+    return
+  }
+
+  isImportSubmitting.value = true
+  analysisProgress.value = 10
+  importNotice.value = '正在创建小说改编项目...'
+
+  try {
+    const project = await createProject({
+      title: selectedFileName.value ? selectedFileName.value.replace(/\.[^.]+$/, '') : '小说改编项目',
+      author: '创作者',
+      chapters: detectedChapters.value.map((chapter) => ({
+        title: chapter.title,
+        content: chapter.content,
+      })),
+    })
+
+    currentProjectId.value = project.id
+    analysisProgress.value = 25
+    importNotice.value = '项目已创建，正在启动 AI 解析任务...'
+
+    const job = await startAnalysisJob(project.id)
+    activePage.value = 'analysis'
+    analysisNotice.value = job.current_step || 'AI 解析任务已启动。'
+    analysisProgress.value = job.progress ?? 30
+
+    await waitForJob(job.id)
+    const analysis = await getProjectAnalysis(project.id)
+    applyAnalysisResult(analysis)
+    analysisProgress.value = 100
+    analysisNotice.value = 'AI 解析完成，结果已从后端同步。'
+  } catch (error) {
+    importNotice.value = getApiErrorMessage(error)
+    analysisNotice.value = getApiErrorMessage(error)
+    activePage.value = 'import'
+  } finally {
+    isImportSubmitting.value = false
+  }
 }
 
 const goBackToImport = () => {
@@ -445,6 +576,7 @@ const handleFileUpload = async (event) => {
             :file-name="selectedFileName"
             :icon-paths="iconPaths"
             :import-notice="importNotice"
+            :is-submitting="isImportSubmitting"
             :is-valid="isNovelValid"
             @file-upload="handleFileUpload"
             @next="goToAnalysis"
@@ -452,14 +584,14 @@ const handleFileUpload = async (event) => {
 
           <AiAnalysisPage
             v-else-if="activePage === 'analysis'"
-            :analysis-characters="analysisCharacters"
-            :analysis-metrics="analysisMetrics"
-            :analysis-scenes="analysisScenes"
-            :character-relations="characterRelations"
-            :dialogue-extracts="dialogueExtracts"
+            :analysis-characters="displayedAnalysisCharacters"
+            :analysis-metrics="displayedAnalysisMetrics"
+            :analysis-scenes="displayedAnalysisScenes"
+            :character-relations="displayedCharacterRelations"
+            :dialogue-extracts="displayedDialogueExtracts"
             :icon-paths="iconPaths"
             :notice="analysisNotice"
-            :plot-events="plotEvents"
+            :plot-events="displayedPlotEvents"
             :progress="analysisProgress"
             @next="openGenerationSettings"
             @previous="goBackToImport"
