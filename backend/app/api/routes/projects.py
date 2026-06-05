@@ -14,6 +14,7 @@ from app.schemas.project import (
     ProjectCreate,
     ProjectDetail,
     ProjectListRead,
+    ProjectReadinessRead,
     ProjectRead,
     ProjectWorkbenchRead,
     ScriptDiagnosisResponse,
@@ -97,6 +98,12 @@ def get_project(project_id: int, db: Session = Depends(get_db)) -> ProjectDetail
 def get_project_workbench(project_id: int, db: Session = Depends(get_db)) -> ProjectWorkbenchRead:
     project = _require_project(db, project_id)
     return ProjectWorkbenchRead.model_validate(build_project_workbench(project))
+
+
+@router.get("/projects/{project_id}/readiness", response_model=ProjectReadinessRead)
+def get_project_readiness(project_id: int, db: Session = Depends(get_db)) -> ProjectReadinessRead:
+    project = _require_project(db, project_id)
+    return _project_readiness(project)
 
 
 @router.post("/projects/{project_id}/analysis-jobs", response_model=JobRead, status_code=202)
@@ -225,6 +232,32 @@ def _project_to_read(project: Project) -> ProjectRead:
         has_script=project.script_yaml is not None,
         created_at=project.created_at,
         updated_at=project.updated_at,
+    )
+
+
+def _project_readiness(project: Project) -> ProjectReadinessRead:
+    has_script = project.script_yaml is not None
+    has_analysis = project.analysis_json is not None or has_script
+    missing_steps = []
+    if not has_analysis:
+        missing_steps.append("analysis")
+    if not has_script:
+        missing_steps.append("script")
+
+    if not has_analysis:
+        next_action = "start_analysis"
+    elif not has_script:
+        next_action = "generate_script"
+    else:
+        next_action = "export_script"
+
+    return ProjectReadinessRead(
+        project_id=project.id,
+        can_analyze=True,
+        can_generate_script=True,
+        can_export=has_script,
+        missing_steps=missing_steps,
+        next_action=next_action,
     )
 
 
