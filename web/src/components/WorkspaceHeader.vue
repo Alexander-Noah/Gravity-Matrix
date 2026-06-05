@@ -1,14 +1,16 @@
 <script setup>
 defineProps({
+  description: { type: String, default: '从小说到剧本，只需几步' },
   iconPaths: { type: Object, required: true },
+  title: { type: String, default: '小说转剧本工作台' },
 })
 </script>
 
 <template>
   <header class="workspace-header">
     <div class="title-block">
-      <h1>小说转剧本工作台</h1>
-      <p>从小说到剧本，只需几步</p>
+      <h1>{{ title }}</h1>
+      <p>{{ description }}</p>
     </div>
 
     <div class="top-actions" aria-label="快捷操作">

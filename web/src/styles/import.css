@@ -1,0 +1,227 @@
+.import-workspace {
+  display: grid;
+  grid-template-columns: minmax(420px, 1.1fr) minmax(320px, 0.9fr);
+  gap: 22px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.import-card,
+.novel-preview-card {
+  min-width: 0;
+  padding: 20px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 730;
+}
+
+.status-pill.is-valid {
+  color: oklch(44% 0.1 165);
+  background: oklch(95% 0.035 165);
+}
+
+.status-pill.is-warning {
+  color: oklch(50% 0.12 55);
+  background: oklch(95% 0.04 65);
+}
+
+.import-source-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.75fr) minmax(280px, 1.25fr);
+  gap: 16px;
+  padding: 18px 0;
+}
+
+.upload-dropzone {
+  display: grid;
+  min-height: 260px;
+  align-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 22px;
+  border: 1px dashed oklch(78% 0.08 285);
+  border-radius: 10px;
+  color: var(--text-muted);
+  background: var(--primary-faint);
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.upload-dropzone:hover {
+  border-color: var(--primary);
+  background: oklch(96% 0.032 285);
+  transform: translateY(-1px);
+}
+
+.upload-dropzone input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.upload-dropzone svg {
+  width: 38px;
+  height: 38px;
+  fill: none;
+  stroke: var(--primary);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.upload-dropzone span {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 760;
+}
+
+.upload-dropzone strong,
+.upload-dropzone small {
+  max-width: 24ch;
+  color: var(--text-soft);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.paste-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.paste-panel span {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 730;
+}
+
+.paste-panel textarea {
+  width: 100%;
+  min-height: 260px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  background: var(--surface);
+  padding: 14px;
+  font: 13px/1.75 var(--font-sans);
+  outline: none;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.paste-panel textarea:focus {
+  border-color: oklch(72% 0.13 285);
+  box-shadow: 0 0 0 4px oklch(72% 0.15 285 / 0.14);
+}
+
+.inline-note {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.chapter-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 10px;
+  background: var(--surface-muted);
+}
+
+.chapter-summary div {
+  display: grid;
+  gap: 3px;
+}
+
+.chapter-summary span,
+.chapter-summary p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.chapter-summary strong {
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.chapter-list {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chapter-list li {
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.chapter-list strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.chapter-list span {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 18px;
+}
+
+.editor-tool:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+}
+
+.novel-preview {
+  height: 620px;
+  overflow: auto;
+  padding: 18px 2px 0;
+}
+
+.novel-preview p {
+  margin: 0 0 14px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.85;
+}

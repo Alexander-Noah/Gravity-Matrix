@@ -102,8 +102,6 @@ pytest
 
 如果没有配置大模型 API，后端会使用确定性的演示生成逻辑，保证评委本地可以跑通完整流程。配置 `LLM_API_KEY`、`LLM_BASE_URL` 和 `LLM_MODEL` 后，后端会优先调用 DeepSeek/OpenAI-compatible Chat Completions，并要求模型返回 JSON 对象，再由后端校验后转成剧本 YAML。模型返回为空、不是合法 JSON 或不符合剧本 Schema 时，会自动回退到确定性演示生成逻辑。
 
-质量诊断接口不会额外调用大模型，会基于现有 YAML Schema 和剧本结构输出 `score`、`grade`、`summary`、`strengths`、`findings` 等原始结构化结果，方便前端或作者继续判断需要打磨的位置。
-
 ## 配置说明
 
 `.env` 用于本地私密配置，不提交 GitHub。`.env.example` 提供字段模板：

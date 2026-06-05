@@ -1,0 +1,197 @@
+@media (max-width: 1100px) {
+  .app-layout {
+    display: block;
+    height: auto;
+    min-height: 100svh;
+    overflow: visible;
+  }
+
+  .main-wrapper,
+  .page-content {
+    height: auto;
+    overflow: visible;
+  }
+
+  .sidebar {
+    position: relative;
+    min-height: auto;
+    height: auto;
+    width: 100%;
+    flex-basis: auto;
+    padding: 22px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .brand {
+    margin-bottom: 22px;
+  }
+
+  .primary-nav {
+    grid-template-columns: repeat(5, minmax(110px, 1fr));
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .sidebar-spacer {
+    display: none;
+  }
+
+  .project-panel,
+  .actions-panel {
+    margin-top: 18px;
+  }
+
+  .page-content {
+    padding: 24px;
+  }
+
+  .workflow-sticky {
+    position: relative;
+    margin-bottom: 24px;
+    padding-bottom: 0;
+    background: transparent;
+  }
+
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .import-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-progress-card,
+  .analysis-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-metrics-row,
+  .dialogue-extract-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .novel-preview {
+    height: auto;
+    max-height: 520px;
+  }
+
+  .script-editor-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .structure-pane {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .preview-body {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .scene-preview {
+    border-right: 1px solid var(--border);
+  }
+
+  .subway-visual {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .workspace-header,
+  .top-actions {
+    align-items: stretch;
+  }
+
+  .workspace-header {
+    display: grid;
+  }
+
+  .top-actions {
+    display: grid;
+    grid-template-columns: 1fr 42px auto;
+  }
+
+  .workflow-stepper ol {
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-step {
+    min-height: 68px;
+  }
+
+  .workflow-step::before,
+  .workflow-step.is-current::after,
+  .step-arrow {
+    display: none;
+  }
+
+  .primary-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-metrics-row,
+  .dialogue-extract-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .import-source-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chapter-summary {
+    display: grid;
+  }
+
+  .insight-block div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .script-panel-header,
+  .editor-actions {
+    display: grid;
+  }
+
+  .editor-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .editor-tool {
+    width: 100%;
+  }
+
+  .preview-header {
+    align-items: stretch;
+    height: auto;
+    padding: 14px;
+  }
+
+  .preview-body,
+  .preview-header {
+    display: grid;
+  }
+
+  .preview-body {
+    grid-template-columns: 1fr;
+  }
+
+  .scene-preview {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .dialogue-preview {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .analysis-actions,
+  .analysis-action-group {
+    display: grid;
+  }
+}

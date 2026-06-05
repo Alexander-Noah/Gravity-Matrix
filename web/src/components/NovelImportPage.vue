@@ -1,0 +1,93 @@
+<script setup>
+defineProps({
+  chapterCount: { type: Number, required: true },
+  chapters: { type: Array, required: true },
+  fileName: { type: String, default: '' },
+  iconPaths: { type: Object, required: true },
+  importNotice: { type: String, default: '' },
+  isValid: { type: Boolean, required: true },
+  novelText: { type: String, required: true },
+})
+
+defineEmits(['file-upload', 'next', 'update:novelText'])
+</script>
+
+<template>
+  <div class="import-workspace">
+    <section class="work-card import-card" aria-labelledby="import-title">
+      <div class="work-card-header">
+        <div class="card-title">
+          <svg class="item-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path v-for="path in iconPaths.upload" :key="path" :d="path" />
+          </svg>
+          <h2 id="import-title">导入小说内容</h2>
+        </div>
+        <span class="status-pill" :class="isValid ? 'is-valid' : 'is-warning'">
+          {{ isValid ? '章节校验通过' : '至少需要 3 章' }}
+        </span>
+      </div>
+
+      <div class="import-source-grid">
+        <label class="upload-dropzone" for="novel-file">
+          <input id="novel-file" type="file" accept=".txt,.docx" @change="$emit('file-upload', $event)" />
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path v-for="path in iconPaths.file" :key="path" :d="path" />
+          </svg>
+          <span>上传 txt/docx 文件</span>
+          <strong>{{ fileName || '选择文件或拖入此处' }}</strong>
+          <small>静态原型中 txt 会读取正文，docx 仅记录文件名</small>
+        </label>
+
+        <label class="paste-panel">
+          <span>粘贴小说文本</span>
+          <textarea
+            :value="novelText"
+            rows="14"
+            spellcheck="false"
+            @input="$emit('update:novelText', $event.target.value)"
+          ></textarea>
+        </label>
+      </div>
+
+      <p v-if="importNotice" class="inline-note">{{ importNotice }}</p>
+
+      <div class="chapter-summary">
+        <div>
+          <span>自动识别章节</span>
+          <strong>{{ chapterCount }} 章</strong>
+        </div>
+        <p>{{ isValid ? '内容已满足进入 AI 解析的最低要求。' : '继续补充文本，系统需要至少 3 章才能进入 AI 解析。' }}</p>
+      </div>
+
+      <ul class="chapter-list" aria-label="章节列表">
+        <li v-for="chapter in chapters" :key="chapter.title">
+          <strong>{{ chapter.title }}</strong>
+          <span>{{ chapter.excerpt }}</span>
+        </li>
+      </ul>
+
+      <div class="import-actions">
+        <button class="editor-tool is-primary" type="button" :disabled="!isValid" @click="$emit('next')">
+          <span>下一步：AI解析</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
+          </svg>
+        </button>
+      </div>
+    </section>
+
+    <aside class="work-card novel-preview-card" aria-labelledby="novel-preview-title">
+      <div class="work-card-header">
+        <div class="card-title">
+          <svg class="item-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path v-for="path in iconPaths.text" :key="path" :d="path" />
+          </svg>
+          <h2 id="novel-preview-title">小说原文预览</h2>
+        </div>
+      </div>
+      <div class="novel-preview">
+        <p v-for="paragraph in novelText.split('\n').filter(Boolean)" :key="paragraph">{{ paragraph }}</p>
+      </div>
+    </aside>
+  </div>
+</template>
