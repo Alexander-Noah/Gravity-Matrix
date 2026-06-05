@@ -1,5 +1,11 @@
 export const appRoutes = [
   {
+    id: 'auth',
+    path: '/auth',
+    title: '登录注册',
+    description: '登录或创建账号，进入 AI 小说转剧本工作台',
+  },
+  {
     id: 'workbench',
     path: '/workbench',
     title: 'AI小说转剧本工作台',
@@ -31,7 +37,7 @@ export const appRoutes = [
   },
 ]
 
-export const defaultRoute = appRoutes[0]
+export const defaultRoute = appRoutes[1]
 
 export const getRouteById = (id) => appRoutes.find((route) => route.id === id) || defaultRoute
 

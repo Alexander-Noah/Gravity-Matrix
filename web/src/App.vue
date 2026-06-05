@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AddSceneDialog from './components/AddSceneDialog.vue'
 import AiAnalysisPage from './components/AiAnalysisPage.vue'
 import AppSidebar from './components/AppSidebar.vue'
+import AuthPage from './components/AuthPage.vue'
 import GenerationSettingsDialog from './components/GenerationSettingsDialog.vue'
 import HelpDocsPage from './components/HelpDocsPage.vue'
 import NovelImportPage from './components/NovelImportPage.vue'
@@ -68,6 +69,7 @@ const previewNotice = ref('')
 const selectedTemplateId = ref('')
 
 const activeRoute = computed(() => getRouteById(route.name))
+const isAuthRoute = computed(() => activeRoute.value.id === 'auth')
 const isWorkbenchRoute = computed(() => activeRoute.value.id === 'workbench')
 
 const activeNavItems = computed(() =>
@@ -191,6 +193,10 @@ const goToPage = (pageId) => {
   if (pageId === 'workbench') {
     activePage.value = 'import'
   }
+}
+
+const handleAuthenticated = () => {
+  router.push('/workbench')
 }
 
 const openProject = (project) => {
@@ -368,7 +374,9 @@ const handleFileUpload = async (event) => {
 </script>
 
 <template>
-  <div class="app-layout">
+  <AuthPage v-if="isAuthRoute" :icon-paths="iconPaths" @authenticated="handleAuthenticated" />
+
+  <div v-else class="app-layout">
     <AppSidebar :icon-paths="iconPaths" :nav-items="activeNavItems" :quick-actions="quickActions" @select="goToPage" />
 
     <main class="main-wrapper" aria-label="工作区">
