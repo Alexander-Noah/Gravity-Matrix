@@ -41,6 +41,53 @@ const insightItems = [
   { label: '建议剧本类型', value: '电视剧（30 集）' },
 ]
 
+const scriptChapters = [
+  {
+    title: '第 1 章 初入城市',
+    open: true,
+    scenes: [
+      { label: '场景 1-1 地铁站相遇', active: true },
+      { label: '场景 1-2 出租屋', active: false },
+      { label: '场景 1-3 公司面试', active: false },
+    ],
+  },
+  { title: '第 2 章 梦想启航', open: false, scenes: [] },
+  { title: '第 3 章 现实的挑战', open: false, scenes: [] },
+  { title: '第 4 章 友情的考验', open: false, scenes: [] },
+  { title: '第 5 章 破茧成蝶', open: false, scenes: [] },
+]
+
+const yamlLines = [
+  [{ text: 'script:', tone: 'key' }],
+  [{ text: 'title:', tone: 'key' }, { text: ' "星辰之下"', tone: 'string' }],
+  [{ text: 'original_novel:', tone: 'key' }, { text: ' "星辰之下"', tone: 'string' }],
+  [{ text: 'author:', tone: 'key' }, { text: ' "AI Script Studio"', tone: 'string' }],
+  [{ text: 'version:', tone: 'key' }, { text: ' "1.0"', tone: 'string' }],
+  [{ text: 'format:', tone: 'key' }, { text: ' "电视剧"', tone: 'string' }],
+  [{ text: 'total_chapters:', tone: 'key' }, { text: ' 5', tone: 'number' }],
+  [],
+  [{ text: 'characters:', tone: 'key' }],
+  [{ text: '  - id:', tone: 'key' }, { text: ' char_001', tone: 'value' }],
+  [{ text: '    name:', tone: 'key' }, { text: ' 林晓', tone: 'string' }],
+  [{ text: '    role:', tone: 'key' }, { text: ' 主角', tone: 'value' }],
+  [{ text: '    gender:', tone: 'key' }, { text: ' 女', tone: 'value' }],
+  [{ text: '    age:', tone: 'key' }, { text: ' 24', tone: 'number' }],
+  [{ text: '    description:', tone: 'key' }, { text: ' 怀揣音乐梦想的年轻人', tone: 'string' }],
+  [],
+  [{ text: 'chapters:', tone: 'key' }],
+  [{ text: '  - id:', tone: 'key' }, { text: ' ch_001', tone: 'value' }],
+  [{ text: '    title:', tone: 'key' }, { text: ' 初入城市', tone: 'string' }],
+  [{ text: '    summary:', tone: 'key' }, { text: ' 林晓来到大城市，开始新的生活与挑战', tone: 'string' }],
+  [{ text: '    scenes:', tone: 'key' }],
+  [{ text: '      - id:', tone: 'key' }, { text: ' sc_001_001', tone: 'value' }],
+  [{ text: '        title:', tone: 'key' }, { text: ' 地铁站相遇', tone: 'string' }],
+  [{ text: '        location:', tone: 'key' }, { text: ' 地铁站', tone: 'value' }],
+  [{ text: '        time:', tone: 'key' }, { text: ' 傍晚', tone: 'value' }],
+  [{ text: '        characters:', tone: 'key' }],
+  [{ text: '          - char_001', tone: 'value' }],
+  [{ text: '          - char_002', tone: 'value' }],
+]
+
 const iconPaths = {
   home: ['M3.5 10.5 12 3.75l8.5 6.75', 'M5.75 9.5v9.25h12.5V9.5', 'M9.5 18.75v-5h5v5'],
   folder: ['M3.75 6.5h6l1.6 2h8.9v9.75H3.75z', 'M3.75 8.5h16.5'],
@@ -59,6 +106,11 @@ const iconPaths = {
   scene: ['M4.25 17.75V6.25h15.5v11.5z', 'm7 14 3.25-3.5 2.2 2.35 1.55-1.65 2.75 2.8', 'M8.25 9.25h.01'],
   chapter: ['M6 4.75h9.75L18 7v12.25H6z', 'M15.75 4.75V7H18', 'M8.75 10.25h6.5', 'M8.75 13.25h6.5', 'M8.75 16.25h4.25'],
   conflict: ['M12 4.5 20.25 18.75H3.75z', 'M12 9v3.75', 'M12 15.75h.01'],
+  format: ['M5.25 6.75h13.5', 'M5.25 11.25h8.5', 'M5.25 15.75h13.5', 'M16 9.5l2.75 2.75L16 15'],
+  copy: ['M8 8h10.25v10.25H8z', 'M5.75 15.75h-1.5v-12h12v1.5'],
+  download: ['M12 4.75v9', 'M8.25 10.25 12 14l3.75-3.75', 'M5 18.75h14'],
+  plus: ['M12 5.75v12.5', 'M5.75 12h12.5'],
+  more: ['M7.25 12h.01', 'M12 12h.01', 'M16.75 12h.01'],
   arrow: ['M9 5.75 15.25 12 9 18.25'],
 }
 </script>
@@ -293,11 +345,90 @@ const iconPaths = {
           </section>
         </div>
 
-        <div class="main-placeholder" aria-hidden="true">
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
+        <section class="script-panel" aria-labelledby="script-title">
+          <div class="script-panel-header">
+            <div>
+              <h2 id="script-title">生成的剧本（YAML）</h2>
+              <span>自动保存中...</span>
+            </div>
+            <div class="editor-actions" aria-label="剧本操作">
+              <button class="editor-tool" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path v-for="path in iconPaths.format" :key="path" :d="path" />
+                </svg>
+                <span>格式说明</span>
+              </button>
+              <button class="editor-tool is-safe" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path v-for="path in iconPaths.shield" :key="path" :d="path" />
+                </svg>
+                <span>校验</span>
+              </button>
+              <button class="editor-tool" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path v-for="path in iconPaths.copy" :key="path" :d="path" />
+                </svg>
+                <span>复制</span>
+              </button>
+              <button class="editor-tool is-primary" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path v-for="path in iconPaths.download" :key="path" :d="path" />
+                </svg>
+                <span>导出</span>
+                <svg class="button-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                  <path v-for="path in iconPaths.chevron" :key="path" :d="path" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="script-editor-layout">
+            <aside class="structure-pane" aria-label="剧本结构">
+              <div class="structure-heading">
+                <h3>剧本结构</h3>
+                <button class="icon-button" type="button" aria-label="更多结构操作">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path v-for="path in iconPaths.more" :key="path" :d="path" />
+                  </svg>
+                </button>
+              </div>
+
+              <ul class="chapter-tree">
+                <li v-for="chapter in scriptChapters" :key="chapter.title" :class="{ 'is-open': chapter.open }">
+                  <button class="chapter-row" type="button">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path v-for="path in iconPaths.chevron" :key="path" :d="path" />
+                    </svg>
+                    <span>{{ chapter.title }}</span>
+                  </button>
+                  <ul v-if="chapter.scenes.length" class="scene-list">
+                    <li v-for="scene in chapter.scenes" :key="scene.label">
+                      <button class="scene-row" :class="{ 'is-active': scene.active }" type="button">
+                        {{ scene.label }}
+                      </button>
+                    </li>
+                  </ul>
+                </li>
+              </ul>
+
+              <button class="add-scene-button" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path v-for="path in iconPaths.plus" :key="path" :d="path" />
+                </svg>
+                <span>添加场景</span>
+              </button>
+            </aside>
+
+            <div class="code-pane" aria-label="YAML 剧本文档">
+              <button class="code-more" type="button" aria-label="更多编辑器操作">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path v-for="path in iconPaths.more" :key="path" :d="path" />
+                </svg>
+              </button>
+              <pre><code><span v-for="(line, index) in yamlLines" :key="index" class="code-line"><span class="line-number">{{ index + 1 }}</span><span class="line-content"><template v-for="(token, tokenIndex) in line" :key="`${index}-${tokenIndex}`"><span :class="`yaml-${token.tone}`">{{ token.text }}</span></template></span></span></code></pre>
+            </div>
+          </div>
+        </section>
       </div>
     </main>
   </div>
