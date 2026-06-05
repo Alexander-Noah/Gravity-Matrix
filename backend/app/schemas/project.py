@@ -42,6 +42,15 @@ class ProjectListRead(BaseModel):
     offset: int
 
 
+class ProjectReadinessRead(BaseModel):
+    project_id: int
+    can_analyze: bool
+    can_generate_script: bool
+    can_export: bool
+    missing_steps: list[str] = Field(default_factory=list)
+    next_action: str
+
+
 class ProjectDetail(ProjectRead):
     chapters: list[ChapterRead]
 

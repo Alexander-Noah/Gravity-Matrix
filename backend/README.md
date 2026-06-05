@@ -97,6 +97,7 @@ pytest
 - `GET /api/v1/projects`：分页获取项目列表。
 - `POST /api/v1/projects`：创建小说改编项目，至少需要 3 个章节。
 - `GET /api/v1/projects/{project_id}`：获取项目详情。
+- `GET /api/v1/projects/{project_id}/readiness`：获取项目下一步操作和可用能力。
 - `POST /api/v1/projects/{project_id}/analysis-jobs`：启动 AI 解析任务。
 - `GET /api/v1/projects/{project_id}/analysis`：获取 AI 解析结果。
 - `GET /api/v1/projects/{project_id}/workbench`：获取前端工作台接入数据。
