@@ -204,6 +204,7 @@ def test_create_project_and_generate_script() -> None:
     assert analysis_response.status_code == 202
     analysis_job = client.get(f"/api/v1/jobs/{analysis_response.json()['id']}")
     assert analysis_job.json()["status"] == "succeeded"
+    assert analysis_job.json()["current_step"] == "AI 解析完成"
 
     analysis = client.get(f"/api/v1/projects/{project_id}/analysis")
     assert analysis.status_code == 200
@@ -216,6 +217,7 @@ def test_create_project_and_generate_script() -> None:
     assert script_response.status_code == 202
     script_job = client.get(f"/api/v1/jobs/{script_response.json()['id']}")
     assert script_job.json()["status"] == "succeeded"
+    assert script_job.json()["current_step"] == "剧本生成完成"
 
     screenplay = client.get(f"/api/v1/projects/{project_id}/script")
     assert screenplay.status_code == 200
