@@ -6,6 +6,7 @@ defineProps({
   schemaValidation: { type: Object, required: true },
   statusNotice: { type: String, default: '' },
   yamlLines: { type: Array, required: true },
+  saveStatus: { type: String, default: '' },
 })
 
 defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'previous', 'validate-yaml'])
@@ -17,7 +18,7 @@ defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-sc
       <div class="script-panel-header">
         <div>
           <h2 id="script-title">生成的剧本（YAML）</h2>
-          <span>自动保存中...</span>
+          <span v-if="saveStatus" :class="{ 'is-error': saveStatus === '保存失败' }">{{ saveStatus }}</span>
         </div>
         <div class="editor-actions" aria-label="剧本操作">
           <button class="editor-tool" type="button" @click="$emit('previous')">

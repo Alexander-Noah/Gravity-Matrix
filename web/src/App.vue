@@ -11,6 +11,7 @@ import {
   getProjectScript,
   getProjectWorkbench,
   listProjects,
+  saveProjectScript,
   startAnalysisJob,
   startScriptJob,
   validateProjectScript,
@@ -84,6 +85,7 @@ const generatedScriptYaml = ref('')
 const schemaValidation = ref(schemaValidationMock)
 const editorNotice = ref('')
 const previewNotice = ref('')
+const saveStatus = ref('')
 const selectedTemplateId = ref('')
 const currentUser = ref(getAuthSession().user)
 const isProfileCenterOpen = ref(false)
@@ -800,6 +802,36 @@ const validateYaml = async () => {
   }
 }
 
+let saveTimeout = null
+let isInitialLoad = true
+
+const autoSaveScript = async () => {
+  if (!currentProjectId.value || !generatedYamlText.value) return
+  
+  saveStatus.value = '自动保存中...'
+  
+  try {
+    await saveProjectScript(currentProjectId.value, generatedYamlText.value)
+    saveStatus.value = `已保存 ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
+  } catch (error) {
+    saveStatus.value = '保存失败'
+    editorNotice.value = '自动保存失败：' + getApiErrorMessage(error)
+  }
+}
+
+watch(generatedYamlText, (newVal, oldVal) => {
+  if (oldVal === newVal) return
+  if (isInitialLoad) {
+    isInitialLoad = false
+    return
+  }
+  
+  if (saveTimeout) clearTimeout(saveTimeout)
+  saveTimeout = setTimeout(() => {
+    autoSaveScript()
+  }, 1500)
+}, { deep: true })
+
 const copyYaml = async () => {
   if (!navigator.clipboard) {
     editorNotice.value = '当前浏览器不支持剪贴板 API。'
@@ -1006,6 +1038,7 @@ const handleFileUpload = async (event) => {
               :script-chapters="displayedScriptChapters"
               :status-notice="editorNotice"
               :yaml-lines="generatedYamlLines"
+              :save-status="saveStatus"
               @add-scene="openAddScene"
               @copy-yaml="copyYaml"
               @download-yaml="downloadYaml"

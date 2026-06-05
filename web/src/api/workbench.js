@@ -60,6 +60,12 @@ export const validateProjectScript = async (projectId, yaml) => {
   return response.data
 }
 
+export const saveProjectScript = async (projectId, yaml) => {
+  const response = await http.put(`/projects/${projectId}/script`, { yaml })
+
+  return response.data
+}
+
 export const diagnoseProjectScriptDraft = async (projectId, yaml) => {
   const response = await http.post(`/projects/${projectId}/script/diagnosis`, { yaml })
 
