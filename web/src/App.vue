@@ -1,5 +1,4 @@
 <script setup>
-import jsyaml from 'js-yaml'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { clearAuthSession, getAuthSession } from './api/auth'
@@ -7,12 +6,9 @@ import { getApiErrorMessage } from './api/http'
 import {
   createProject,
   diagnoseProjectScriptDraft,
-  diagnoseStoredScript,
-  exportProjectScript,
   getJob,
-  getProject,
-  getProjectAnalysis,
   getProjectReadiness,
+  getProjectAnalysis,
   getProjectScript,
   getProjectWorkbench,
   listProjects,
@@ -20,6 +16,11 @@ import {
   startAnalysisJob,
   startScriptJob,
   validateProjectScript,
+  updateGenerationSettings,
+  rerunAnalysisJob,
+  addProjectScene,
+  exportProjectMarkdown,
+  exportProjectTxt,
 } from './api/workbench'
 import AddSceneDialog from './components/AddSceneDialog.vue'
 import AiAnalysisPage from './components/AiAnalysisPage.vue'
@@ -40,17 +41,34 @@ import TemplateCenterPage from './components/TemplateCenterPage.vue'
 import WorkflowStepper from './components/WorkflowStepper.vue'
 import WorkspaceHeader from './components/WorkspaceHeader.vue'
 import {
+  analysisCharacters,
+  analysisMetrics,
+  analysisScenes,
   analysisWorkflowSteps,
+  characterRelations,
+  defaultNovelText,
+  dialogueExtracts,
   generationSettingOptions,
   iconPaths,
   importWorkflowSteps,
+  insightItems,
   navItems,
+  plotEvents,
+  previewDialogues,
   previewWorkflowSteps,
+  projectActivities,
+  projectCards,
+  projectStages,
+  projectStats,
   productHelpDocs,
   quickActions,
   schemaHelpContent,
   schemaValidationMock,
   scriptGenerationTemplates,
+  scriptChapters,
+  scriptLibraryItems,
+  scriptLibraryStats,
+  scriptPreviewScenes,
   workflowSteps,
   yamlLines,
 } from './data/workbench'
@@ -59,7 +77,7 @@ import { getRouteById } from './router/routes'
 const route = useRoute()
 const router = useRouter()
 const activePage = ref('import')
-const novelText = ref('')
+const novelText = ref(defaultNovelText)
 const selectedFileName = ref('')
 const importNotice = ref('')
 const analysisProgress = ref(100)
@@ -73,23 +91,21 @@ const generatedScriptYaml = ref('')
 const schemaValidation = ref(schemaValidationMock)
 const editorNotice = ref('')
 const previewNotice = ref('')
-const saveStatus = ref('')
 const selectedTemplateId = ref('')
 const currentUser = ref(getAuthSession().user)
 const isProfileCenterOpen = ref(false)
-const displayedAnalysisCharacters = ref([])
-const displayedAnalysisMetrics = ref([])
-const displayedAnalysisScenes = ref([])
-const displayedPlotEvents = ref([])
-const displayedCharacterRelations = ref([])
-const displayedDialogueExtracts = ref([])
-const displayedScriptChapters = ref([])
-const displayedProjectCards = ref([])
-const displayedProjectStats = ref([])
-const displayedProjectActivities = ref([])
-const displayedLibraryItems = ref([])
-const displayedLibraryStats = ref([])
-const displayedInsightItems = ref([])
+const displayedAnalysisCharacters = ref(analysisCharacters)
+const displayedAnalysisMetrics = ref(analysisMetrics)
+const displayedAnalysisScenes = ref(analysisScenes)
+const displayedPlotEvents = ref(plotEvents)
+const displayedCharacterRelations = ref(characterRelations)
+const displayedDialogueExtracts = ref(dialogueExtracts)
+const displayedScriptChapters = ref(scriptChapters)
+const displayedProjectCards = ref(projectCards)
+const displayedProjectStats = ref(projectStats)
+const displayedProjectActivities = ref(projectActivities)
+const displayedLibraryItems = ref(scriptLibraryItems)
+const displayedLibraryStats = ref(scriptLibraryStats)
 
 const activeRoute = computed(() => getRouteById(route.name))
 const isAuthRoute = computed(() => activeRoute.value.id === 'auth')
@@ -314,7 +330,7 @@ const applyLibraryResult = (items) => {
   const completedCount = items.filter((item) => item.status === '已完成').length
   const exportedCount = items.filter((item) => item.status === '已导出').length
 
-  displayedLibraryItems.value = items
+  displayedLibraryItems.value = items.length ? items : scriptLibraryItems
   displayedLibraryStats.value = [
     { label: '全部剧本', value: String(items.length), note: '来自后端已生成项目', tone: 'violet' },
     { label: '编辑中', value: String(editingCount), note: '已保存 YAML 草稿', tone: 'blue' },
@@ -349,13 +365,13 @@ const fetchProjects = async () => {
     const result = await listProjects()
     applyProjectsResult(result)
   } catch (error) {
-    displayedProjectCards.value = []
     displayedProjectActivities.value = [
       {
         title: getApiErrorMessage(error),
         time: '刚刚',
         status: '加载失败',
       },
+      ...projectActivities,
     ]
   }
 }
@@ -377,8 +393,8 @@ const fetchScriptLibrary = async () => {
 
     applyLibraryResult(items)
   } catch {
-    displayedLibraryItems.value = []
-    displayedLibraryStats.value = []
+    displayedLibraryItems.value = scriptLibraryItems
+    displayedLibraryStats.value = scriptLibraryStats
   }
 }
 
@@ -426,11 +442,11 @@ const generatedYamlLines = computed(() => {
   }
 
   if (!generatedSettings.value) {
-    return []
+    return yamlLines
   }
 
   return [
-    [{ text: 'script:', tone: 'key' }],
+    ...yamlLines.slice(0, 6),
     [{ text: 'generation_settings:', tone: 'key' }],
     [{ text: '  script_type:', tone: 'key' }, { text: ` ${generatedSettings.value.scriptType}`, tone: 'string' }],
     [{ text: '  adaptation_style:', tone: 'key' }, { text: ` ${generatedSettings.value.adaptationStyle}`, tone: 'string' }],
@@ -439,74 +455,15 @@ const generatedYamlLines = computed(() => {
       { text: '    -', tone: 'key' },
       { text: ` ${option}`, tone: 'value' },
     ]),
+    [],
+    ...yamlLines.slice(6),
   ]
 })
 const generatedYamlText = computed(() =>
   generatedScriptYaml.value || generatedYamlLines.value.map((line) => line.map((token) => token.text).join('')).join('\n'),
 )
-const parsedScriptData = computed(() => {
-  if (!generatedScriptYaml.value) return null
-  try {
-    return jsyaml.load(generatedScriptYaml.value)
-  } catch (e) {
-    return null
-  }
-})
-
-const scriptPreviewScenes = computed(() => {
-  const data = parsedScriptData.value
-  if (!data || !data.script || !data.script.chapters) return []
-
-  const charsDict = {}
-  if (data.script.characters) {
-    data.script.characters.forEach(c => {
-      charsDict[c.id] = c.name
-    })
-  }
-  const locsDict = {}
-  if (data.script.locations) {
-    data.script.locations.forEach(l => {
-      locsDict[l.id] = l.name
-    })
-  }
-
-  const scenes = []
-  data.script.chapters.forEach(chapter => {
-    if (!chapter.scenes) return
-    chapter.scenes.forEach(scene => {
-      const charNames = (scene.characters || []).map(id => charsDict[id] || id)
-      const locName = locsDict[scene.location_id] || scene.location_id || '未知地点'
-      scenes.push({
-        title: scene.title || '未知场景',
-        meta: `内景 / ${locName} / ${scene.time === 'day' ? '日' : scene.time === 'night' ? '夜' : '傍晚'}`,
-        characters: charNames,
-        action: (scene.stage_directions || []).join('\n') || scene.synopsis || '',
-        dialogues: (scene.dialogue || []).map(d => ({
-          speaker: d.speaker_name || charsDict[d.speaker_id] || d.speaker_id,
-          line: d.line
-        }))
-      })
-    })
-  })
-  return scenes
-})
-
-const previewDialogues = computed(() => {
-  const dialogues = []
-  scriptPreviewScenes.value.forEach(scene => {
-    if (scene.dialogues) {
-      scene.dialogues.forEach(d => dialogues.push({
-        speaker: d.speaker,
-        note: '',
-        line: d.line
-      }))
-    }
-  })
-  return dialogues
-})
-
 const scriptTextPreview = computed(() =>
-  scriptPreviewScenes.value
+  scriptPreviewScenes
     .map((scene) => {
       const cast = `出场人物：${scene.characters.join('、')}`
       const dialogues = scene.dialogues.map((dialogue) => `${dialogue.speaker}\n${dialogue.line}`).join('\n\n')
@@ -516,7 +473,7 @@ const scriptTextPreview = computed(() =>
     .join('\n\n---\n\n'),
 )
 const markdownPreview = computed(() =>
-  scriptPreviewScenes.value
+  scriptPreviewScenes
     .map((scene) => {
       const dialogues = scene.dialogues.map((dialogue) => `**${dialogue.speaker}**\n\n${dialogue.line}`).join('\n\n')
 
@@ -560,26 +517,32 @@ const applyAnalysisResult = (analysis) => {
   const conflicts = raw.conflicts || []
   const themes = raw.themes || []
 
-  displayedAnalysisCharacters.value = characters.map((character, index) => ({
-    name: character.name || `人物 ${index + 1}`,
-    role: character.role || '角色',
-    age: character.age ?? '-',
-    trait: character.description || '等待作者继续补充人物说明',
-  }))
+  displayedAnalysisCharacters.value = characters.length
+    ? characters.map((character, index) => ({
+      name: character.name || `人物 ${index + 1}`,
+      role: character.role || '角色',
+      age: character.age ?? '-',
+      trait: character.description || '等待作者继续补充人物说明',
+    }))
+    : analysisCharacters
 
-  displayedAnalysisScenes.value = locations.map((location, index) => ({
-    title: location.name || `场景 ${index + 1}`,
-    chapter: `第${index + 1}章`,
-    time: '待定',
-    mood: location.description || '由 AI 根据章节内容识别',
-  }))
+  displayedAnalysisScenes.value = locations.length
+    ? locations.map((location, index) => ({
+      title: location.name || `场景 ${index + 1}`,
+      chapter: `第${index + 1}章`,
+      time: '待定',
+      mood: location.description || '由 AI 根据章节内容识别',
+    }))
+    : analysisScenes
 
-  displayedPlotEvents.value = chapterSummaries.map((chapter, index) => ({
-    step: String(index + 1).padStart(2, '0'),
-    chapter: `第${chapter.chapter_number || index + 1}章`,
-    title: chapter.title || `章节事件 ${index + 1}`,
-    detail: chapter.summary || '等待 AI 补充章节摘要',
-  }))
+  displayedPlotEvents.value = chapterSummaries.length
+    ? chapterSummaries.map((chapter, index) => ({
+      step: String(index + 1).padStart(2, '0'),
+      chapter: `第${chapter.chapter_number || index + 1}章`,
+      title: chapter.title || `章节事件 ${index + 1}`,
+      detail: chapter.summary || '等待 AI 补充章节摘要',
+    }))
+    : plotEvents
 
   displayedAnalysisMetrics.value = [
     { label: '人物', value: String(characters.length), icon: 'users', tone: 'violet' },
@@ -590,21 +553,16 @@ const applyAnalysisResult = (analysis) => {
 
   displayedCharacterRelations.value = characters.length >= 2
     ? [
-        {
-          source: characters[0].name || '主角',
-          target: characters[1].name || '重要人物',
-          relation: '主要关系',
-          note: conflicts[0] || themes.join('、') || '可在后续剧本编辑中继续细化人物关系。',
-        },
-      ]
-    : []
+      {
+        source: characters[0].name || '主角',
+        target: characters[1].name || '重要人物',
+        relation: '主要关系',
+        note: conflicts[0] || themes.join('、') || '可在后续剧本编辑中继续细化人物关系。',
+      },
+    ]
+    : characterRelations
 
-  displayedDialogueExtracts.value = []
-
-  displayedInsightItems.value = [
-    { label: '核心主题', value: themes.length ? themes.join('、') : '暂无数据' },
-    { label: '核心冲突', value: conflicts.length ? conflicts.join('、') : '暂无数据' },
-  ]
+  displayedDialogueExtracts.value = dialogueExtracts
 }
 
 const goToPage = (pageId) => {
@@ -653,7 +611,6 @@ const openProject = async (project) => {
   }
 
   try {
-    const readiness = await getProjectReadiness(currentProjectId.value)
     const workbench = await getProjectWorkbench(currentProjectId.value)
 
     if (workbench.analysis?.raw) {
@@ -662,7 +619,7 @@ const openProject = async (project) => {
 
     applyWorkbenchScript(workbench)
 
-    if (readiness.can_export || workbench.project.has_script) {
+    if (workbench.project.has_script) {
       activePage.value = 'script'
       return
     }
@@ -766,14 +723,23 @@ const goBackToAnalysis = () => {
   activePage.value = 'analysis'
 }
 
-const rerunAnalysis = () => {
-  analysisProgress.value = 36
-  analysisNotice.value = '正在重新解析小说内容...'
+const rerunAnalysis = async () => {
+  if (!currentProjectId.value) return
+  analysisProgress.value = 10
+  analysisNotice.value = '正在请求后端重新解析小说内容...'
 
-  window.setTimeout(() => {
+  try {
+    const job = await rerunAnalysisJob(currentProjectId.value)
+    analysisNotice.value = job.current_step || '重新解析任务已启动...'
+    analysisProgress.value = job.progress || 30
+    await waitForJob(job.id)
+    const analysis = await getProjectAnalysis(currentProjectId.value)
+    applyAnalysisResult(analysis)
     analysisProgress.value = 100
-    analysisNotice.value = '重新解析完成，结果已刷新。'
-  }, 450)
+    analysisNotice.value = '重新解析完成，结果已从后端同步。'
+  } catch (error) {
+    analysisNotice.value = getApiErrorMessage(error)
+  }
 }
 
 const openGenerationSettings = () => {
@@ -793,6 +759,7 @@ const confirmGenerationSettings = async (settings) => {
   }
 
   try {
+    await updateGenerationSettings(currentProjectId.value, settings)
     const job = await startScriptJob(currentProjectId.value)
     editorNotice.value = job.current_step || '剧本生成任务已启动。'
 
@@ -815,9 +782,22 @@ const openAddScene = () => {
   isAddSceneOpen.value = true
 }
 
-const confirmAddScene = (sceneDraft) => {
+const confirmAddScene = async (sceneDraft) => {
   isAddSceneOpen.value = false
-  editorNotice.value = `${sceneDraft.sceneTitle} 已加入场景草稿，后续可写入 YAML。`
+  if (!currentProjectId.value) {
+    editorNotice.value = `${sceneDraft.sceneTitle} 已加入场景草稿，后续可写入 YAML。`
+    return
+  }
+
+  try {
+    editorNotice.value = `正在将场景 ${sceneDraft.sceneTitle} 提交至后端...`
+    await addProjectScene(currentProjectId.value, sceneDraft)
+    const workbench = await getProjectWorkbench(currentProjectId.value)
+    applyWorkbenchScript(workbench)
+    editorNotice.value = `场景 ${sceneDraft.sceneTitle} 已成功保存。`
+  } catch (error) {
+    editorNotice.value = `场景保存失败：${getApiErrorMessage(error)}`
+  }
 }
 
 const validateYaml = async () => {
@@ -850,36 +830,6 @@ const validateYaml = async () => {
   }
 }
 
-let saveTimeout = null
-let isInitialLoad = true
-
-const autoSaveScript = async () => {
-  if (!currentProjectId.value || !generatedYamlText.value) return
-  
-  saveStatus.value = '自动保存中...'
-  
-  try {
-    await saveProjectScript(currentProjectId.value, generatedYamlText.value)
-    saveStatus.value = `已保存 ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
-  } catch (error) {
-    saveStatus.value = '保存失败'
-    editorNotice.value = '自动保存失败：' + getApiErrorMessage(error)
-  }
-}
-
-watch(generatedYamlText, (newVal, oldVal) => {
-  if (oldVal === newVal) return
-  if (isInitialLoad) {
-    isInitialLoad = false
-    return
-  }
-  
-  if (saveTimeout) clearTimeout(saveTimeout)
-  saveTimeout = setTimeout(() => {
-    autoSaveScript()
-  }, 1500)
-}, { deep: true })
-
 const copyYaml = async () => {
   if (!navigator.clipboard) {
     editorNotice.value = '当前浏览器不支持剪贴板 API。'
@@ -894,24 +844,7 @@ const copyYaml = async () => {
   }
 }
 
-const downloadYaml = async () => {
-  if (currentProjectId.value) {
-    try {
-      editorNotice.value = '正在向服务端请求导出 YAML...'
-      const blob = await exportProjectScript(currentProjectId.value)
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `project-${currentProjectId.value}-screenplay.yaml`
-      link.click()
-      URL.revokeObjectURL(url)
-      editorNotice.value = '服务端 YAML 文件下载完成。'
-    } catch (error) {
-      editorNotice.value = '下载失败：' + getApiErrorMessage(error)
-    }
-    return
-  }
-
+const downloadYaml = () => {
   const blob = new Blob([generatedYamlText.value], { type: 'text/yaml;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
@@ -947,41 +880,58 @@ const downloadTextFile = (content, filename, type) => {
   URL.revokeObjectURL(url)
 }
 
-const exportPreviewYaml = async () => {
+const exportPreviewYaml = () => {
+  downloadTextFile(generatedYamlText.value, 'generated-script.yaml', 'text/yaml;charset=utf-8')
+  previewNotice.value = 'YAML 文件已开始下载。'
+}
+
+const exportPreviewMarkdown = async () => {
   if (currentProjectId.value) {
     try {
-      previewNotice.value = '正在向服务端请求导出 YAML...'
-      const blob = await exportProjectScript(currentProjectId.value)
+      previewNotice.value = '正在向服务端请求导出 Markdown...'
+      const blob = await exportProjectMarkdown(currentProjectId.value)
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `project-${currentProjectId.value}-screenplay.yaml`
+      link.download = `project-${currentProjectId.value}-script.md`
       link.click()
       URL.revokeObjectURL(url)
-      previewNotice.value = '服务端 YAML 文件下载完成。'
+      previewNotice.value = '服务端 Markdown 文件下载完成。'
     } catch (error) {
       previewNotice.value = '下载失败：' + getApiErrorMessage(error)
     }
     return
   }
 
-  downloadTextFile(generatedYamlText.value, 'generated-script.yaml', 'text/yaml;charset=utf-8')
-  previewNotice.value = 'YAML 文件已开始下载。'
-}
-
-const exportPreviewTxt = () => {
-  downloadTextFile(scriptTextPreview.value, 'script-preview.txt', 'text/plain;charset=utf-8')
-  previewNotice.value = 'TXT 文件已开始下载。'
-}
-
-const exportPreviewMarkdown = () => {
-  downloadTextFile(markdownPreview.value, 'script-preview.md', 'text/markdown;charset=utf-8')
+  downloadTextFile(markdownPreview.value, 'generated-script.md', 'text/markdown;charset=utf-8')
   previewNotice.value = 'Markdown 文件已开始下载。'
 }
 
 const exportPreviewPdf = () => {
   previewNotice.value = '正在打开浏览器打印窗口，可选择另存为 PDF。'
   window.print()
+}
+
+const exportPreviewTxt = async () => {
+  if (currentProjectId.value) {
+    try {
+      previewNotice.value = '正在向服务端请求导出 TXT...'
+      const blob = await exportProjectTxt(currentProjectId.value)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `project-${currentProjectId.value}-script.txt`
+      link.click()
+      URL.revokeObjectURL(url)
+      previewNotice.value = '服务端 TXT 文件下载完成。'
+    } catch (error) {
+      previewNotice.value = '下载失败：' + getApiErrorMessage(error)
+    }
+    return
+  }
+
+  downloadTextFile(scriptTextPreview.value, 'generated-script.txt', 'text/plain;charset=utf-8')
+  previewNotice.value = 'TXT 文件已开始下载。'
 }
 
 const handleFileUpload = async (event) => {
@@ -1011,44 +961,21 @@ const handleFileUpload = async (event) => {
 
     <main class="main-wrapper" aria-label="工作区">
       <div class="page-content">
-        <WorkspaceHeader
-          :description="pageDescription"
-          :icon-paths="iconPaths"
-          :title="pageTitle"
-          @logout="logout"
-          @open-profile="openProfileCenter"
-        />
-        <ProjectsPage
-          v-if="activeRoute.id === 'projects'"
-          :activities="displayedProjectActivities"
-          :icon-paths="iconPaths"
-          :projects="displayedProjectCards"
-          :stats="displayedProjectStats"
-          @open-project="openProject"
-        />
+        <WorkspaceHeader :description="pageDescription" :icon-paths="iconPaths" :title="pageTitle" @logout="logout"
+          @open-profile="openProfileCenter" />
+        <ProjectsPage v-if="activeRoute.id === 'projects'" :activities="displayedProjectActivities"
+          :icon-paths="iconPaths" :projects="displayedProjectCards" :stats="displayedProjectStats"
+          @open-project="openProject" />
 
-        <TemplateCenterPage
-          v-else-if="activeRoute.id === 'templates'"
-          :icon-paths="iconPaths"
-          :selected-template-id="selectedTemplateId"
-          :templates="scriptGenerationTemplates"
-          @select-template="selectGenerationTemplate"
-        />
+        <TemplateCenterPage v-else-if="activeRoute.id === 'templates'" :icon-paths="iconPaths"
+          :selected-template-id="selectedTemplateId" :templates="scriptGenerationTemplates"
+          @select-template="selectGenerationTemplate" />
 
-        <ScriptLibraryPage
-          v-else-if="activeRoute.id === 'library'"
-          :icon-paths="iconPaths"
-          :scripts="displayedLibraryItems"
-          :stats="displayedLibraryStats"
-          @edit-script="editLibraryScript"
-          @preview-script="previewLibraryScript"
-        />
+        <ScriptLibraryPage v-else-if="activeRoute.id === 'library'" :icon-paths="iconPaths"
+          :scripts="displayedLibraryItems" :stats="displayedLibraryStats" @edit-script="editLibraryScript"
+          @preview-script="previewLibraryScript" />
 
-        <HelpDocsPage
-          v-else-if="activeRoute.id === 'help'"
-          :content="productHelpDocs"
-          :icon-paths="iconPaths"
-        />
+        <HelpDocsPage v-else-if="activeRoute.id === 'help'" :content="productHelpDocs" :icon-paths="iconPaths" />
 
         <ProductRoutePage v-else-if="!isWorkbenchRoute" :icon-paths="iconPaths" :route="activeRoute" />
 
@@ -1057,100 +984,42 @@ const handleFileUpload = async (event) => {
             <WorkflowStepper :icon-paths="iconPaths" :steps="currentWorkflowSteps" />
           </div>
 
-          <NovelImportPage
-            v-if="activePage === 'import'"
-            v-model:novel-text="novelText"
-            :chapter-count="chapterCount"
-            :chapters="detectedChapters"
-            :file-name="selectedFileName"
-            :icon-paths="iconPaths"
-            :import-notice="importNotice"
-            :is-submitting="isImportSubmitting"
-            :is-valid="isNovelValid"
-            @file-upload="handleFileUpload"
-            @next="goToAnalysis"
-          />
+          <NovelImportPage v-if="activePage === 'import'" v-model:novel-text="novelText" :chapter-count="chapterCount"
+            :chapters="detectedChapters" :file-name="selectedFileName" :icon-paths="iconPaths"
+            :import-notice="importNotice" :is-submitting="isImportSubmitting" :is-valid="isNovelValid"
+            @file-upload="handleFileUpload" @next="goToAnalysis" />
 
-          <AiAnalysisPage
-            v-else-if="activePage === 'analysis'"
-            :analysis-characters="displayedAnalysisCharacters"
-            :analysis-metrics="displayedAnalysisMetrics"
-            :analysis-scenes="displayedAnalysisScenes"
-            :character-relations="displayedCharacterRelations"
-            :dialogue-extracts="displayedDialogueExtracts"
-            :icon-paths="iconPaths"
-            :notice="analysisNotice"
-            :plot-events="displayedPlotEvents"
-            :progress="analysisProgress"
-            @next="openGenerationSettings"
-            @previous="goBackToImport"
-            @rerun="rerunAnalysis"
-          />
+          <AiAnalysisPage v-else-if="activePage === 'analysis'" :analysis-characters="displayedAnalysisCharacters"
+            :analysis-metrics="displayedAnalysisMetrics" :analysis-scenes="displayedAnalysisScenes"
+            :character-relations="displayedCharacterRelations" :dialogue-extracts="displayedDialogueExtracts"
+            :icon-paths="iconPaths" :notice="analysisNotice" :plot-events="displayedPlotEvents"
+            :progress="analysisProgress" @next="openGenerationSettings" @previous="goBackToImport"
+            @rerun="rerunAnalysis" />
 
-          <ScriptPreviewPage
-            v-else-if="activePage === 'preview'"
-            :export-notice="previewNotice"
-            :icon-paths="iconPaths"
-            :scenes="scriptPreviewScenes"
-            @back="goBackToEditor"
-            @export-markdown="exportPreviewMarkdown"
-            @export-pdf="exportPreviewPdf"
-            @export-txt="exportPreviewTxt"
-            @export-yaml="exportPreviewYaml"
-          />
+          <ScriptPreviewPage v-else-if="activePage === 'preview'" :export-notice="previewNotice" :icon-paths="iconPaths"
+            :scenes="scriptPreviewScenes" @back="goBackToEditor" @export-markdown="exportPreviewMarkdown"
+            @export-pdf="exportPreviewPdf" @export-txt="exportPreviewTxt" @export-yaml="exportPreviewYaml" />
 
-          <SchemaHelpPage
-            v-else-if="activePage === 'schema-doc'"
-            :content="schemaHelpContent"
-            :icon-paths="iconPaths"
-            @back="goBackToEditor"
-          />
+          <SchemaHelpPage v-else-if="activePage === 'schema-doc'" :content="schemaHelpContent" :icon-paths="iconPaths"
+            @back="goBackToEditor" />
 
           <div v-else class="content-grid">
-            <SupportColumn
-              :analysis-metrics="analysisMetrics"
-              :icon-paths="iconPaths"
-              :insight-items="displayedInsightItems"
-              :project-stages="projectStages"
-            />
-            <ScriptWorkspace
-              :icon-paths="iconPaths"
-              :preview-dialogues="previewDialogues"
-              :schema-validation="schemaValidation"
-              :script-chapters="displayedScriptChapters"
-              :status-notice="editorNotice"
-              :yaml-lines="generatedYamlLines"
-              :save-status="saveStatus"
-              @add-scene="openAddScene"
-              @copy-yaml="copyYaml"
-              @download-yaml="downloadYaml"
-              @open-preview="goToPreview"
-              @open-schema="goToSchemaHelp"
-              @previous="goBackToAnalysis"
-              @validate-yaml="validateYaml"
-            />
+            <SupportColumn :analysis-metrics="analysisMetrics" :icon-paths="iconPaths" :insight-items="insightItems"
+              :project-stages="projectStages" />
+            <ScriptWorkspace :icon-paths="iconPaths" :preview-dialogues="previewDialogues"
+              :schema-validation="schemaValidation" :script-chapters="displayedScriptChapters"
+              :status-notice="editorNotice" :yaml-lines="generatedYamlLines" @add-scene="openAddScene"
+              @copy-yaml="copyYaml" @download-yaml="downloadYaml" @open-preview="goToPreview"
+              @open-schema="goToSchemaHelp" @previous="goBackToAnalysis" @validate-yaml="validateYaml" />
           </div>
 
-          <GenerationSettingsDialog
-            v-model="isGenerationSettingsOpen"
-            :initial-settings="generatedSettings"
-            :options="generationSettingOptions"
-            @confirm="confirmGenerationSettings"
-          />
-          <AddSceneDialog
-            v-model="isAddSceneOpen"
-            :chapters="displayedScriptChapters"
-            @confirm="confirmAddScene"
-          />
+          <GenerationSettingsDialog v-model="isGenerationSettingsOpen" :initial-settings="generatedSettings"
+            :options="generationSettingOptions" @confirm="confirmGenerationSettings" />
+          <AddSceneDialog v-model="isAddSceneOpen" :chapters="displayedScriptChapters" @confirm="confirmAddScene" />
         </template>
       </div>
     </main>
 
-    <ProfileCenterDialog
-      v-model="isProfileCenterOpen"
-      :icon-paths="iconPaths"
-      :user="currentUser"
-      @logout="logout"
-    />
+    <ProfileCenterDialog v-model="isProfileCenterOpen" :icon-paths="iconPaths" :user="currentUser" @logout="logout" />
   </div>
 </template>

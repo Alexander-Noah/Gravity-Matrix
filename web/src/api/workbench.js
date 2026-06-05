@@ -18,18 +18,6 @@ export const createProject = async ({ title, author, chapters }) => {
   return response.data
 }
 
-export const getProject = async (projectId) => {
-  const response = await http.get(`/projects/${projectId}`)
-
-  return response.data
-}
-
-export const getProjectReadiness = async (projectId) => {
-  const response = await http.get(`/projects/${projectId}/readiness`)
-
-  return response.data
-}
-
 export const startAnalysisJob = async (projectId) => {
   const response = await http.post(`/projects/${projectId}/analysis-jobs`)
 
@@ -72,43 +60,24 @@ export const validateProjectScript = async (projectId, yaml) => {
   return response.data
 }
 
-export const saveProjectScript = async (projectId, yaml) => {
-  const response = await http.put(`/projects/${projectId}/script`, { yaml })
-
-  return response.data
-}
-
-export const diagnoseStoredScript = async (projectId) => {
-  const response = await http.get(`/projects/${projectId}/script/diagnosis`)
-
-  return response.data
-}
-
 export const diagnoseProjectScriptDraft = async (projectId, yaml) => {
   const response = await http.post(`/projects/${projectId}/script/diagnosis`, { yaml })
 
   return response.data
 }
 
-export const exportProjectScript = async (projectId) => {
-  const response = await http.get(`/projects/${projectId}/script/export`, {
-    responseType: 'blob'
-  })
-
+export const getProjectReadiness = async (projectId) => {
+  const response = await http.get(`/projects/${projectId}/readiness`)
   return response.data
 }
 
-// ==========================================
-// Reserved APIs for missing backend features
-// ==========================================
-
-export const deleteProject = async (projectId) => {
-  const response = await http.delete(`/projects/${projectId}`)
+export const saveProjectScript = async (projectId, yaml) => {
+  const response = await http.put(`/projects/${projectId}/script`, { yaml })
   return response.data
 }
 
 export const updateGenerationSettings = async (projectId, settings) => {
-  const response = await http.post(`/projects/${projectId}/generation-settings`, { settings })
+  const response = await http.post(`/projects/${projectId}/generation-settings`, settings)
   return response.data
 }
 
@@ -123,11 +92,20 @@ export const addProjectScene = async (projectId, sceneData) => {
 }
 
 export const exportProjectMarkdown = async (projectId) => {
-  const response = await http.get(`/projects/${projectId}/script/export/markdown`, { responseType: 'blob' })
+  const response = await http.get(`/projects/${projectId}/script/export/markdown`, {
+    responseType: 'blob'
+  })
   return response.data
 }
 
 export const exportProjectTxt = async (projectId) => {
-  const response = await http.get(`/projects/${projectId}/script/export/txt`, { responseType: 'blob' })
+  const response = await http.get(`/projects/${projectId}/script/export/txt`, {
+    responseType: 'blob'
+  })
+  return response.data
+}
+
+export const deleteProject = async (projectId) => {
+  const response = await http.delete(`/projects/${projectId}`)
   return response.data
 }
