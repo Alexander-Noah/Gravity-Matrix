@@ -212,6 +212,16 @@
 
 .analysis-actions {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
   gap: 10px;
+}
+
+.analysis-action-group {
+  display: flex;
+  gap: 10px;
+}
+
+.reverse-icon {
+  transform: rotate(180deg);
 }

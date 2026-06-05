@@ -101,6 +101,10 @@ const goToAnalysis = () => {
   activePage.value = 'analysis'
 }
 
+const goBackToImport = () => {
+  activePage.value = 'import'
+}
+
 const rerunAnalysis = () => {
   analysisProgress.value = 36
   analysisNotice.value = '正在重新解析小说内容...'
@@ -170,6 +174,7 @@ const handleFileUpload = async (event) => {
           :plot-events="plotEvents"
           :progress="analysisProgress"
           @next="showGenerationPlaceholder"
+          @previous="goBackToImport"
           @rerun="rerunAnalysis"
         />
 

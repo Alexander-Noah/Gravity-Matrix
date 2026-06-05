@@ -189,4 +189,9 @@
   .dialogue-preview {
     border-bottom: 1px solid var(--border);
   }
+
+  .analysis-actions,
+  .analysis-action-group {
+    display: grid;
+  }
 }

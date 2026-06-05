@@ -11,7 +11,7 @@ defineProps({
   progress: { type: Number, required: true },
 })
 
-defineEmits(['next', 'rerun'])
+defineEmits(['next', 'previous', 'rerun'])
 </script>
 
 <template>
@@ -148,18 +148,26 @@ defineEmits(['next', 'rerun'])
     <p v-if="notice" class="inline-note">{{ notice }}</p>
 
     <div class="analysis-actions">
-      <button class="editor-tool" type="button" @click="$emit('rerun')">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path v-for="path in iconPaths.refresh" :key="path" :d="path" />
-        </svg>
-        <span>重新解析</span>
-      </button>
-      <button class="editor-tool is-primary" type="button" @click="$emit('next')">
-        <span>下一步：生成剧本</span>
-        <svg viewBox="0 0 24 24" aria-hidden="true">
+      <button class="editor-tool" type="button" @click="$emit('previous')">
+        <svg class="reverse-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
         </svg>
+        <span>上一步：小说导入</span>
       </button>
+      <div class="analysis-action-group">
+        <button class="editor-tool" type="button" @click="$emit('rerun')">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path v-for="path in iconPaths.refresh" :key="path" :d="path" />
+          </svg>
+          <span>重新解析</span>
+        </button>
+        <button class="editor-tool is-primary" type="button" @click="$emit('next')">
+          <span>下一步：生成剧本</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
+          </svg>
+        </button>
+      </div>
     </div>
   </div>
 </template>
