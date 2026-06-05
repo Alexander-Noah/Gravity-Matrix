@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import Any
 
@@ -30,6 +31,15 @@ class ProjectRead(BaseModel):
     chapter_count: int
     has_analysis: bool
     has_script: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class ProjectListRead(BaseModel):
+    items: list[ProjectRead]
+    total: int
+    limit: int
+    offset: int
 
 
 class ProjectDetail(ProjectRead):

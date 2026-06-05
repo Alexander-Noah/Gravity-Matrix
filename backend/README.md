@@ -94,6 +94,7 @@ pytest
 ## 当前接口
 
 - `GET /api/v1/health`：健康检查。
+- `GET /api/v1/projects`：分页获取项目列表。
 - `POST /api/v1/projects`：创建小说改编项目，至少需要 3 个章节。
 - `GET /api/v1/projects/{project_id}`：获取项目详情。
 - `POST /api/v1/projects/{project_id}/analysis-jobs`：启动 AI 解析任务。

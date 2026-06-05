@@ -32,6 +32,8 @@ def _project_payload(project: Project) -> dict[str, Any]:
         "chapter_count": len(project.chapters),
         "has_analysis": project.analysis_json is not None,
         "has_script": project.script_yaml is not None,
+        "created_at": project.created_at,
+        "updated_at": project.updated_at,
     }
 
 
