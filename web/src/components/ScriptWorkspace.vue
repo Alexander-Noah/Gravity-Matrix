@@ -1,7 +1,7 @@
 <script setup>
 defineProps({
   iconPaths: { type: Object, required: true },
-  previewDialogues: { type: Array, required: true },
+  previewScene: { type: Object, default: null },
   scriptChapters: { type: Array, required: true },
   schemaValidation: { type: Object, required: true },
   statusNotice: { type: String, default: '' },
@@ -9,7 +9,7 @@ defineProps({
   saveStatus: { type: String, default: '' },
 })
 
-defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'previous', 'validate-yaml'])
+defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'previous', 'select-scene', 'validate-yaml'])
 </script>
 
 <template>
@@ -83,8 +83,8 @@ defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-sc
                 <span>{{ chapter.title }}</span>
               </button>
               <ul v-if="chapter.scenes.length" class="scene-list">
-                <li v-for="scene in chapter.scenes" :key="scene.label">
-                  <button class="scene-row" :class="{ 'is-active': scene.active }" type="button">
+                <li v-for="scene in chapter.scenes" :key="scene.id || scene.label">
+                  <button class="scene-row" :class="{ 'is-active': scene.active }" type="button" @click="$emit('select-scene', scene.id)">
                     {{ scene.label }}
                   </button>
                 </li>
@@ -162,16 +162,23 @@ defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-sc
       </div>
 
       <div class="preview-body">
-        <article class="scene-preview">
+        <article v-if="previewScene" class="scene-preview">
           <div class="scene-meta">
-            <h3>场景 1-1 地铁站相遇</h3>
-            <p>内景 / 地铁站 / 傍晚</p>
+            <h3>{{ previewScene.title }}</h3>
+            <p>{{ previewScene.meta }}</p>
           </div>
-          <p class="scene-action">人头攒动的地铁站，广播声回荡。林晓背着吉他包，低头看着手机，神情略显迷茫。</p>
+          <p class="scene-action">{{ previewScene.action }}</p>
+        </article>
+        <article v-else class="scene-preview">
+          <div class="scene-meta">
+            <h3>等待生成真实剧本</h3>
+            <p>后端任务完成后会显示场景预览</p>
+          </div>
+          <p class="scene-action">当前项目还没有可预览的 YAML 场景，请先完成剧本生成。</p>
         </article>
 
-        <div class="dialogue-preview">
-          <article v-for="dialogue in previewDialogues" :key="dialogue.speaker" class="dialogue-line">
+        <div v-if="previewScene?.dialogues?.length" class="dialogue-preview">
+          <article v-for="dialogue in previewScene.dialogues" :key="`${dialogue.speaker}-${dialogue.line}`" class="dialogue-line">
             <h3>{{ dialogue.speaker }}</h3>
             <span>{{ dialogue.note }}</span>
             <p>{{ dialogue.line }}</p>

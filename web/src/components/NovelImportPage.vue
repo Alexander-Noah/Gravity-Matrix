@@ -30,7 +30,7 @@ defineEmits(['file-upload', 'next', 'update:novelText'])
 
       <div class="import-source-grid">
         <label class="upload-dropzone" for="novel-file">
-          <input id="novel-file" type="file" accept=".txt,.docx" @change="$emit('file-upload', $event)" />
+          <input id="novel-file" type="file" accept=".txt,.docx" multiple @change="$emit('file-upload', $event)" />
           <span class="upload-icon">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path v-for="path in iconPaths.file" :key="path" :d="path" />

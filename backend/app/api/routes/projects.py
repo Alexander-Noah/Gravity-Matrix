@@ -22,6 +22,7 @@ from app.schemas.project import (
     ProjectListRead,
     ProjectReadinessRead,
     ProjectRead,
+    ProjectUpdate,
     ProjectWorkbenchRead,
     SceneCreateRequest,
     SceneCreateResponse,
@@ -30,6 +31,7 @@ from app.schemas.project import (
     ScriptRead,
     ScriptValidateRequest,
     ScriptValidateResponse,
+    TemplateRead,
 )
 from app.services.frontend_data import build_projects_dashboard, build_scripts_library, preview_import_text
 from app.services.jobs import create_job, get_active_job, run_analysis_job, run_script_generation_job
@@ -39,6 +41,88 @@ from app.services.workbench import build_project_workbench
 import yaml
 
 router = APIRouter(tags=["projects"])
+
+
+@router.get("/templates", response_model=list[TemplateRead])
+def list_templates() -> list[TemplateRead]:
+    return [
+        TemplateRead(
+            id="tv-drama",
+            name="影视剧剧本模板",
+            scenario="适合长篇小说改编为电视剧、网剧或电影分场剧本。",
+            features=["按章节拆分场景", "保留人物动机与动作描写", "适配标准场景标题"],
+            fields=["script", "metadata", "characters", "locations", "chapters", "scenes", "dialogue"],
+            yamlExample=[
+                "script:",
+                "  schema_version: 1.0",
+                "  metadata:",
+                "    title: 剧本标题",
+                "    target_format: screenplay",
+                "  chapters:",
+                "    - id: ch_001",
+                "      scenes:",
+                "        - id: sc_001_001",
+                "          title: 场景标题",
+                "          location_id: loc_001",
+                "          dialogue:",
+                "            - speaker_name: 人物名",
+                "              line: 对白内容",
+            ],
+        ),
+        TemplateRead(
+            id="short-drama",
+            name="短剧剧本模板",
+            scenario="适合高节奏短剧、竖屏剧和强钩子内容生成。",
+            features=["强化开场冲突", "突出反转节点", "每集保留结尾钩子"],
+            fields=["script", "metadata", "chapters", "scenes", "synopsis", "dialogue"],
+            yamlExample=[
+                "script:",
+                "  metadata:",
+                "    target_format: short_drama",
+                "  chapters:",
+                "    - id: ep_001",
+                "      scenes:",
+                "        - title: 开场冲突",
+                "          synopsis: 主角被迫当众证明自己",
+            ],
+        ),
+        TemplateRead(
+            id="stage-play",
+            name="话剧剧本模板",
+            scenario="适合将小说改编为舞台表演文本和排练稿。",
+            features=["强调舞台调度", "保留幕与场结构", "补充人物入场退场"],
+            fields=["script", "chapters", "scenes", "stage_directions", "dialogue"],
+            yamlExample=[
+                "script:",
+                "  metadata:",
+                "    target_format: stage_play",
+                "  chapters:",
+                "    - title: 第一幕",
+                "      scenes:",
+                "        - title: 出租屋夜谈",
+                "          stage_directions:",
+                "            - 灯光渐亮，人物入场。",
+            ],
+        ),
+        TemplateRead(
+            id="storyboard",
+            name="分镜剧本模板",
+            scenario="适合短视频、广告片、动画和导演分镜草案。",
+            features=["拆分镜号", "补充景别与机位", "保留镜头意图"],
+            fields=["script", "chapters", "scenes", "stage_directions", "dialogue"],
+            yamlExample=[
+                "script:",
+                "  metadata:",
+                "    target_format: storyboard",
+                "  chapters:",
+                "    - title: 分镜段落",
+                "      scenes:",
+                "        - title: 镜头 1",
+                "          stage_directions:",
+                "            - 全景展示地点与人物关系。",
+            ],
+        ),
+    ]
 
 
 @router.post("/import/preview", response_model=ImportPreviewResponse)
@@ -128,6 +212,46 @@ def delete_project(project_id: int, db: Session = Depends(get_db)) -> ProjectDel
     db.delete(project)
     db.commit()
     return ProjectDeleteResponse(deleted=True, project_id=project_id)
+
+
+@router.patch("/projects/{project_id}", response_model=ProjectRead)
+def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depends(get_db)) -> ProjectRead:
+    project = _require_project(db, project_id)
+    if payload.title is not None:
+        project.title = payload.title
+    if payload.author is not None:
+        project.author = payload.author
+    db.commit()
+    db.refresh(project)
+    return _project_to_read(project)
+
+
+@router.post("/projects/{project_id}/clone", response_model=ProjectRead, status_code=201)
+def clone_project(project_id: int, db: Session = Depends(get_db)) -> ProjectRead:
+    source = _require_project(db, project_id)
+    cloned = Project(
+        title=f"{source.title} 副本",
+        author=source.author,
+        status=source.status,
+        analysis_json=source.analysis_json,
+        script_yaml=source.script_yaml,
+    )
+    db.add(cloned)
+    db.flush()
+
+    for chapter in source.chapters:
+        db.add(
+            Chapter(
+                project_id=cloned.id,
+                number=chapter.number,
+                title=chapter.title,
+                content=chapter.content,
+            )
+        )
+
+    db.commit()
+    db.refresh(cloned)
+    return _project_to_read(cloned)
 
 
 @router.get("/projects/{project_id}/workbench", response_model=ProjectWorkbenchRead)

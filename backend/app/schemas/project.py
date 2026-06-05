@@ -16,6 +16,11 @@ class ProjectCreate(BaseModel):
     chapters: list[ChapterCreate]
 
 
+class ProjectUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    author: str | None = Field(default=None, max_length=255)
+
+
 class ImportPreviewRequest(BaseModel):
     text: str = Field(min_length=1)
     title: str | None = Field(default=None, max_length=255)
@@ -25,6 +30,7 @@ class ImportPreviewRequest(BaseModel):
 class ImportPreviewChapter(BaseModel):
     number: int
     title: str
+    content: str
     char_count: int
     excerpt: str
 
@@ -159,6 +165,15 @@ class ScriptRead(BaseModel):
 class ProjectDeleteResponse(BaseModel):
     deleted: bool
     project_id: int
+
+
+class TemplateRead(BaseModel):
+    id: str
+    name: str
+    scenario: str
+    features: list[str]
+    fields: list[str]
+    yamlExample: list[str]
 
 
 class GenerationSettingsRequest(BaseModel):
