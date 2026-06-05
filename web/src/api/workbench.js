@@ -97,3 +97,37 @@ export const exportProjectScript = async (projectId) => {
 
   return response.data
 }
+
+// ==========================================
+// Reserved APIs for missing backend features
+// ==========================================
+
+export const deleteProject = async (projectId) => {
+  const response = await http.delete(`/projects/${projectId}`)
+  return response.data
+}
+
+export const updateGenerationSettings = async (projectId, settings) => {
+  const response = await http.post(`/projects/${projectId}/generation-settings`, { settings })
+  return response.data
+}
+
+export const rerunAnalysisJob = async (projectId) => {
+  const response = await http.post(`/projects/${projectId}/analysis-jobs/rerun`)
+  return response.data
+}
+
+export const addProjectScene = async (projectId, sceneData) => {
+  const response = await http.post(`/projects/${projectId}/scenes`, sceneData)
+  return response.data
+}
+
+export const exportProjectMarkdown = async (projectId) => {
+  const response = await http.get(`/projects/${projectId}/script/export/markdown`, { responseType: 'blob' })
+  return response.data
+}
+
+export const exportProjectTxt = async (projectId) => {
+  const response = await http.get(`/projects/${projectId}/script/export/txt`, { responseType: 'blob' })
+  return response.data
+}

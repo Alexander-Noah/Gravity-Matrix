@@ -1,4 +1,5 @@
 <script setup>
+import jsyaml from 'js-yaml'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { clearAuthSession, getAuthSession } from './api/auth'
@@ -39,34 +40,17 @@ import TemplateCenterPage from './components/TemplateCenterPage.vue'
 import WorkflowStepper from './components/WorkflowStepper.vue'
 import WorkspaceHeader from './components/WorkspaceHeader.vue'
 import {
-  analysisCharacters,
-  analysisMetrics,
-  analysisScenes,
   analysisWorkflowSteps,
-  characterRelations,
-  defaultNovelText,
-  dialogueExtracts,
   generationSettingOptions,
   iconPaths,
   importWorkflowSteps,
-  insightItems,
   navItems,
-  plotEvents,
-  previewDialogues,
   previewWorkflowSteps,
-  projectActivities,
-  projectCards,
-  projectStages,
-  projectStats,
   productHelpDocs,
   quickActions,
   schemaHelpContent,
   schemaValidationMock,
   scriptGenerationTemplates,
-  scriptChapters,
-  scriptLibraryItems,
-  scriptLibraryStats,
-  scriptPreviewScenes,
   workflowSteps,
   yamlLines,
 } from './data/workbench'
@@ -75,7 +59,7 @@ import { getRouteById } from './router/routes'
 const route = useRoute()
 const router = useRouter()
 const activePage = ref('import')
-const novelText = ref(defaultNovelText)
+const novelText = ref('')
 const selectedFileName = ref('')
 const importNotice = ref('')
 const analysisProgress = ref(100)
@@ -93,18 +77,19 @@ const saveStatus = ref('')
 const selectedTemplateId = ref('')
 const currentUser = ref(getAuthSession().user)
 const isProfileCenterOpen = ref(false)
-const displayedAnalysisCharacters = ref(analysisCharacters)
-const displayedAnalysisMetrics = ref(analysisMetrics)
-const displayedAnalysisScenes = ref(analysisScenes)
-const displayedPlotEvents = ref(plotEvents)
-const displayedCharacterRelations = ref(characterRelations)
-const displayedDialogueExtracts = ref(dialogueExtracts)
-const displayedScriptChapters = ref(scriptChapters)
-const displayedProjectCards = ref(projectCards)
-const displayedProjectStats = ref(projectStats)
-const displayedProjectActivities = ref(projectActivities)
-const displayedLibraryItems = ref(scriptLibraryItems)
-const displayedLibraryStats = ref(scriptLibraryStats)
+const displayedAnalysisCharacters = ref([])
+const displayedAnalysisMetrics = ref([])
+const displayedAnalysisScenes = ref([])
+const displayedPlotEvents = ref([])
+const displayedCharacterRelations = ref([])
+const displayedDialogueExtracts = ref([])
+const displayedScriptChapters = ref([])
+const displayedProjectCards = ref([])
+const displayedProjectStats = ref([])
+const displayedProjectActivities = ref([])
+const displayedLibraryItems = ref([])
+const displayedLibraryStats = ref([])
+const displayedInsightItems = ref([])
 
 const activeRoute = computed(() => getRouteById(route.name))
 const isAuthRoute = computed(() => activeRoute.value.id === 'auth')
@@ -329,7 +314,7 @@ const applyLibraryResult = (items) => {
   const completedCount = items.filter((item) => item.status === '已完成').length
   const exportedCount = items.filter((item) => item.status === '已导出').length
 
-  displayedLibraryItems.value = items.length ? items : scriptLibraryItems
+  displayedLibraryItems.value = items
   displayedLibraryStats.value = [
     { label: '全部剧本', value: String(items.length), note: '来自后端已生成项目', tone: 'violet' },
     { label: '编辑中', value: String(editingCount), note: '已保存 YAML 草稿', tone: 'blue' },
@@ -364,13 +349,13 @@ const fetchProjects = async () => {
     const result = await listProjects()
     applyProjectsResult(result)
   } catch (error) {
+    displayedProjectCards.value = []
     displayedProjectActivities.value = [
       {
         title: getApiErrorMessage(error),
         time: '刚刚',
         status: '加载失败',
       },
-      ...projectActivities,
     ]
   }
 }
@@ -392,8 +377,8 @@ const fetchScriptLibrary = async () => {
 
     applyLibraryResult(items)
   } catch {
-    displayedLibraryItems.value = scriptLibraryItems
-    displayedLibraryStats.value = scriptLibraryStats
+    displayedLibraryItems.value = []
+    displayedLibraryStats.value = []
   }
 }
 
@@ -441,11 +426,11 @@ const generatedYamlLines = computed(() => {
   }
 
   if (!generatedSettings.value) {
-    return yamlLines
+    return []
   }
 
   return [
-    ...yamlLines.slice(0, 6),
+    [{ text: 'script:', tone: 'key' }],
     [{ text: 'generation_settings:', tone: 'key' }],
     [{ text: '  script_type:', tone: 'key' }, { text: ` ${generatedSettings.value.scriptType}`, tone: 'string' }],
     [{ text: '  adaptation_style:', tone: 'key' }, { text: ` ${generatedSettings.value.adaptationStyle}`, tone: 'string' }],
@@ -454,15 +439,74 @@ const generatedYamlLines = computed(() => {
       { text: '    -', tone: 'key' },
       { text: ` ${option}`, tone: 'value' },
     ]),
-    [],
-    ...yamlLines.slice(6),
   ]
 })
 const generatedYamlText = computed(() =>
   generatedScriptYaml.value || generatedYamlLines.value.map((line) => line.map((token) => token.text).join('')).join('\n'),
 )
+const parsedScriptData = computed(() => {
+  if (!generatedScriptYaml.value) return null
+  try {
+    return jsyaml.load(generatedScriptYaml.value)
+  } catch (e) {
+    return null
+  }
+})
+
+const scriptPreviewScenes = computed(() => {
+  const data = parsedScriptData.value
+  if (!data || !data.script || !data.script.chapters) return []
+
+  const charsDict = {}
+  if (data.script.characters) {
+    data.script.characters.forEach(c => {
+      charsDict[c.id] = c.name
+    })
+  }
+  const locsDict = {}
+  if (data.script.locations) {
+    data.script.locations.forEach(l => {
+      locsDict[l.id] = l.name
+    })
+  }
+
+  const scenes = []
+  data.script.chapters.forEach(chapter => {
+    if (!chapter.scenes) return
+    chapter.scenes.forEach(scene => {
+      const charNames = (scene.characters || []).map(id => charsDict[id] || id)
+      const locName = locsDict[scene.location_id] || scene.location_id || '未知地点'
+      scenes.push({
+        title: scene.title || '未知场景',
+        meta: `内景 / ${locName} / ${scene.time === 'day' ? '日' : scene.time === 'night' ? '夜' : '傍晚'}`,
+        characters: charNames,
+        action: (scene.stage_directions || []).join('\n') || scene.synopsis || '',
+        dialogues: (scene.dialogue || []).map(d => ({
+          speaker: d.speaker_name || charsDict[d.speaker_id] || d.speaker_id,
+          line: d.line
+        }))
+      })
+    })
+  })
+  return scenes
+})
+
+const previewDialogues = computed(() => {
+  const dialogues = []
+  scriptPreviewScenes.value.forEach(scene => {
+    if (scene.dialogues) {
+      scene.dialogues.forEach(d => dialogues.push({
+        speaker: d.speaker,
+        note: '',
+        line: d.line
+      }))
+    }
+  })
+  return dialogues
+})
+
 const scriptTextPreview = computed(() =>
-  scriptPreviewScenes
+  scriptPreviewScenes.value
     .map((scene) => {
       const cast = `出场人物：${scene.characters.join('、')}`
       const dialogues = scene.dialogues.map((dialogue) => `${dialogue.speaker}\n${dialogue.line}`).join('\n\n')
@@ -472,7 +516,7 @@ const scriptTextPreview = computed(() =>
     .join('\n\n---\n\n'),
 )
 const markdownPreview = computed(() =>
-  scriptPreviewScenes
+  scriptPreviewScenes.value
     .map((scene) => {
       const dialogues = scene.dialogues.map((dialogue) => `**${dialogue.speaker}**\n\n${dialogue.line}`).join('\n\n')
 
@@ -516,32 +560,26 @@ const applyAnalysisResult = (analysis) => {
   const conflicts = raw.conflicts || []
   const themes = raw.themes || []
 
-  displayedAnalysisCharacters.value = characters.length
-    ? characters.map((character, index) => ({
-        name: character.name || `人物 ${index + 1}`,
-        role: character.role || '角色',
-        age: character.age ?? '-',
-        trait: character.description || '等待作者继续补充人物说明',
-      }))
-    : analysisCharacters
+  displayedAnalysisCharacters.value = characters.map((character, index) => ({
+    name: character.name || `人物 ${index + 1}`,
+    role: character.role || '角色',
+    age: character.age ?? '-',
+    trait: character.description || '等待作者继续补充人物说明',
+  }))
 
-  displayedAnalysisScenes.value = locations.length
-    ? locations.map((location, index) => ({
-        title: location.name || `场景 ${index + 1}`,
-        chapter: `第${index + 1}章`,
-        time: '待定',
-        mood: location.description || '由 AI 根据章节内容识别',
-      }))
-    : analysisScenes
+  displayedAnalysisScenes.value = locations.map((location, index) => ({
+    title: location.name || `场景 ${index + 1}`,
+    chapter: `第${index + 1}章`,
+    time: '待定',
+    mood: location.description || '由 AI 根据章节内容识别',
+  }))
 
-  displayedPlotEvents.value = chapterSummaries.length
-    ? chapterSummaries.map((chapter, index) => ({
-        step: String(index + 1).padStart(2, '0'),
-        chapter: `第${chapter.chapter_number || index + 1}章`,
-        title: chapter.title || `章节事件 ${index + 1}`,
-        detail: chapter.summary || '等待 AI 补充章节摘要',
-      }))
-    : plotEvents
+  displayedPlotEvents.value = chapterSummaries.map((chapter, index) => ({
+    step: String(index + 1).padStart(2, '0'),
+    chapter: `第${chapter.chapter_number || index + 1}章`,
+    title: chapter.title || `章节事件 ${index + 1}`,
+    detail: chapter.summary || '等待 AI 补充章节摘要',
+  }))
 
   displayedAnalysisMetrics.value = [
     { label: '人物', value: String(characters.length), icon: 'users', tone: 'violet' },
@@ -559,9 +597,14 @@ const applyAnalysisResult = (analysis) => {
           note: conflicts[0] || themes.join('、') || '可在后续剧本编辑中继续细化人物关系。',
         },
       ]
-    : characterRelations
+    : []
 
-  displayedDialogueExtracts.value = dialogueExtracts
+  displayedDialogueExtracts.value = []
+
+  displayedInsightItems.value = [
+    { label: '核心主题', value: themes.length ? themes.join('、') : '暂无数据' },
+    { label: '核心冲突', value: conflicts.length ? conflicts.join('、') : '暂无数据' },
+  ]
 }
 
 const goToPage = (pageId) => {
@@ -1067,7 +1110,7 @@ const handleFileUpload = async (event) => {
             <SupportColumn
               :analysis-metrics="analysisMetrics"
               :icon-paths="iconPaths"
-              :insight-items="insightItems"
+              :insight-items="displayedInsightItems"
               :project-stages="projectStages"
             />
             <ScriptWorkspace
