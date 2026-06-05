@@ -96,7 +96,7 @@ pytest
 - `POST /api/v1/projects/{project_id}/script/validate`：校验剧本 YAML。
 - `GET /api/v1/projects/{project_id}/script/export`：导出剧本 YAML。
 
-如果没有配置大模型 API，后端会使用确定性的演示生成逻辑，保证评委本地可以跑通完整流程。配置 `LLM_API_KEY`、`LLM_BASE_URL` 和 `LLM_MODEL` 后，可以在后续 PR 中接入真实模型生成。
+如果没有配置大模型 API，后端会使用确定性的演示生成逻辑，保证评委本地可以跑通完整流程。配置 `LLM_API_KEY`、`LLM_BASE_URL` 和 `LLM_MODEL` 后，后端会优先调用 DeepSeek/OpenAI-compatible Chat Completions，并要求模型返回 JSON 对象，再由后端校验后转成剧本 YAML。模型返回为空、不是合法 JSON 或不符合剧本 Schema 时，会自动回退到确定性演示生成逻辑。
 
 ## 配置说明
 
@@ -106,9 +106,18 @@ pytest
 - `API_PREFIX`：接口统一前缀，默认 `/api/v1`。
 - `DATABASE_URL`：SQLite 数据库地址，后续 PR 使用。
 - `FRONTEND_ORIGINS`：允许访问后端的前端地址，默认包含 Vite 本地地址。
-- `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`：大模型平台配置，后续 PR 使用。
+- `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`：DeepSeek/OpenAI-compatible 大模型平台配置。
 - `OLLAMA_BASE_URL`、`OLLAMA_MODEL`：本地模型兜底配置，后续 PR 使用。
 - `MIN_CHAPTERS`：小说最少章节数，比赛要求至少 3 章。
+
+DeepSeek 配置示例：
+
+```env
+LLM_PROVIDER=deepseek
+LLM_API_KEY=your-deepseek-api-key
+LLM_BASE_URL=https://api.deepseek.com
+LLM_MODEL=deepseek-v4-flash
+```
 
 ## PR 开发节奏
 
