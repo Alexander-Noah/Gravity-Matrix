@@ -1,9 +1,11 @@
 <script setup>
 import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AiAnalysisPage from './components/AiAnalysisPage.vue'
 import AppSidebar from './components/AppSidebar.vue'
 import GenerationSettingsDialog from './components/GenerationSettingsDialog.vue'
 import NovelImportPage from './components/NovelImportPage.vue'
+import ProductRoutePage from './components/ProductRoutePage.vue'
 import SchemaHelpPage from './components/SchemaHelpPage.vue'
 import ScriptPreviewPage from './components/ScriptPreviewPage.vue'
 import ScriptWorkspace from './components/ScriptWorkspace.vue'
@@ -35,7 +37,10 @@ import {
   workflowSteps,
   yamlLines,
 } from './data/workbench'
+import { getRouteById } from './router/routes'
 
+const route = useRoute()
+const router = useRouter()
 const activePage = ref('import')
 const novelText = ref(defaultNovelText)
 const selectedFileName = ref('')
@@ -48,17 +53,28 @@ const schemaValidation = ref(schemaValidationMock)
 const editorNotice = ref('')
 const previewNotice = ref('')
 
+const activeRoute = computed(() => getRouteById(route.name))
+const isWorkbenchRoute = computed(() => activeRoute.value.id === 'workbench')
+
 const activeNavItems = computed(() =>
   navItems.map((item) => ({
     ...item,
-    active: item.id === 'workbench',
+    active: item.id === activeRoute.value.id,
   })),
 )
 
 const pageTitle = computed(() => {
+  if (!isWorkbenchRoute.value) {
+    return activeRoute.value.title
+  }
+
   return '小说转剧本工作台'
 })
 const pageDescription = computed(() => {
+  if (!isWorkbenchRoute.value) {
+    return activeRoute.value.description
+  }
+
   if (activePage.value === 'import') {
     return '上传文件或粘贴原文，检查章节完整度后进入 AI 解析'
   }
@@ -154,11 +170,13 @@ const markdownPreview = computed(() =>
 )
 
 const goToPage = (pageId) => {
-  if (pageId !== 'workbench') {
-    return
-  }
+  const targetRoute = getRouteById(pageId)
 
-  activePage.value = 'import'
+  router.push(targetRoute.path)
+
+  if (pageId === 'workbench') {
+    activePage.value = 'import'
+  }
 }
 
 const goToAnalysis = () => {
@@ -302,87 +320,91 @@ const handleFileUpload = async (event) => {
     <main class="main-wrapper" aria-label="工作区">
       <div class="page-content">
         <WorkspaceHeader :description="pageDescription" :icon-paths="iconPaths" :title="pageTitle" />
-        <div class="workflow-sticky">
-          <WorkflowStepper :icon-paths="iconPaths" :steps="currentWorkflowSteps" />
-        </div>
+        <ProductRoutePage v-if="!isWorkbenchRoute" :icon-paths="iconPaths" :route="activeRoute" />
 
-        <NovelImportPage
-          v-if="activePage === 'import'"
-          v-model:novel-text="novelText"
-          :chapter-count="chapterCount"
-          :chapters="detectedChapters"
-          :file-name="selectedFileName"
-          :icon-paths="iconPaths"
-          :import-notice="importNotice"
-          :is-valid="isNovelValid"
-          @file-upload="handleFileUpload"
-          @next="goToAnalysis"
-        />
+        <template v-else>
+          <div class="workflow-sticky">
+            <WorkflowStepper :icon-paths="iconPaths" :steps="currentWorkflowSteps" />
+          </div>
 
-        <AiAnalysisPage
-          v-else-if="activePage === 'analysis'"
-          :analysis-characters="analysisCharacters"
-          :analysis-metrics="analysisMetrics"
-          :analysis-scenes="analysisScenes"
-          :character-relations="characterRelations"
-          :dialogue-extracts="dialogueExtracts"
-          :icon-paths="iconPaths"
-          :notice="analysisNotice"
-          :plot-events="plotEvents"
-          :progress="analysisProgress"
-          @next="openGenerationSettings"
-          @previous="goBackToImport"
-          @rerun="rerunAnalysis"
-        />
+          <NovelImportPage
+            v-if="activePage === 'import'"
+            v-model:novel-text="novelText"
+            :chapter-count="chapterCount"
+            :chapters="detectedChapters"
+            :file-name="selectedFileName"
+            :icon-paths="iconPaths"
+            :import-notice="importNotice"
+            :is-valid="isNovelValid"
+            @file-upload="handleFileUpload"
+            @next="goToAnalysis"
+          />
 
-        <ScriptPreviewPage
-          v-else-if="activePage === 'preview'"
-          :export-notice="previewNotice"
-          :icon-paths="iconPaths"
-          :scenes="scriptPreviewScenes"
-          @back="goBackToEditor"
-          @export-markdown="exportPreviewMarkdown"
-          @export-pdf="exportPreviewPdf"
-          @export-txt="exportPreviewTxt"
-          @export-yaml="exportPreviewYaml"
-        />
-
-        <SchemaHelpPage
-          v-else-if="activePage === 'schema-doc'"
-          :content="schemaHelpContent"
-          :icon-paths="iconPaths"
-          @back="goBackToEditor"
-        />
-
-        <div v-else class="content-grid">
-          <SupportColumn
+          <AiAnalysisPage
+            v-else-if="activePage === 'analysis'"
+            :analysis-characters="analysisCharacters"
             :analysis-metrics="analysisMetrics"
+            :analysis-scenes="analysisScenes"
+            :character-relations="characterRelations"
+            :dialogue-extracts="dialogueExtracts"
             :icon-paths="iconPaths"
-            :insight-items="insightItems"
-            :project-stages="projectStages"
+            :notice="analysisNotice"
+            :plot-events="plotEvents"
+            :progress="analysisProgress"
+            @next="openGenerationSettings"
+            @previous="goBackToImport"
+            @rerun="rerunAnalysis"
           />
-          <ScriptWorkspace
-            :icon-paths="iconPaths"
-            :preview-dialogues="previewDialogues"
-            :schema-validation="schemaValidation"
-            :script-chapters="scriptChapters"
-            :status-notice="editorNotice"
-            :yaml-lines="generatedYamlLines"
-            @copy-yaml="copyYaml"
-            @download-yaml="downloadYaml"
-            @open-preview="goToPreview"
-            @open-schema="goToSchemaHelp"
-            @previous="goBackToAnalysis"
-            @validate-yaml="validateYaml"
-          />
-        </div>
 
-        <GenerationSettingsDialog
-          v-model="isGenerationSettingsOpen"
-          :initial-settings="generatedSettings"
-          :options="generationSettingOptions"
-          @confirm="confirmGenerationSettings"
-        />
+          <ScriptPreviewPage
+            v-else-if="activePage === 'preview'"
+            :export-notice="previewNotice"
+            :icon-paths="iconPaths"
+            :scenes="scriptPreviewScenes"
+            @back="goBackToEditor"
+            @export-markdown="exportPreviewMarkdown"
+            @export-pdf="exportPreviewPdf"
+            @export-txt="exportPreviewTxt"
+            @export-yaml="exportPreviewYaml"
+          />
+
+          <SchemaHelpPage
+            v-else-if="activePage === 'schema-doc'"
+            :content="schemaHelpContent"
+            :icon-paths="iconPaths"
+            @back="goBackToEditor"
+          />
+
+          <div v-else class="content-grid">
+            <SupportColumn
+              :analysis-metrics="analysisMetrics"
+              :icon-paths="iconPaths"
+              :insight-items="insightItems"
+              :project-stages="projectStages"
+            />
+            <ScriptWorkspace
+              :icon-paths="iconPaths"
+              :preview-dialogues="previewDialogues"
+              :schema-validation="schemaValidation"
+              :script-chapters="scriptChapters"
+              :status-notice="editorNotice"
+              :yaml-lines="generatedYamlLines"
+              @copy-yaml="copyYaml"
+              @download-yaml="downloadYaml"
+              @open-preview="goToPreview"
+              @open-schema="goToSchemaHelp"
+              @previous="goBackToAnalysis"
+              @validate-yaml="validateYaml"
+            />
+          </div>
+
+          <GenerationSettingsDialog
+            v-model="isGenerationSettingsOpen"
+            :initial-settings="generatedSettings"
+            :options="generationSettingOptions"
+            @confirm="confirmGenerationSettings"
+          />
+        </template>
       </div>
     </main>
   </div>
