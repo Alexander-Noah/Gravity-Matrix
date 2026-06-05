@@ -18,6 +18,18 @@ export const createProject = async ({ title, author, chapters }) => {
   return response.data
 }
 
+export const getProject = async (projectId) => {
+  const response = await http.get(`/projects/${projectId}`)
+
+  return response.data
+}
+
+export const getProjectReadiness = async (projectId) => {
+  const response = await http.get(`/projects/${projectId}/readiness`)
+
+  return response.data
+}
+
 export const startAnalysisJob = async (projectId) => {
   const response = await http.post(`/projects/${projectId}/analysis-jobs`)
 
@@ -66,8 +78,22 @@ export const saveProjectScript = async (projectId, yaml) => {
   return response.data
 }
 
+export const diagnoseStoredScript = async (projectId) => {
+  const response = await http.get(`/projects/${projectId}/script/diagnosis`)
+
+  return response.data
+}
+
 export const diagnoseProjectScriptDraft = async (projectId, yaml) => {
   const response = await http.post(`/projects/${projectId}/script/diagnosis`, { yaml })
+
+  return response.data
+}
+
+export const exportProjectScript = async (projectId) => {
+  const response = await http.get(`/projects/${projectId}/script/export`, {
+    responseType: 'blob'
+  })
 
   return response.data
 }

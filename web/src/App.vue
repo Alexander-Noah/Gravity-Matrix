@@ -6,8 +6,12 @@ import { getApiErrorMessage } from './api/http'
 import {
   createProject,
   diagnoseProjectScriptDraft,
+  diagnoseStoredScript,
+  exportProjectScript,
   getJob,
+  getProject,
   getProjectAnalysis,
+  getProjectReadiness,
   getProjectScript,
   getProjectWorkbench,
   listProjects,
@@ -606,6 +610,7 @@ const openProject = async (project) => {
   }
 
   try {
+    const readiness = await getProjectReadiness(currentProjectId.value)
     const workbench = await getProjectWorkbench(currentProjectId.value)
 
     if (workbench.analysis?.raw) {
@@ -614,7 +619,7 @@ const openProject = async (project) => {
 
     applyWorkbenchScript(workbench)
 
-    if (workbench.project.has_script) {
+    if (readiness.can_export || workbench.project.has_script) {
       activePage.value = 'script'
       return
     }
@@ -846,7 +851,24 @@ const copyYaml = async () => {
   }
 }
 
-const downloadYaml = () => {
+const downloadYaml = async () => {
+  if (currentProjectId.value) {
+    try {
+      editorNotice.value = '正在向服务端请求导出 YAML...'
+      const blob = await exportProjectScript(currentProjectId.value)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `project-${currentProjectId.value}-screenplay.yaml`
+      link.click()
+      URL.revokeObjectURL(url)
+      editorNotice.value = '服务端 YAML 文件下载完成。'
+    } catch (error) {
+      editorNotice.value = '下载失败：' + getApiErrorMessage(error)
+    }
+    return
+  }
+
   const blob = new Blob([generatedYamlText.value], { type: 'text/yaml;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
@@ -882,7 +904,24 @@ const downloadTextFile = (content, filename, type) => {
   URL.revokeObjectURL(url)
 }
 
-const exportPreviewYaml = () => {
+const exportPreviewYaml = async () => {
+  if (currentProjectId.value) {
+    try {
+      previewNotice.value = '正在向服务端请求导出 YAML...'
+      const blob = await exportProjectScript(currentProjectId.value)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `project-${currentProjectId.value}-screenplay.yaml`
+      link.click()
+      URL.revokeObjectURL(url)
+      previewNotice.value = '服务端 YAML 文件下载完成。'
+    } catch (error) {
+      previewNotice.value = '下载失败：' + getApiErrorMessage(error)
+    }
+    return
+  }
+
   downloadTextFile(generatedYamlText.value, 'generated-script.yaml', 'text/yaml;charset=utf-8')
   previewNotice.value = 'YAML 文件已开始下载。'
 }
