@@ -4,7 +4,10 @@
     <option name="autoReloadType" value="ALL" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="f217d95d-4d98-41e5-b563-7e337f9319ef" name="更改" comment="修改文件" />
+    <list default="true" id="f217d95d-4d98-41e5-b563-7e337f9319ef" name="更改" comment="前端项目初始化">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/web/index.html" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -35,23 +38,23 @@
   </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.0" />
-      <entry key="MS500" value="1.0" />
-      <entry key="S2" value="1.0" />
-      <entry key="S5" value="1.0" />
-      <entry key="S10" value="1.0" />
-      <entry key="S30" value="1.0" />
-      <entry key="S60" value="1.0" />
-      <entry key="M2" value="1.0" />
-      <entry key="M5" value="1.0" />
-      <entry key="M10" value="1.0" />
-      <entry key="M15" value="1.0" />
-      <entry key="M30" value="1.0" />
-      <entry key="H1" value="1.0" />
-      <entry key="H2" value="1.0" />
-      <entry key="H4" value="1.0" />
-      <entry key="D1" value="1.0" />
-      <entry key="W1" value="1.0" />
+      <entry key="MS100" value="1.0000000000073266" />
+      <entry key="MS500" value="1.0059309208007128" />
+      <entry key="S2" value="1.3148061211431168" />
+      <entry key="S5" value="1.867211835608333" />
+      <entry key="S10" value="2.2918993287564855" />
+      <entry key="S30" value="2.7212307622134446" />
+      <entry key="S60" value="2.8543515137138584" />
+      <entry key="M2" value="2.9255302644895016" />
+      <entry key="M5" value="2.9698065173356847" />
+      <entry key="M10" value="2.984834750120813" />
+      <entry key="M15" value="2.989874636811467" />
+      <entry key="M30" value="2.99523906697888" />
+      <entry key="H1" value="3.0150543529535136" />
+      <entry key="H2" value="3.1313637951163598" />
+      <entry key="H4" value="3.3635532698805295" />
+      <entry key="D1" value="3.84495429156598" />
+      <entry key="W1" value="3.9762221248685985" />
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
@@ -73,23 +76,23 @@
       <entry key="W1" value="0.0" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="0.29524816535738263" />
-      <entry key="MS500" value="0.7834971869493407" />
-      <entry key="S2" value="0.9408261075137876" />
-      <entry key="S5" value="0.9758964634219155" />
-      <entry key="S10" value="0.9878747205095976" />
-      <entry key="S30" value="0.995941793407374" />
-      <entry key="S60" value="0.9979688338857953" />
-      <entry key="M2" value="0.9989839007140181" />
-      <entry key="M5" value="0.9995934363234907" />
-      <entry key="M10" value="0.9997966974957913" />
-      <entry key="M15" value="0.999864460404345" />
-      <entry key="M30" value="0.9999322279056441" />
-      <entry key="H1" value="0.9999661133786705" />
-      <entry key="H2" value="0.9999830565457949" />
-      <entry key="H4" value="0.9999915282370121" />
-      <entry key="D1" value="0.9999985880345179" />
-      <entry key="W1" value="0.9999997982905233" />
+      <entry key="MS100" value="0.9460576467325272" />
+      <entry key="MS500" value="0.9948364034069136" />
+      <entry key="S2" value="1.3110627164950497" />
+      <entry key="S5" value="1.8648450205739113" />
+      <entry key="S10" value="2.2903417458241457" />
+      <entry key="S30" value="2.720579406786605" />
+      <entry key="S60" value="2.8540049143143853" />
+      <entry key="M2" value="2.9253513370039883" />
+      <entry key="M5" value="2.9697335415334263" />
+      <entry key="M10" value="2.9847980234297364" />
+      <entry key="M15" value="2.9898500989232546" />
+      <entry key="M30" value="2.9952267502732353" />
+      <entry key="H1" value="3.015047602256254" />
+      <entry key="H2" value="3.131358468886194" />
+      <entry key="H4" value="3.3635486446604768" />
+      <entry key="D1" value="3.8449528416608234" />
+      <entry key="W1" value="3.97622189127808" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo"><![CDATA[{
@@ -110,7 +113,7 @@
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
     "codeWithMe.voiceChat.enabledByDefault": "false",
-    "git-widget-placeholder": "codex/scriptforge-frontend-prs",
+    "git-widget-placeholder": "main",
     "ignore.virus.scanning.warn.message": "true",
     "last_opened_file_path": "C:/Users/zhibi/Desktop/Gravity-Matrix",
     "node.js.detected.package.eslint": "true",
@@ -135,8 +138,17 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1780602212273</updated>
-      <workItem from="1780602213384" duration="3583000" />
+      <workItem from="1780602213384" duration="7394000" />
     </task>
+    <task id="LOCAL-00001" summary="前端项目初始化">
+      <option name="closed" value="true" />
+      <created>1780623244001</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1780623244002</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -155,6 +167,7 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="修改文件" />
-    <option name="LAST_COMMIT_MESSAGE" value="修改文件" />
+    <MESSAGE value="前端项目初始化" />
+    <option name="LAST_COMMIT_MESSAGE" value="前端项目初始化" />
   </component>
 </project>

@@ -1,0 +1,453 @@
+.help-docs-page {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 38px;
+  max-width: 1280px;
+  margin: 0 auto;
+  align-items: start;
+}
+
+.help-docs-nav {
+  position: sticky;
+  top: 116px;
+  display: grid;
+  gap: 28px;
+  max-height: calc(100svh - 150px);
+  overflow: auto;
+  padding: 12px 18px 18px 4px;
+  border-right: 1px solid var(--border);
+}
+
+.help-docs-nav-group {
+  display: grid;
+  gap: 9px;
+}
+
+.help-docs-nav-group span {
+  color: oklch(58% 0.09 285);
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.help-docs-nav-group a {
+  width: fit-content;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+  text-decoration: none;
+}
+
+.help-docs-nav-group a:hover,
+.help-docs-nav-group a:focus-visible {
+  color: var(--primary-strong);
+}
+
+.help-docs-article {
+  display: grid;
+  gap: 34px;
+  min-width: 0;
+}
+
+.help-docs-hero {
+  min-height: 360px;
+  display: grid;
+  align-content: center;
+  gap: 18px;
+  padding: 46px 0 58px;
+  border-bottom: 1px solid var(--border);
+}
+
+.help-docs-hero span,
+.help-doc-section-copy span {
+  color: var(--primary-strong);
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.help-docs-hero h2 {
+  max-width: 10ch;
+  margin: 0;
+  color: var(--text);
+  font-size: 60px;
+  font-weight: 820;
+  line-height: 1.08;
+}
+
+.help-docs-hero p {
+  max-width: 64ch;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 17px;
+  line-height: 1.8;
+}
+
+.help-docs-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 6px;
+}
+
+.help-doc-section {
+  display: grid;
+  gap: 18px;
+  padding-bottom: 34px;
+  border-bottom: 1px solid var(--border);
+  scroll-margin-top: 110px;
+}
+
+.help-doc-section-split {
+  grid-template-columns: minmax(0, 0.74fr) minmax(260px, 0.26fr);
+  align-items: start;
+}
+
+.help-doc-section-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.help-doc-section-copy h3 {
+  max-width: 17ch;
+  margin: 0;
+  color: var(--text);
+  font-size: 38px;
+  font-weight: 820;
+  line-height: 1.16;
+}
+
+.help-doc-section-copy p {
+  max-width: 68ch;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.help-check-list,
+.help-workflow-list,
+.help-required-list,
+.help-mini-grid ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.help-check-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.help-check-list li,
+.help-workflow-list li,
+.help-required-list li,
+.help-reason-grid p,
+.help-mini-grid > div,
+.help-mini-grid li,
+.help-analysis-card,
+.help-faq-list article {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: oklch(99% 0.004 275 / 0.94);
+  box-shadow: var(--shadow-soft);
+}
+
+.help-check-list li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 14px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.help-check-list svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  fill: none;
+  stroke: oklch(46% 0.1 165);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.9;
+}
+
+.help-workflow-list {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.help-workflow-list li {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+}
+
+.help-workflow-list strong {
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--primary-strong);
+  background: var(--primary-faint);
+  font-size: 13px;
+}
+
+.help-workflow-list h4 {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 780;
+}
+
+.help-workflow-list p {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.help-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.help-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.help-mini-grid > div {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.help-mini-grid h4,
+.help-analysis-card h4,
+.help-faq-list h4 {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 780;
+  line-height: 1.35;
+}
+
+.help-mini-grid li {
+  padding: 10px 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+  box-shadow: none;
+}
+
+.help-analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.help-analysis-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 16px;
+}
+
+.help-analysis-card p,
+.help-faq-list p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.help-analysis-card pre {
+  max-height: 180px;
+  margin: 0;
+  overflow: auto;
+  padding: 12px 0;
+  border-radius: 8px;
+  background: oklch(19% 0.035 265);
+}
+
+.help-analysis-card code {
+  display: grid;
+  min-width: 360px;
+  color: oklch(86% 0.04 255);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.help-analysis-card code span {
+  padding: 0 12px;
+  white-space: pre;
+}
+
+.help-schema-table {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: collapse;
+}
+
+.help-schema-table th,
+.help-schema-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.58;
+  text-align: left;
+  vertical-align: top;
+}
+
+.help-schema-table th {
+  color: var(--text);
+  background: var(--primary-faint);
+  font-weight: 760;
+}
+
+.help-schema-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.help-schema-table code,
+.help-required-list code {
+  color: var(--primary-strong);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+}
+
+.help-required-list {
+  align-self: start;
+}
+
+.help-required-list li {
+  min-width: 0;
+  padding: 13px 14px;
+  background: var(--primary-faint);
+  box-shadow: none;
+}
+
+.help-required-list code {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.help-yaml-block {
+  max-height: 470px;
+  margin: 0;
+  overflow: auto;
+  padding: 20px 0;
+  border-radius: 12px;
+  background: oklch(19% 0.035 265);
+  box-shadow: var(--shadow-panel);
+}
+
+.help-yaml-block code {
+  display: grid;
+  min-width: 660px;
+  color: oklch(86% 0.04 255);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.68;
+}
+
+.help-yaml-block code span {
+  padding: 0 20px;
+  white-space: pre;
+}
+
+.help-reason-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.help-reason-grid p {
+  margin: 0;
+  padding: 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.help-faq-list {
+  display: grid;
+  gap: 12px;
+}
+
+.help-faq-list article {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+
+@media (max-width: 1180px) {
+  .help-docs-page {
+    grid-template-columns: 180px minmax(0, 1fr);
+    gap: 26px;
+  }
+
+  .help-workflow-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .help-docs-page {
+    grid-template-columns: 1fr;
+  }
+
+  .help-docs-nav {
+    position: static;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-height: none;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    padding: 0 0 18px;
+  }
+
+  .help-docs-hero h2 {
+    max-width: 12ch;
+    font-size: 44px;
+  }
+
+  .help-doc-section-split,
+  .help-check-list,
+  .help-reason-grid,
+  .help-mini-grid,
+  .help-analysis-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .help-docs-nav,
+  .help-workflow-list {
+    grid-template-columns: 1fr;
+  }
+
+  .help-docs-hero {
+    min-height: auto;
+    padding-top: 24px;
+    padding-bottom: 36px;
+  }
+
+  .help-docs-hero h2,
+  .help-doc-section-copy h3 {
+    max-width: none;
+    font-size: 32px;
+  }
+}

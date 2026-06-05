@@ -5,6 +5,7 @@ import AddSceneDialog from './components/AddSceneDialog.vue'
 import AiAnalysisPage from './components/AiAnalysisPage.vue'
 import AppSidebar from './components/AppSidebar.vue'
 import GenerationSettingsDialog from './components/GenerationSettingsDialog.vue'
+import HelpDocsPage from './components/HelpDocsPage.vue'
 import NovelImportPage from './components/NovelImportPage.vue'
 import ProductRoutePage from './components/ProductRoutePage.vue'
 import ProjectsPage from './components/ProjectsPage.vue'
@@ -36,6 +37,7 @@ import {
   projectCards,
   projectStages,
   projectStats,
+  productHelpDocs,
   quickActions,
   schemaHelpContent,
   schemaValidationMock,
@@ -396,6 +398,12 @@ const handleFileUpload = async (event) => {
           :stats="scriptLibraryStats"
           @edit-script="editLibraryScript"
           @preview-script="previewLibraryScript"
+        />
+
+        <HelpDocsPage
+          v-else-if="activeRoute.id === 'help'"
+          :content="productHelpDocs"
+          :icon-paths="iconPaths"
         />
 
         <ProductRoutePage v-else-if="!isWorkbenchRoute" :icon-paths="iconPaths" :route="activeRoute" />
