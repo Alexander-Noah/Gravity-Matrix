@@ -10,16 +10,21 @@ from app.db.session import get_db
 from app.models.project import Chapter, Job, JobType, Project
 from app.schemas.project import (
     AnalysisRead,
+    GenerationSettingsRequest,
+    GenerationSettingsResponse,
     ImportPreviewRequest,
     ImportPreviewResponse,
     JobRead,
     ProjectCreate,
+    ProjectDeleteResponse,
     ProjectsDashboardRead,
     ProjectDetail,
     ProjectListRead,
     ProjectReadinessRead,
     ProjectRead,
     ProjectWorkbenchRead,
+    SceneCreateRequest,
+    SceneCreateResponse,
     ScriptLibraryRead,
     ScriptDiagnosisResponse,
     ScriptRead,
@@ -31,6 +36,7 @@ from app.services.jobs import create_job, get_active_job, run_analysis_job, run_
 from app.services.script_diagnosis import diagnose_screenplay_yaml
 from app.services.screenplay_yaml import validate_screenplay_yaml
 from app.services.workbench import build_project_workbench
+import yaml
 
 router = APIRouter(tags=["projects"])
 
@@ -116,6 +122,14 @@ def get_project(project_id: int, db: Session = Depends(get_db)) -> ProjectDetail
     return ProjectDetail(**base, chapters=project.chapters)
 
 
+@router.delete("/projects/{project_id}", response_model=ProjectDeleteResponse)
+def delete_project(project_id: int, db: Session = Depends(get_db)) -> ProjectDeleteResponse:
+    project = _require_project(db, project_id)
+    db.delete(project)
+    db.commit()
+    return ProjectDeleteResponse(deleted=True, project_id=project_id)
+
+
 @router.get("/projects/{project_id}/workbench", response_model=ProjectWorkbenchRead)
 def get_project_workbench(project_id: int, db: Session = Depends(get_db)) -> ProjectWorkbenchRead:
     project = _require_project(db, project_id)
@@ -138,6 +152,28 @@ def start_analysis_job(
     active_job = get_active_job(db, project_id, JobType.analysis)
     if active_job is not None:
         return active_job
+
+    job = create_job(db, project_id, JobType.analysis)
+    background_tasks.add_task(_run_analysis_job_task, job.id)
+    return job
+
+
+@router.post("/projects/{project_id}/analysis-jobs/rerun", response_model=JobRead, status_code=202)
+def rerun_analysis_job(
+    project_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+) -> Job:
+    project = _require_project(db, project_id)
+    project.analysis_json = None
+    project.script_yaml = None
+    project.status = "created"
+    db.query(Job).filter(
+        Job.project_id == project_id,
+        Job.type == JobType.analysis.value,
+        Job.status.in_(["queued", "running"]),
+    ).update({"status": "failed", "current_step": "已被重新解析任务取代", "error_message": "rerun"})
+    db.commit()
 
     job = create_job(db, project_id, JobType.analysis)
     background_tasks.add_task(_run_analysis_job_task, job.id)
@@ -167,6 +203,16 @@ def start_script_job(
     job = create_job(db, project_id, JobType.script_generation)
     background_tasks.add_task(_run_script_generation_job_task, job.id)
     return job
+
+
+@router.post("/projects/{project_id}/generation-settings", response_model=GenerationSettingsResponse)
+def update_generation_settings(
+    project_id: int,
+    payload: GenerationSettingsRequest,
+    db: Session = Depends(get_db),
+) -> GenerationSettingsResponse:
+    _require_project(db, project_id)
+    return GenerationSettingsResponse(project_id=project_id, accepted=True, settings=payload)
 
 
 @router.get("/jobs/{job_id}", response_model=JobRead)
@@ -251,6 +297,58 @@ def export_script(project_id: int, db: Session = Depends(get_db)) -> Response:
     )
 
 
+@router.get("/projects/{project_id}/script/export/txt")
+def export_script_txt(project_id: int, db: Session = Depends(get_db)) -> Response:
+    project = _require_project(db, project_id)
+    if not project.script_yaml:
+        raise HTTPException(status_code=404, detail="当前项目还没有生成剧本。")
+
+    content = _screenplay_text(project.script_yaml)
+    filename = f"project-{project.id}-screenplay.txt"
+    return Response(
+        content=content,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/projects/{project_id}/script/export/markdown")
+def export_script_markdown(project_id: int, db: Session = Depends(get_db)) -> Response:
+    project = _require_project(db, project_id)
+    if not project.script_yaml:
+        raise HTTPException(status_code=404, detail="当前项目还没有生成剧本。")
+
+    content = _screenplay_markdown(project.script_yaml)
+    filename = f"project-{project.id}-screenplay.md"
+    return Response(
+        content=content,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/projects/{project_id}/scenes", response_model=SceneCreateResponse)
+def add_project_scene(
+    project_id: int,
+    payload: SceneCreateRequest,
+    db: Session = Depends(get_db),
+) -> SceneCreateResponse:
+    project = _require_project(db, project_id)
+    if not project.script_yaml:
+        raise HTTPException(status_code=404, detail="当前项目还没有生成剧本。")
+
+    updated_yaml, scene_id = _append_scene(project.script_yaml, payload)
+    valid, errors = validate_screenplay_yaml(updated_yaml)
+    if not valid:
+        raise HTTPException(status_code=422, detail={"message": "新增场景后剧本 YAML 校验失败。", "errors": errors})
+
+    project.script_yaml = updated_yaml
+    project.status = "script_edited"
+    db.commit()
+    db.refresh(project)
+    return SceneCreateResponse(project_id=project.id, yaml=updated_yaml, scene_id=scene_id)
+
+
 def _project_to_read(project: Project) -> ProjectRead:
     return ProjectRead(
         id=project.id,
@@ -310,3 +408,134 @@ def _run_script_generation_job_task(job_id: int) -> None:
 
     with SessionLocal() as db:
         run_script_generation_job(db, job_id)
+
+
+def _load_screenplay(yaml_text: str) -> dict:
+    parsed = yaml.safe_load(yaml_text)
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("script"), dict):
+        raise HTTPException(status_code=422, detail="剧本 YAML 结构无效。")
+    return parsed
+
+
+def _append_scene(yaml_text: str, payload: SceneCreateRequest) -> tuple[str, str]:
+    parsed = _load_screenplay(yaml_text)
+    script = parsed["script"]
+    chapters = script.get("chapters") or []
+    if not chapters:
+        raise HTTPException(status_code=422, detail="剧本 YAML 中没有可添加场景的章节。")
+
+    target_chapter = next((chapter for chapter in chapters if chapter.get("title") == payload.chapterTitle), chapters[0])
+    scenes = target_chapter.setdefault("scenes", [])
+    scene_id = f"{target_chapter.get('id', 'ch')}_extra_{len(scenes) + 1:03d}"
+
+    locations = script.setdefault("locations", [])
+    location_id = _ensure_location(locations, payload.location)
+    characters = script.setdefault("characters", [])
+    character_ids = _ensure_characters(characters, payload.characters)
+
+    scene = {
+        "id": scene_id,
+        "title": payload.sceneTitle,
+        "location_id": location_id,
+        "time": payload.time,
+        "characters": character_ids,
+        "synopsis": payload.action or payload.sceneTitle,
+        "stage_directions": [payload.action or f"{payload.location}中，人物围绕新冲突展开行动。"],
+        "dialogue": [
+            {
+                "speaker_id": character_ids[0],
+                "speaker_name": _character_name(characters, character_ids[0]),
+                "line": payload.action or "这一场戏需要继续打磨对白。",
+                "emotion": "neutral",
+            }
+        ],
+    }
+    scenes.append(scene)
+    return yaml.safe_dump(parsed, allow_unicode=True, sort_keys=False), scene_id
+
+
+def _ensure_location(locations: list[dict], name: str) -> str:
+    for location in locations:
+        if location.get("name") == name:
+            return str(location.get("id"))
+
+    location_id = f"loc_{len(locations) + 1:03d}"
+    locations.append({"id": location_id, "name": name, "description": f"{name}，新增场景发生地。"})
+    return location_id
+
+
+def _ensure_characters(characters: list[dict], names_text: str | None) -> list[str]:
+    names = [name.strip() for name in (names_text or "").replace(",", "、").split("、") if name.strip()]
+    if not names and characters:
+        return [str(characters[0]["id"])]
+    if not names:
+        names = ["待定人物"]
+
+    ids = []
+    for name in names:
+        existing = next((character for character in characters if character.get("name") == name), None)
+        if existing:
+            ids.append(str(existing["id"]))
+            continue
+
+        character_id = f"char_extra_{len(characters) + 1:03d}"
+        characters.append(
+            {
+                "id": character_id,
+                "name": name,
+                "role": "新增人物",
+                "gender": "unknown",
+                "age": None,
+                "description": f"{name}，由作者在编辑阶段新增。",
+            }
+        )
+        ids.append(character_id)
+    return ids
+
+
+def _character_name(characters: list[dict], character_id: str) -> str:
+    for character in characters:
+        if character.get("id") == character_id:
+            return str(character.get("name") or character_id)
+    return character_id
+
+
+def _screenplay_text(yaml_text: str) -> str:
+    parsed = _load_screenplay(yaml_text)
+    script = parsed["script"]
+    lines = [
+        str(script.get("metadata", {}).get("title") or "未命名剧本"),
+        "",
+    ]
+    for chapter in script.get("chapters", []):
+        lines.extend([str(chapter.get("title", "未命名章节")), ""])
+        for scene in chapter.get("scenes", []):
+            lines.append(str(scene.get("title", "未命名场景")))
+            lines.append(f"时间：{scene.get('time', '待定')}")
+            if scene.get("synopsis"):
+                lines.append(str(scene["synopsis"]))
+            for direction in scene.get("stage_directions", []):
+                lines.append(str(direction))
+            for dialogue in scene.get("dialogue", []):
+                lines.append(f"{dialogue.get('speaker_name', dialogue.get('speaker_id', '人物'))}：{dialogue.get('line', '')}")
+            lines.append("")
+    return "\n".join(lines).strip() + "\n"
+
+
+def _screenplay_markdown(yaml_text: str) -> str:
+    parsed = _load_screenplay(yaml_text)
+    script = parsed["script"]
+    lines = [f"# {script.get('metadata', {}).get('title') or '未命名剧本'}", ""]
+    for chapter in script.get("chapters", []):
+        lines.extend([f"## {chapter.get('title', '未命名章节')}", ""])
+        for scene in chapter.get("scenes", []):
+            lines.extend([f"### {scene.get('title', '未命名场景')}", "", f"- 时间：{scene.get('time', '待定')}"])
+            if scene.get("synopsis"):
+                lines.extend(["", str(scene["synopsis"])])
+            for direction in scene.get("stage_directions", []):
+                lines.extend(["", f"> {direction}"])
+            for dialogue in scene.get("dialogue", []):
+                speaker = dialogue.get("speaker_name", dialogue.get("speaker_id", "人物"))
+                lines.extend(["", f"**{speaker}**：{dialogue.get('line', '')}"])
+            lines.append("")
+    return "\n".join(lines).strip() + "\n"

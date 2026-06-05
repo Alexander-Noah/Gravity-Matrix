@@ -156,6 +156,38 @@ class ScriptRead(BaseModel):
     yaml: str
 
 
+class ProjectDeleteResponse(BaseModel):
+    deleted: bool
+    project_id: int
+
+
+class GenerationSettingsRequest(BaseModel):
+    scriptType: str | None = None
+    adaptationStyle: str | None = None
+    contentOptions: list[str] = Field(default_factory=list)
+
+
+class GenerationSettingsResponse(BaseModel):
+    project_id: int
+    accepted: bool
+    settings: GenerationSettingsRequest
+
+
+class SceneCreateRequest(BaseModel):
+    chapterTitle: str = Field(min_length=1, max_length=255)
+    sceneTitle: str = Field(min_length=1, max_length=255)
+    location: str = Field(min_length=1, max_length=255)
+    time: str = Field(min_length=1, max_length=255)
+    characters: str | None = Field(default=None, max_length=1000)
+    action: str | None = Field(default=None, max_length=5000)
+
+
+class SceneCreateResponse(BaseModel):
+    project_id: int
+    yaml: str
+    scene_id: str
+
+
 class AnalysisRead(BaseModel):
     project_id: int
     analysis: dict[str, Any]
