@@ -107,6 +107,7 @@ const displayedAnalysisScenes = ref(analysisScenes)
 const displayedPlotEvents = ref(plotEvents)
 const displayedCharacterRelations = ref(characterRelations)
 const displayedDialogueExtracts = ref(dialogueExtracts)
+const displayedInsightItems = ref(insightItems)
 const displayedScriptChapters = ref(scriptChapters)
 const displayedProjectCards = ref(projectCards)
 const displayedProjectStats = ref(projectStats)
@@ -1190,6 +1191,7 @@ const handleFileUpload = async (event) => {
       <div class="page-content">
         <WorkspaceHeader :description="pageDescription" :icon-paths="iconPaths" :title="pageTitle" @logout="logout"
           @open-profile="openProfileCenter" />
+        <section class="workspace-body" aria-label="工作台内容">
         <ProjectsPage v-if="activeRoute.id === 'projects'" :activities="displayedProjectActivities"
           :icon-paths="iconPaths" :projects="displayedProjectCards" :stats="displayedProjectStats"
           @open-project="openProject" @delete-project="handleDeleteProject" />
@@ -1246,6 +1248,7 @@ const handleFileUpload = async (event) => {
             :options="generationSettingOptions" @confirm="confirmGenerationSettings" />
           <AddSceneDialog v-model="isAddSceneOpen" :chapters="displayedScriptChapters" @confirm="confirmAddScene" />
         </template>
+        </section>
       </div>
     </main>
 
