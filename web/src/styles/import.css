@@ -1,8 +1,8 @@
 .import-workspace {
   display: grid;
-  grid-template-columns: minmax(520px, 1.18fr) minmax(360px, 0.82fr);
-  gap: 24px;
-  max-width: 1320px;
+  grid-template-columns: minmax(620px, 1.28fr) minmax(420px, 0.92fr);
+  gap: 28px;
+  max-width: 1640px;
   margin: 0 auto;
 }
 
