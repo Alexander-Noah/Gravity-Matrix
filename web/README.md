@@ -236,6 +236,62 @@ GET /projects/{project_id}/workbench
 
 用于一次性获取项目状态、流程步骤、分析概览和剧本结构。
 
+### 启动剧本生成任务
+
+```http
+POST /projects/{project_id}/script-jobs
+```
+
+前端在“生成设置”弹窗确认后调用该接口。当前后端接口不接收生成设置请求体，前端会先在本地保存设置，再按项目当前 AI 解析结果启动剧本生成任务。
+
+### 获取剧本 YAML
+
+```http
+GET /projects/{project_id}/script
+```
+
+期望响应：
+
+```json
+{
+  "project_id": 1,
+  "yaml": "script:\n  metadata:\n    title: ..."
+}
+```
+
+前端会把 `yaml` 转换为编辑器行结构，并使用 `/workbench` 返回的 `script.structure` 更新章节/场景树。
+
+### 校验 YAML
+
+```http
+POST /projects/{project_id}/script/validate
+```
+
+请求体：
+
+```json
+{
+  "yaml": "script:\n  metadata:\n    title: ..."
+}
+```
+
+期望响应：
+
+```json
+{
+  "valid": true,
+  "errors": []
+}
+```
+
+### 诊断 YAML 草稿
+
+```http
+POST /projects/{project_id}/script/diagnosis
+```
+
+前端在点击“校验格式”时会同时调用校验和诊断接口，并把 `summary.chapter_count`、`summary.scene_count`、`valid_schema`、`grade` 映射到右侧 Schema 校验面板。
+
 ## 前端路由
 
 | 路径 | 说明 |
@@ -246,7 +302,7 @@ GET /projects/{project_id}/workbench
 | `/templates` | 模板中心 |
 | `/library` | 剧本库 |
 | `/help` | 帮助文档 |
-| `/profile` | 个人中心占位页 |
+| `/profile` | 重定向到工作台，个人中心通过顶部创作者菜单弹窗打开 |
 
 ## 后端联调检查清单
 

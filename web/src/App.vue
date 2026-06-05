@@ -3,7 +3,17 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { clearAuthSession, getAuthSession } from './api/auth'
 import { getApiErrorMessage } from './api/http'
-import { createProject, getJob, getProjectAnalysis, startAnalysisJob } from './api/workbench'
+import {
+  createProject,
+  diagnoseProjectScriptDraft,
+  getJob,
+  getProjectAnalysis,
+  getProjectScript,
+  getProjectWorkbench,
+  startAnalysisJob,
+  startScriptJob,
+  validateProjectScript,
+} from './api/workbench'
 import AddSceneDialog from './components/AddSceneDialog.vue'
 import AiAnalysisPage from './components/AiAnalysisPage.vue'
 import AppSidebar from './components/AppSidebar.vue'
@@ -69,6 +79,7 @@ const isImportSubmitting = ref(false)
 const isGenerationSettingsOpen = ref(false)
 const isAddSceneOpen = ref(false)
 const generatedSettings = ref(null)
+const generatedScriptYaml = ref('')
 const schemaValidation = ref(schemaValidationMock)
 const editorNotice = ref('')
 const previewNotice = ref('')
@@ -81,6 +92,7 @@ const displayedAnalysisScenes = ref(analysisScenes)
 const displayedPlotEvents = ref(plotEvents)
 const displayedCharacterRelations = ref(characterRelations)
 const displayedDialogueExtracts = ref(dialogueExtracts)
+const displayedScriptChapters = ref(scriptChapters)
 
 const activeRoute = computed(() => getRouteById(route.name))
 const isAuthRoute = computed(() => activeRoute.value.id === 'auth')
@@ -139,6 +151,64 @@ const currentWorkflowSteps = computed(() => {
   return workflowSteps
 })
 
+const yamlTextToLines = (yamlText) =>
+  yamlText.split('\n').map((line) => {
+    if (!line.trim()) {
+      return []
+    }
+
+    const keyMatch = line.match(/^(\s*-?\s*[\w.-]+:)(.*)$/)
+
+    if (!keyMatch) {
+      return [{ text: line, tone: 'value' }]
+    }
+
+    const value = keyMatch[2]
+    const trimmedValue = value.trim()
+    const valueTone = /^["'].*["']$/.test(trimmedValue) ? 'string' : /^\d+$/.test(trimmedValue) ? 'number' : 'value'
+
+    return [
+      { text: keyMatch[1], tone: 'key' },
+      { text: value, tone: valueTone },
+    ]
+  })
+
+const mapDiagnosisToSchemaValidation = (diagnosis, fallbackValid = true) => {
+  const summary = diagnosis?.summary || {}
+
+  return {
+    yamlValid: diagnosis?.valid_schema ?? fallbackValid,
+    requiredFieldsValid: diagnosis?.valid_schema ?? fallbackValid,
+    chapterCount: summary.chapter_count ?? schemaValidationMock.chapterCount,
+    sceneCount: summary.scene_count ?? schemaValidationMock.sceneCount,
+    checkedAt: `刚刚校验 · ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`,
+    message: diagnosis?.valid_schema === false
+      ? '校验未通过：请根据后端返回的诊断建议修正 YAML。'
+      : `校验通过：发现 ${summary.issue_count ?? 0} 个结构问题，质量等级 ${diagnosis?.grade || 'A'}。`,
+  }
+}
+
+const applyWorkbenchScript = (workbench) => {
+  if (workbench?.script?.yaml) {
+    generatedScriptYaml.value = workbench.script.yaml
+  }
+
+  if (workbench?.script?.structure?.length) {
+    displayedScriptChapters.value = workbench.script.structure.map((chapter) => ({
+      title: chapter.title || chapter.label,
+      open: chapter.open,
+      scenes: chapter.scenes.map((scene) => ({
+        label: scene.label || scene.title,
+        active: scene.active,
+      })),
+    }))
+  }
+
+  if (workbench?.script?.diagnosis) {
+    schemaValidation.value = mapDiagnosisToSchemaValidation(workbench.script.diagnosis)
+  }
+}
+
 const detectedChapters = computed(() => {
   const matches = [
     ...novelText.value.matchAll(
@@ -164,6 +234,10 @@ const detectedChapters = computed(() => {
 const chapterCount = computed(() => detectedChapters.value.length)
 const isNovelValid = computed(() => chapterCount.value >= 3)
 const generatedYamlLines = computed(() => {
+  if (generatedScriptYaml.value) {
+    return yamlTextToLines(generatedScriptYaml.value)
+  }
+
   if (!generatedSettings.value) {
     return yamlLines
   }
@@ -183,7 +257,7 @@ const generatedYamlLines = computed(() => {
   ]
 })
 const generatedYamlText = computed(() =>
-  generatedYamlLines.value.map((line) => line.map((token) => token.text).join('')).join('\n'),
+  generatedScriptYaml.value || generatedYamlLines.value.map((line) => line.map((token) => token.text).join('')).join('\n'),
 )
 const scriptTextPreview = computed(() =>
   scriptPreviewScenes
@@ -205,12 +279,16 @@ const markdownPreview = computed(() =>
     .join('\n\n'),
 )
 
-const waitForJob = async (jobId) => {
+const waitForJob = async (jobId, onProgress) => {
   for (let attempt = 0; attempt < 12; attempt += 1) {
     const job = await getJob(jobId)
 
-    analysisProgress.value = job.progress ?? analysisProgress.value
-    analysisNotice.value = job.current_step || analysisNotice.value
+    if (onProgress) {
+      onProgress(job)
+    } else {
+      analysisProgress.value = job.progress ?? analysisProgress.value
+      analysisNotice.value = job.current_step || analysisNotice.value
+    }
 
     if (job.status === 'succeeded') {
       return job
@@ -405,12 +483,35 @@ const openGenerationSettings = () => {
   isGenerationSettingsOpen.value = true
 }
 
-const confirmGenerationSettings = (settings) => {
+const confirmGenerationSettings = async (settings) => {
   generatedSettings.value = settings
   isGenerationSettingsOpen.value = false
-  editorNotice.value = ''
+  editorNotice.value = '正在启动剧本生成任务...'
   schemaValidation.value = schemaValidationMock
   activePage.value = 'script'
+
+  if (!currentProjectId.value) {
+    editorNotice.value = '当前为静态演示剧本，请先从小说导入流程创建项目后再调用后端生成。'
+    return
+  }
+
+  try {
+    const job = await startScriptJob(currentProjectId.value)
+    editorNotice.value = job.current_step || '剧本生成任务已启动。'
+
+    await waitForJob(job.id, (currentJob) => {
+      editorNotice.value = `${currentJob.current_step}（${currentJob.progress}%）`
+    })
+
+    const script = await getProjectScript(currentProjectId.value)
+    generatedScriptYaml.value = script.yaml
+
+    const workbench = await getProjectWorkbench(currentProjectId.value)
+    applyWorkbenchScript(workbench)
+    editorNotice.value = '剧本 YAML 已从后端生成并同步到编辑区。'
+  } catch (error) {
+    editorNotice.value = getApiErrorMessage(error)
+  }
 }
 
 const openAddScene = () => {
@@ -422,13 +523,34 @@ const confirmAddScene = (sceneDraft) => {
   editorNotice.value = `${sceneDraft.sceneTitle} 已加入场景草稿，后续可写入 YAML。`
 }
 
-const validateYaml = () => {
-  schemaValidation.value = {
-    ...schemaValidationMock,
-    checkedAt: `刚刚校验 · ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`,
-    message: '校验通过：YAML 格式正确，必填字段完整。',
+const validateYaml = async () => {
+  if (!currentProjectId.value) {
+    schemaValidation.value = {
+      ...schemaValidationMock,
+      checkedAt: `刚刚校验 · ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`,
+      message: '校验通过：YAML 格式正确，必填字段完整。',
+    }
+    editorNotice.value = 'Schema 校验已完成。'
+    return
   }
-  editorNotice.value = 'Schema 校验已完成。'
+
+  try {
+    editorNotice.value = '正在调用后端校验 YAML...'
+    const validation = await validateProjectScript(currentProjectId.value, generatedYamlText.value)
+    const diagnosis = await diagnoseProjectScriptDraft(currentProjectId.value, generatedYamlText.value)
+
+    schemaValidation.value = {
+      ...mapDiagnosisToSchemaValidation(diagnosis, validation.valid),
+      yamlValid: validation.valid,
+      requiredFieldsValid: validation.valid,
+      message: validation.valid
+        ? mapDiagnosisToSchemaValidation(diagnosis, validation.valid).message
+        : `校验未通过：${validation.errors.join('；')}`,
+    }
+    editorNotice.value = validation.valid ? '后端 Schema 校验已通过。' : '后端 Schema 校验未通过，请查看提示。'
+  } catch (error) {
+    editorNotice.value = getApiErrorMessage(error)
+  }
 }
 
 const copyYaml = async () => {
@@ -634,7 +756,7 @@ const handleFileUpload = async (event) => {
               :icon-paths="iconPaths"
               :preview-dialogues="previewDialogues"
               :schema-validation="schemaValidation"
-              :script-chapters="scriptChapters"
+              :script-chapters="displayedScriptChapters"
               :status-notice="editorNotice"
               :yaml-lines="generatedYamlLines"
               @add-scene="openAddScene"
@@ -655,7 +777,7 @@ const handleFileUpload = async (event) => {
           />
           <AddSceneDialog
             v-model="isAddSceneOpen"
-            :chapters="scriptChapters"
+            :chapters="displayedScriptChapters"
             @confirm="confirmAddScene"
           />
         </template>

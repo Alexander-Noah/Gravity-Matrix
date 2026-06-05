@@ -33,3 +33,27 @@ export const getProjectWorkbench = async (projectId) => {
 
   return response.data
 }
+
+export const startScriptJob = async (projectId) => {
+  const response = await http.post(`/projects/${projectId}/script-jobs`)
+
+  return response.data
+}
+
+export const getProjectScript = async (projectId) => {
+  const response = await http.get(`/projects/${projectId}/script`)
+
+  return response.data
+}
+
+export const validateProjectScript = async (projectId, yaml) => {
+  const response = await http.post(`/projects/${projectId}/script/validate`, { yaml })
+
+  return response.data
+}
+
+export const diagnoseProjectScriptDraft = async (projectId, yaml) => {
+  const response = await http.post(`/projects/${projectId}/script/diagnosis`, { yaml })
+
+  return response.data
+}
