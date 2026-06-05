@@ -1,181 +1,79 @@
-# Gravity-Matrix API 文档
+# Gravity-Matrix 全量接口文档
 
-本文档描述了 Gravity-Matrix 现有的以及需要后端跟进实现的各类接口规范。
+本文档描述了 Gravity-Matrix 整个项目的前后端 API 接口情况。为了清晰反映目前的工程进度，文档被划分为两大部分：**第一部分**记录了后端已通过 FastAPI 真实实现的接口；**第二部分**记录了前端已在 UI 逻辑中调用，但后端暂时【待实现】的缺失接口。
 
-## 基础说明
-- **基础路径 (Base URL)**: `http://127.0.0.1:8000/api/v1`
-- **数据格式**: 请求与响应默认使用 `application/json`。
-- **错误响应**: 当接口抛出错误时，统一返回如下结构：
-  ```json
-  {
-    "detail": "具体的错误信息或原因说明"
-  }
-  ```
+## 基础约定
+- **Base URL**: `http://127.0.0.1:8000/api/v1`
+- **内容类型**: 默认使用 `application/json`。
 
 ---
 
-## 1. 项目管理相关 (Projects)
+## 第一部分：后端已实现的真实接口 (Implemented)
 
-### 1.1 创建项目
-- **请求方式**: `POST /projects`
-- **说明**: 接收用户导入的小说章节，创建一个新的剧本转换项目。
-- **请求体 (JSON)**:
-  ```json
-  {
-    "title": "项目名称",
-    "author": "创作者",
-    "chapters": [
-      {
-        "title": "章节名称",
-        "content": "小说正文"
-      }
-    ]
-  }
-  ```
-- **响应 (201 Created)**: 返回创建的 `Project` 基础信息（包含 `id`）。
+### 1. 系统状态
+- **GET /health**
+  健康检查接口。返回 `{"status": "ok"}`。
 
-### 1.2 获取项目列表
-- **请求方式**: `GET /projects`
-- **说明**: 分页获取用户所有的项目。
-- **查询参数**: `limit`, `offset`
-- **响应 (200 OK)**:
-  ```json
-  {
-    "items": [...],
-    "total": 10,
-    "limit": 20,
-    "offset": 0
-  }
-  ```
+### 2. 项目管理 (Projects)
+- **GET /projects**
+  获取项目列表（支持 `limit` 和 `offset` 分页）。
+- **POST /projects**
+  创建项目。入参: `{ title, author, chapters: [{title, content}] }`。
+- **GET /projects/{project_id}**
+  获取项目基础信息及章节列表。
+- **GET /projects/{project_id}/workbench**
+  获取项目工作台详情（聚合项目信息、解析结果、YAML剧本）。
+- **GET /projects/{project_id}/readiness**
+  检查项目就绪状态（是否可解析、是否可生成剧本、是否可导出）。
 
-### 1.3 获取项目基础信息 / 就绪状态
-- **请求方式**: `GET /projects/{project_id}` / `GET /projects/{project_id}/readiness`
-- **说明**: 获取项目的详情或是否准备好导出（包含 `can_export`, `progress` 等）。
+### 3. 工作流任务 (Jobs & Analysis)
+- **GET /jobs/{job_id}**
+  轮询查询任务（AI 解析、剧本生成）进度和详情。
+- **POST /projects/{project_id}/analysis-jobs**
+  异步启动 AI 小说解析任务，返回对应的 Job 信息。
+- **GET /projects/{project_id}/analysis**
+  获取项目完整的 AI 解析 JSON 结果。
+- **POST /projects/{project_id}/script-jobs**
+  异步启动大模型剧本生成任务，返回对应的 Job 信息。
 
-### 1.4 删除项目
-- **请求方式**: `DELETE /projects/{project_id}`
-- **说明**: 根据项目 ID 删除项目及其相关的解析、任务和剧本记录。
-- **响应 (200 OK 或 204 No Content)**:
-  ```json
-  {
-    "detail": "项目删除成功"
-  }
-  ```
-
-### 1.5 【新增预留】更新项目基础信息
-- **请求方式**: `PATCH /projects/{project_id}`
-- **说明**: 用于重命名项目或更新其他元数据。
-- **请求体 (JSON)**:
-  ```json
-  {
-    "title": "新的项目名称"
-  }
-  ```
-
-### 1.6 【新增预留】复制项目为新版本
-- **请求方式**: `POST /projects/{project_id}/clone`
-- **说明**: 将现有的项目及关联的剧本复制一份，作为新项目返回。
-- **响应 (201 Created)**: 返回新创建的 `Project` 基础信息。
+### 4. 剧本编辑与校验 (Scripting)
+- **GET /projects/{project_id}/script**
+  获取项目已生成的剧本 YAML 内容。
+- **PUT /projects/{project_id}/script**
+  全量保存修改后的剧本 YAML 草稿。
+- **POST /projects/{project_id}/script/validate**
+  对传入的剧本 YAML 进行结构与语法初步校验。
+- **GET /projects/{project_id}/script/diagnosis**
+  针对**已存库**的剧本 YAML 进行深度业务逻辑与规则诊断。
+- **POST /projects/{project_id}/script/diagnosis**
+  针对**前端草稿**的剧本 YAML 进行深度业务逻辑与规则诊断。
+- **GET /projects/{project_id}/script/export**
+  将数据库中已生成的剧本 YAML 文件以附件流（`application/x-yaml`）的形式导出下载。
 
 ---
 
-## 2. 模板与资源 (Templates & Resources)
+## 第二部分：前端已调用但后端【待实现】的预留接口 (To Be Implemented)
 
-### 2.1 【新增预留】获取剧本生成模板列表
-- **请求方式**: `GET /templates`
-- **说明**: 获取系统目前支持的各类剧本格式模板库（例如影视剧、短剧、话剧等）。
-- **响应 (200 OK)**:
-  ```json
-  [
-    {
-      "id": "tv-drama",
-      "name": "影视剧剧本模板",
-      "scenario": "适合传统长视频、网剧、院线电影的标准剧本生成。",
-      "features": ["保留完整场景描写", "强化剧情细节", "对话符合现实节奏"],
-      "fields": ["scene", "location", "time", "action", "dialogues"],
-      "yamlExample": ["..."]
-    }
-  ]
-  ```
+此部分为前端已写好 Axios 请求，但后端 Python 尚未编写对应的路由逻辑。**开发后续需补齐。**
 
----
+### 1. 认证与用户模块 (Auth)
+- **POST /auth/register**：用户注册。
+- **POST /auth/login**：用户登录。
+- **GET /auth/me**：获取当前登录用户信息。
 
-## 3. 工作台与工作流 (Workbench & Workflow)
+### 2. 模板中心 (Templates)
+- **GET /templates**：获取系统默认的剧本格式模板列表（如影视剧、短剧等）。前端目前带有本地数据兜底机制。
 
-### 3.1 获取项目工作台数据
-- **请求方式**: `GET /projects/{project_id}/workbench`
-- **说明**: 返回前端恢复工作台所需的各类结构数据（解析记录、YAML、项目元数据等）。
-- **响应 (200 OK)**:
-  ```json
-  {
-    "project": {...},
-    "analysis": {...},
-    "script": {...}
-  }
-  ```
+### 3. 项目管理高级操作 (Project Operations)
+- **PATCH /projects/{project_id}**：修改项目元数据（如重命名）。
+- **DELETE /projects/{project_id}**：彻底删除该项目及其关联的所有任务、解析与剧本。
+- **POST /projects/{project_id}/clone**：复制项目为全新版本，包含剧本内容。
 
-### 3.2 【新增预留】保存生成配置
-- **请求方式**: `POST /projects/{project_id}/generation-settings`
-- **说明**: 用户在 AI 解析后，弹窗选择的生成偏好配置，需要通过该接口持久化到后端。
-- **请求体 (JSON)**:
-  ```json
-  {
-    "scriptType": "影视剧",
-    "adaptationStyle": "原汁原味",
-    "contentOptions": ["保留内心独白", "增加动作细节"]
-  }
-  ```
-- **响应 (200 OK)**: 返回保存成功的状态。
+### 4. 工作台与任务控制 (Workbench Extensions)
+- **POST /projects/{project_id}/generation-settings**：持久化保存用户生成剧本时的偏好设置（如文风、选项等）。
+- **POST /projects/{project_id}/analysis-jobs/rerun**：清除旧解析缓存并重新触发一次解析 Job。
 
-### 3.3 启动剧本生成任务 / 解析任务
-- **请求方式**:
-  - `POST /projects/{project_id}/script-jobs` (启动 YAML 剧本生成)
-  - `POST /projects/{project_id}/analysis-jobs` (启动小说结构解析)
-- **说明**: 触发服务端的长耗时任务。
-- **响应 (200 OK)**: 返回 `Job` 对象，包含任务的 `id`，前端通过此 `id` 轮询进度。
-
-### 3.4 【新增预留】重新解析项目
-- **请求方式**: `POST /projects/{project_id}/analysis-jobs/rerun`
-- **说明**: 清除该项目之前产生的 `analysis_json` 和 `script_yaml` 等衍生数据，并重新触发一个 `analysis` 类型的 Job。
-- **响应 (200 OK)**: 返回新的 `Job` 对象以供前端轮询。
-
----
-
-## 4. 剧本编辑与导出 (Script & Export)
-
-### 4.1 获取 / 保存 剧本草稿
-- **请求方式**:
-  - `GET /projects/{project_id}/script` (获取最新的剧本内容)
-  - `PUT /projects/{project_id}/script` (前端手动修改 YAML 后同步到后端)
-- **请求体 (PUT)**:
-  ```json
-  {
-    "yaml": "script:\n  chapters:\n    ..."
-  }
-  ```
-
-### 4.2 诊断与校验 YAML
-- **请求方式**:
-  - `POST /projects/{project_id}/script/validate` (结构和语法校验)
-  - `POST /projects/{project_id}/script/diagnosis` (业务级诊断)
-- **说明**: 对前端修改后的 YAML 进行规则检查，返回详细的错误日志或等级打分。
-
-### 4.3 【新增预留】保存单场景草稿
-- **请求方式**: `POST /projects/{project_id}/scenes`
-- **说明**: 将前端侧面板新增的场景片段 (`sceneDraft`) 附加或合并到服务端的 `script_yaml` 中。
-- **请求体 (JSON)**:
-  ```json
-  {
-    "sceneTitle": "新场景",
-    "sceneLocation": "室内",
-    "sceneTime": "白天",
-    "sceneAction": "动作描写..."
-  }
-  ```
-
-### 4.4 【新增预留】导出为纯文本和 Markdown
-- **请求方式**:
-  - `GET /projects/{project_id}/script/export/markdown`
-  - `GET /projects/{project_id}/script/export/txt`
-- **说明**: 将服务端存储的剧本结构转换为 Markdown 或纯 TXT 格式，返回二进制文件流 (`Blob`) 供浏览器下载。
-- **响应头**: 必须设置 `Content-Disposition: attachment; filename="..."` 及合适的 `Content-Type`。
+### 5. 剧本高级编辑与特定导出 (Scripting Extensions)
+- **POST /projects/{project_id}/scenes**：追加/保存前端侧边栏新建的单场景片段。
+- **GET /projects/{project_id}/script/export/markdown**：将剧本直接导出并下载为 Markdown 格式。
+- **GET /projects/{project_id}/script/export/txt**：将剧本直接导出并下载为纯文本 TXT 格式。
