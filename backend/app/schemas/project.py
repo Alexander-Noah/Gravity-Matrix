@@ -66,3 +66,34 @@ class ScriptValidateRequest(BaseModel):
 class ScriptValidateResponse(BaseModel):
     valid: bool
     errors: list[str] = Field(default_factory=list)
+
+
+class ScriptDiagnosisSummary(BaseModel):
+    chapter_count: int
+    scene_count: int
+    character_count: int
+    location_count: int
+    dialogue_count: int
+    issue_count: int
+    warning_count: int
+    suggestion_count: int
+
+
+class ScriptDiagnosisFinding(BaseModel):
+    code: str
+    severity: str
+    category: str
+    path: str
+    message: str
+    recommendation: str
+
+
+class ScriptDiagnosisResponse(BaseModel):
+    project_id: int
+    source: str
+    valid_schema: bool
+    score: int
+    grade: str
+    summary: ScriptDiagnosisSummary
+    strengths: list[str] = Field(default_factory=list)
+    findings: list[ScriptDiagnosisFinding] = Field(default_factory=list)
