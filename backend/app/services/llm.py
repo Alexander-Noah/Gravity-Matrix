@@ -441,7 +441,14 @@ def _chapter_to_script(chapter: Chapter, locations: list[dict], characters: list
 
 
 def _brief(text: str, limit: int) -> str:
-    compact = " ".join(text.split())
+    compact = re.sub(r"\s+", " ", text.strip())
     if len(compact) <= limit:
         return compact
-    return compact[: limit - 1] + "..."
+
+    cutoff = limit - 1
+    sentence_endings = "。！？.!?"
+    for index in range(cutoff, max(0, cutoff - 30), -1):
+        if compact[index - 1] in sentence_endings:
+            cutoff = index
+            break
+    return compact[:cutoff] + "..."
