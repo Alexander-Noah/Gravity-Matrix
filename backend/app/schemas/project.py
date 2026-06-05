@@ -97,3 +97,57 @@ class ScriptDiagnosisResponse(BaseModel):
     summary: ScriptDiagnosisSummary
     strengths: list[str] = Field(default_factory=list)
     findings: list[ScriptDiagnosisFinding] = Field(default_factory=list)
+
+
+class WorkbenchWorkflowStep(BaseModel):
+    number: str
+    title: str
+    description: str
+    status: str
+
+
+class WorkbenchStage(BaseModel):
+    label: str
+    status: str
+    note: str
+
+
+class WorkbenchProgress(BaseModel):
+    percent: int
+    stages: list[WorkbenchStage]
+
+
+class WorkbenchAnalysis(BaseModel):
+    raw: dict[str, Any] | None
+    overview: dict[str, Any]
+
+
+class WorkbenchScriptScene(BaseModel):
+    id: str
+    title: str
+    label: str
+    active: bool
+    location_id: str
+    time: str
+
+
+class WorkbenchScriptChapter(BaseModel):
+    id: str
+    title: str
+    label: str
+    open: bool
+    scenes: list[WorkbenchScriptScene]
+
+
+class WorkbenchScript(BaseModel):
+    yaml: str | None
+    structure: list[WorkbenchScriptChapter]
+    diagnosis: ScriptDiagnosisResponse | None
+
+
+class ProjectWorkbenchRead(BaseModel):
+    project: ProjectRead
+    workflow_steps: list[WorkbenchWorkflowStep]
+    progress: WorkbenchProgress
+    analysis: WorkbenchAnalysis
+    script: WorkbenchScript

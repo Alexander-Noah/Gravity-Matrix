@@ -91,6 +91,7 @@ pytest
 - `GET /api/v1/projects/{project_id}`：获取项目详情。
 - `POST /api/v1/projects/{project_id}/analysis-jobs`：启动 AI 解析任务。
 - `GET /api/v1/projects/{project_id}/analysis`：获取 AI 解析结果。
+- `GET /api/v1/projects/{project_id}/workbench`：获取前端工作台接入数据。
 - `POST /api/v1/projects/{project_id}/script-jobs`：启动剧本生成任务。
 - `GET /api/v1/jobs/{job_id}`：查询任务状态。
 - `GET /api/v1/projects/{project_id}/script`：获取剧本 YAML。
@@ -101,6 +102,23 @@ pytest
 - `GET /api/v1/projects/{project_id}/script/export`：导出剧本 YAML。
 
 如果没有配置大模型 API，后端会使用确定性的演示生成逻辑，保证评委本地可以跑通完整流程。配置 `LLM_API_KEY`、`LLM_BASE_URL` 和 `LLM_MODEL` 后，后端会优先调用 DeepSeek/OpenAI-compatible Chat Completions，并要求模型返回 JSON 对象，再由后端校验后转成剧本 YAML。模型返回为空、不是合法 JSON 或不符合剧本 Schema 时，会自动回退到确定性演示生成逻辑。
+
+质量诊断接口不会额外调用大模型，会基于现有 YAML Schema 和剧本结构输出 `score`、`grade`、`summary`、`strengths`、`findings` 等原始结构化结果，方便前端或作者继续判断需要打磨的位置。
+
+## 前端工作台接入点
+
+`GET /api/v1/projects/{project_id}/workbench` 用于给前端工作台一次性读取项目状态和可展示内容。项目存在时即使还没有分析结果或剧本，也会返回 200；对应字段使用空概览或 `null`，方便前端逐步接入。
+
+返回顶层字段：
+
+- `project`：项目基础信息，结构与 `ProjectRead` 一致。
+- `workflow_steps`：导入小说、AI 解析、生成剧本、编辑与导出四步状态。
+- `progress`：项目完成百分比和阶段列表。
+- `analysis.raw`：已有 AI 分析原始 JSON；没有分析时为 `null`。
+- `analysis.overview`：人物数、地点数、章节摘要数、冲突数、主题和冲突列表。
+- `script.yaml`：已有剧本 YAML；没有剧本时为 `null`。
+- `script.structure`：从合法剧本 YAML 解析出的章节/场景树。
+- `script.diagnosis`：已有剧本的质量诊断结果；没有剧本时为 `null`。
 
 ## 配置说明
 
