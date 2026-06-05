@@ -22,7 +22,7 @@ from app.schemas.project import (
     ScriptValidateRequest,
     ScriptValidateResponse,
 )
-from app.services.jobs import create_job, run_analysis_job, run_script_generation_job
+from app.services.jobs import create_job, get_active_job, run_analysis_job, run_script_generation_job
 from app.services.script_diagnosis import diagnose_screenplay_yaml
 from app.services.screenplay_yaml import validate_screenplay_yaml
 from app.services.workbench import build_project_workbench
@@ -113,6 +113,10 @@ def start_analysis_job(
     db: Session = Depends(get_db),
 ) -> Job:
     _require_project(db, project_id)
+    active_job = get_active_job(db, project_id, JobType.analysis)
+    if active_job is not None:
+        return active_job
+
     job = create_job(db, project_id, JobType.analysis)
     background_tasks.add_task(_run_analysis_job_task, job.id)
     return job
@@ -134,6 +138,10 @@ def start_script_job(
     db: Session = Depends(get_db),
 ) -> Job:
     _require_project(db, project_id)
+    active_job = get_active_job(db, project_id, JobType.script_generation)
+    if active_job is not None:
+        return active_job
+
     job = create_job(db, project_id, JobType.script_generation)
     background_tasks.add_task(_run_script_generation_job_task, job.id)
     return job

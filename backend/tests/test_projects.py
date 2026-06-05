@@ -3,6 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.api.routes import projects as project_routes
 from app.db.session import Base, get_db
 from app.main import app
 
@@ -168,6 +169,23 @@ def test_get_readiness_for_new_project_points_to_analysis() -> None:
     }
 
 
+def test_start_analysis_job_reuses_active_job(monkeypatch) -> None:
+    client = TestClient(app)
+    monkeypatch.setattr(project_routes, "_run_analysis_job_task", lambda job_id: None)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    first_response = client.post(f"/api/v1/projects/{project_id}/analysis-jobs")
+    second_response = client.post(f"/api/v1/projects/{project_id}/analysis-jobs")
+
+    assert first_response.status_code == 202
+    assert second_response.status_code == 202
+    assert second_response.json()["id"] == first_response.json()["id"]
+    assert second_response.json()["status"] == "queued"
+
+
 def test_create_project_and_generate_script() -> None:
     client = TestClient(app)
 
@@ -257,6 +275,23 @@ def test_get_readiness_after_script_points_to_export() -> None:
     assert readiness["can_export"] is True
     assert readiness["missing_steps"] == []
     assert readiness["next_action"] == "export_script"
+
+
+def test_start_script_job_reuses_active_job(monkeypatch) -> None:
+    client = TestClient(app)
+    monkeypatch.setattr(project_routes, "_run_script_generation_job_task", lambda job_id: None)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    first_response = client.post(f"/api/v1/projects/{project_id}/script-jobs")
+    second_response = client.post(f"/api/v1/projects/{project_id}/script-jobs")
+
+    assert first_response.status_code == 202
+    assert second_response.status_code == 202
+    assert second_response.json()["id"] == first_response.json()["id"]
+    assert second_response.json()["status"] == "queued"
 
 
 def test_save_script_rejects_invalid_yaml() -> None:
