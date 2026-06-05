@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import AddSceneDialog from './components/AddSceneDialog.vue'
 import AiAnalysisPage from './components/AiAnalysisPage.vue'
 import AppSidebar from './components/AppSidebar.vue'
 import GenerationSettingsDialog from './components/GenerationSettingsDialog.vue'
@@ -48,6 +49,7 @@ const importNotice = ref('')
 const analysisProgress = ref(100)
 const analysisNotice = ref('')
 const isGenerationSettingsOpen = ref(false)
+const isAddSceneOpen = ref(false)
 const generatedSettings = ref(null)
 const schemaValidation = ref(schemaValidationMock)
 const editorNotice = ref('')
@@ -213,6 +215,15 @@ const confirmGenerationSettings = (settings) => {
   editorNotice.value = ''
   schemaValidation.value = schemaValidationMock
   activePage.value = 'script'
+}
+
+const openAddScene = () => {
+  isAddSceneOpen.value = true
+}
+
+const confirmAddScene = (sceneDraft) => {
+  isAddSceneOpen.value = false
+  editorNotice.value = `${sceneDraft.sceneTitle} 已加入场景草稿，后续可写入 YAML。`
 }
 
 const validateYaml = () => {
@@ -389,6 +400,7 @@ const handleFileUpload = async (event) => {
               :script-chapters="scriptChapters"
               :status-notice="editorNotice"
               :yaml-lines="generatedYamlLines"
+              @add-scene="openAddScene"
               @copy-yaml="copyYaml"
               @download-yaml="downloadYaml"
               @open-preview="goToPreview"
@@ -403,6 +415,11 @@ const handleFileUpload = async (event) => {
             :initial-settings="generatedSettings"
             :options="generationSettingOptions"
             @confirm="confirmGenerationSettings"
+          />
+          <AddSceneDialog
+            v-model="isAddSceneOpen"
+            :chapters="scriptChapters"
+            @confirm="confirmAddScene"
           />
         </template>
       </div>

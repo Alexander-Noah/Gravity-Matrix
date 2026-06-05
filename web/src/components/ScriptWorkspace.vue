@@ -8,7 +8,7 @@ defineProps({
   yamlLines: { type: Array, required: true },
 })
 
-defineEmits(['copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'previous', 'validate-yaml'])
+defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'previous', 'validate-yaml'])
 </script>
 
 <template>
@@ -91,7 +91,7 @@ defineEmits(['copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'previ
             </li>
           </ul>
 
-          <button class="add-scene-button" type="button">
+          <button class="add-scene-button" type="button" @click="$emit('add-scene')">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path v-for="path in iconPaths.plus" :key="path" :d="path" />
             </svg>

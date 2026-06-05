@@ -148,6 +148,64 @@
   border-top: 1px solid var(--border);
 }
 
+.add-scene-dialog {
+  width: min(600px, 100%);
+}
+
+.add-scene-form {
+  gap: 16px;
+}
+
+.form-field,
+.form-field-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.form-field-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.form-field span {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 740;
+}
+
+.form-field input,
+.form-field select,
+.form-field textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--surface);
+  font: 13px/1.55 var(--font-sans);
+  outline: none;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.form-field input,
+.form-field select {
+  height: 40px;
+  padding: 0 12px;
+}
+
+.form-field textarea {
+  min-height: 92px;
+  resize: vertical;
+  padding: 10px 12px;
+}
+
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus {
+  border-color: oklch(72% 0.13 285);
+  box-shadow: 0 0 0 4px oklch(72% 0.15 285 / 0.14);
+}
+
 @media (max-width: 720px) {
   .dialog-backdrop {
     padding: 14px;
@@ -156,6 +214,10 @@
   .segmented-grid,
   .checkbox-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .form-field-grid {
+    grid-template-columns: 1fr;
   }
 
   .dialog-header,
