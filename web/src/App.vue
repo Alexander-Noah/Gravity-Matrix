@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import AiAnalysisPage from './components/AiAnalysisPage.vue'
 import AppSidebar from './components/AppSidebar.vue'
+import GenerationSettingsDialog from './components/GenerationSettingsDialog.vue'
 import NovelImportPage from './components/NovelImportPage.vue'
 import ScriptWorkspace from './components/ScriptWorkspace.vue'
 import SupportColumn from './components/SupportColumn.vue'
@@ -15,6 +16,7 @@ import {
   characterRelations,
   defaultNovelText,
   dialogueExtracts,
+  generationSettingOptions,
   iconPaths,
   importWorkflowSteps,
   insightItems,
@@ -34,6 +36,8 @@ const selectedFileName = ref('')
 const importNotice = ref('')
 const analysisProgress = ref(100)
 const analysisNotice = ref('')
+const isGenerationSettingsOpen = ref(false)
+const generatedSettings = ref(null)
 
 const activeNavItems = computed(() =>
   navItems.map((item) => ({
@@ -86,6 +90,25 @@ const detectedChapters = computed(() => {
 
 const chapterCount = computed(() => detectedChapters.value.length)
 const isNovelValid = computed(() => chapterCount.value >= 3)
+const generatedYamlLines = computed(() => {
+  if (!generatedSettings.value) {
+    return yamlLines
+  }
+
+  return [
+    ...yamlLines.slice(0, 6),
+    [{ text: 'generation_settings:', tone: 'key' }],
+    [{ text: '  script_type:', tone: 'key' }, { text: ` ${generatedSettings.value.scriptType}`, tone: 'string' }],
+    [{ text: '  adaptation_style:', tone: 'key' }, { text: ` ${generatedSettings.value.adaptationStyle}`, tone: 'string' }],
+    [{ text: '  content_options:', tone: 'key' }],
+    ...generatedSettings.value.contentOptions.map((option) => [
+      { text: '    -', tone: 'key' },
+      { text: ` ${option}`, tone: 'value' },
+    ]),
+    [],
+    ...yamlLines.slice(6),
+  ]
+})
 
 const goToPage = (pageId) => {
   if (pageId !== 'workbench') {
@@ -115,8 +138,14 @@ const rerunAnalysis = () => {
   }, 450)
 }
 
-const showGenerationPlaceholder = () => {
-  analysisNotice.value = '生成设置弹窗将在下一次小粒度提交中实现。'
+const openGenerationSettings = () => {
+  isGenerationSettingsOpen.value = true
+}
+
+const confirmGenerationSettings = (settings) => {
+  generatedSettings.value = settings
+  isGenerationSettingsOpen.value = false
+  activePage.value = 'script'
 }
 
 const handleFileUpload = async (event) => {
@@ -173,7 +202,7 @@ const handleFileUpload = async (event) => {
           :notice="analysisNotice"
           :plot-events="plotEvents"
           :progress="analysisProgress"
-          @next="showGenerationPlaceholder"
+          @next="openGenerationSettings"
           @previous="goBackToImport"
           @rerun="rerunAnalysis"
         />
@@ -189,9 +218,16 @@ const handleFileUpload = async (event) => {
             :icon-paths="iconPaths"
             :preview-dialogues="previewDialogues"
             :script-chapters="scriptChapters"
-            :yaml-lines="yamlLines"
+            :yaml-lines="generatedYamlLines"
           />
         </div>
+
+        <GenerationSettingsDialog
+          v-model="isGenerationSettingsOpen"
+          :initial-settings="generatedSettings"
+          :options="generationSettingOptions"
+          @confirm="confirmGenerationSettings"
+        />
       </div>
     </main>
   </div>

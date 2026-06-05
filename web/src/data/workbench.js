@@ -12,6 +12,12 @@ export const quickActions = [
   { label: '导入小说《星辰之下》', time: '1 小时前' },
 ]
 
+export const generationSettingOptions = {
+  scriptTypes: ['影视剧', '短剧', '话剧', '分镜剧本'],
+  adaptationStyles: ['忠于原文', '精简剧情', '强化冲突', '增强对白'],
+  contentOptions: ['动作描写', '情绪提示', '镜头建议', '转场提示'],
+}
+
 export const workflowSteps = [
   { number: '1', title: '导入小说', description: '上传或粘贴小说内容', status: 'done' },
   { number: '2', title: 'AI 解析', description: '智能识别人物、场景与剧情', status: 'done' },
