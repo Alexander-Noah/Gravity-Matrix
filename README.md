@@ -92,11 +92,13 @@ Gravity-Matrix/
 
 ```powershell
 cd backend
-python -m venv .venv
+D:\Programming\anaconda3\python.exe -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
+
+推荐使用 Python 3.10-3.11；本项目本地验证使用 Python 3.10.20。后端依赖见 `backend/requirements.txt`，推荐运行版本见 `backend/runtime.txt`。
 
 后端默认地址：
 
@@ -139,6 +141,7 @@ LLM_TIMEOUT_SECONDS=120
 ```
 
 如果不配置大模型 API，后端会自动使用 deterministic demo 生成逻辑，仍可完成小说导入、AI 分析、剧本生成、YAML 校验、质量诊断和导出。
+该兜底逻辑会尽量从章节文本抽取人物名，并生成场景、舞台说明和多句对白，保证评委没有 API Key 时也能看到完整剧本初稿。
 
 ## 测试记录
 

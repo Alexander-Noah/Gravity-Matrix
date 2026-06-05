@@ -2,9 +2,15 @@
 
 Gravity-Matrix 后端服务负责把 3 个章节以上的小说文本转换为可编辑的结构化剧本 YAML。当前版本先搭建 FastAPI 基础骨架，为后续小说导入、AI 解析、剧本生成、YAML 校验和导出接口做准备。
 
+## 环境要求
+
+- 推荐 Python 3.10.20，支持 Python 3.10-3.11。
+- 不推荐 Python 3.14：当前锁定的 SQLAlchemy 版本在本机 Python 3.14 测试时可能出现类型解析兼容问题。
+- 依赖清单见 `requirements.txt`，推荐运行环境版本见 `runtime.txt`。
+
 ## 技术栈
 
-- Python 3.11+
+- Python 3.10-3.11
 - FastAPI
 - Uvicorn
 - Pydantic Settings
@@ -37,6 +43,7 @@ backend/
     test_projects.py
   README.md
   requirements.txt
+  runtime.txt
 ```
 
 ## 本地开发
@@ -102,6 +109,8 @@ pytest
 - `GET /api/v1/projects/{project_id}/script/export`：导出剧本 YAML。
 
 如果没有配置大模型 API，后端会使用确定性的演示生成逻辑，保证评委本地可以跑通完整流程。配置 `LLM_API_KEY`、`LLM_BASE_URL` 和 `LLM_MODEL` 后，后端会优先调用 DeepSeek/OpenAI-compatible Chat Completions，并要求模型返回 JSON 对象，再由后端校验后转成剧本 YAML。模型返回为空、不是合法 JSON 或不符合剧本 Schema 时，会自动回退到确定性演示生成逻辑。
+
+确定性演示生成逻辑会从章节文本中尽量抽取人物名，并为每个章节生成场景、舞台说明和多句对白，确保无 API Key 的评审环境也能看到完整的剧本结构。
 
 质量诊断接口不会额外调用大模型，会基于现有 YAML Schema 和剧本结构输出 `score`、`grade`、`summary`、`strengths`、`findings` 等原始结构化结果，方便前端或作者继续判断需要打磨的位置。
 

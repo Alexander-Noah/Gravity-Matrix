@@ -1,3 +1,8 @@
+# Recommended Python runtime: 3.10.20
+# Supported local development range: Python 3.10-3.11
+# Python 3.14 is not recommended for this project because current SQLAlchemy
+# pinned here may hit typing compatibility issues in the local test environment.
+
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 pydantic-settings==2.7.1
