@@ -312,6 +312,22 @@ def test_save_script_rejects_invalid_yaml() -> None:
     assert client.get(f"/api/v1/projects/{project_id}/script").json()["yaml"] == original
 
 
+def test_script_yaml_request_rejects_oversized_content() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/script/validate",
+        json={"yaml": "x" * 1_000_001},
+    )
+
+    assert response.status_code == 422
+    assert "String should have at most 1000000 characters" in response.text
+
+
 def test_get_script_diagnosis_requires_generated_script() -> None:
     client = TestClient(app)
 

@@ -2,6 +2,8 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import Any
 
+from app.core.config import settings
+
 
 class ChapterCreate(BaseModel):
     title: str = Field(min_length=1, max_length=255)
@@ -79,7 +81,7 @@ class AnalysisRead(BaseModel):
 
 
 class ScriptValidateRequest(BaseModel):
-    yaml: str = Field(min_length=1)
+    yaml: str = Field(min_length=1, max_length=settings.max_script_yaml_chars)
 
 
 class ScriptValidateResponse(BaseModel):
