@@ -97,6 +97,8 @@ const displayedScriptChapters = ref(scriptChapters)
 const displayedProjectCards = ref(projectCards)
 const displayedProjectStats = ref(projectStats)
 const displayedProjectActivities = ref(projectActivities)
+const displayedLibraryItems = ref(scriptLibraryItems)
+const displayedLibraryStats = ref(scriptLibraryStats)
 
 const activeRoute = computed(() => getRouteById(route.name))
 const isAuthRoute = computed(() => activeRoute.value.id === 'auth')
@@ -283,6 +285,53 @@ const applyProjectsResult = (result) => {
   }))
 }
 
+const mapLibraryStatus = (project, diagnosis) => {
+  if (diagnosis?.valid_schema === false) {
+    return '校验异常'
+  }
+
+  if (project.status === 'script_edited') {
+    return '编辑中'
+  }
+
+  return project.has_script ? '已完成' : '草稿'
+}
+
+const mapLibraryItem = (project, workbench) => {
+  const diagnosis = workbench?.script?.diagnosis
+  const summary = diagnosis?.summary || {}
+
+  return {
+    id: `project-${project.id}`,
+    projectId: project.id,
+    title: `《${project.title}》剧本`,
+    sourceNovel: `《${project.title}》`,
+    type: '影视剧',
+    chapters: summary.chapter_count ?? project.chapter_count,
+    scenes: summary.scene_count ?? 0,
+    dialogues: summary.dialogue_count ?? 0,
+    schemaStatus: diagnosis?.valid_schema === false ? '校验异常' : '校验通过',
+    status: mapLibraryStatus(project, diagnosis),
+    updatedAt: formatProjectTime(project.updated_at),
+    tags: [project.status, project.has_analysis ? '已解析' : '待解析', 'YAML'],
+    raw: project,
+  }
+}
+
+const applyLibraryResult = (items) => {
+  const editingCount = items.filter((item) => item.status === '编辑中').length
+  const completedCount = items.filter((item) => item.status === '已完成').length
+  const exportedCount = items.filter((item) => item.status === '已导出').length
+
+  displayedLibraryItems.value = items.length ? items : scriptLibraryItems
+  displayedLibraryStats.value = [
+    { label: '全部剧本', value: String(items.length), note: '来自后端已生成项目', tone: 'violet' },
+    { label: '编辑中', value: String(editingCount), note: '已保存 YAML 草稿', tone: 'blue' },
+    { label: '已完成', value: String(completedCount), note: '可进入完整预览', tone: 'mint' },
+    { label: '已导出', value: String(exportedCount), note: '后端暂未返回导出历史', tone: 'orange' },
+  ]
+}
+
 const applyWorkbenchScript = (workbench) => {
   if (workbench?.script?.yaml) {
     generatedScriptYaml.value = workbench.script.yaml
@@ -320,11 +369,37 @@ const fetchProjects = async () => {
   }
 }
 
+const fetchScriptLibrary = async () => {
+  try {
+    const result = await listProjects()
+    const scriptProjects = (result.items || []).filter((project) => project.has_script)
+    const items = await Promise.all(
+      scriptProjects.map(async (project) => {
+        try {
+          const workbench = await getProjectWorkbench(project.id)
+          return mapLibraryItem(project, workbench)
+        } catch {
+          return mapLibraryItem(project, null)
+        }
+      }),
+    )
+
+    applyLibraryResult(items)
+  } catch {
+    displayedLibraryItems.value = scriptLibraryItems
+    displayedLibraryStats.value = scriptLibraryStats
+  }
+}
+
 watch(
   () => activeRoute.value.id,
   (routeId) => {
     if (routeId === 'projects') {
       fetchProjects()
+    }
+
+    if (routeId === 'library') {
+      fetchScriptLibrary()
     }
   },
   { immediate: true },
@@ -558,14 +633,36 @@ const selectGenerationTemplate = (templateId) => {
   selectedTemplateId.value = templateId
 }
 
-const editLibraryScript = () => {
+const editLibraryScript = async (script) => {
   router.push('/workbench')
+  currentProjectId.value = script?.projectId || script?.raw?.id || null
+
+  if (currentProjectId.value) {
+    try {
+      const workbench = await getProjectWorkbench(currentProjectId.value)
+      applyWorkbenchScript(workbench)
+    } catch (error) {
+      editorNotice.value = getApiErrorMessage(error)
+    }
+  }
+
   activePage.value = 'script'
 }
 
-const previewLibraryScript = () => {
+const previewLibraryScript = async (script) => {
   router.push('/workbench')
+  currentProjectId.value = script?.projectId || script?.raw?.id || null
   previewNotice.value = ''
+
+  if (currentProjectId.value) {
+    try {
+      const workbench = await getProjectWorkbench(currentProjectId.value)
+      applyWorkbenchScript(workbench)
+    } catch (error) {
+      previewNotice.value = getApiErrorMessage(error)
+    }
+  }
+
   activePage.value = 'preview'
 }
 
@@ -827,8 +924,8 @@ const handleFileUpload = async (event) => {
         <ScriptLibraryPage
           v-else-if="activeRoute.id === 'library'"
           :icon-paths="iconPaths"
-          :scripts="scriptLibraryItems"
-          :stats="scriptLibraryStats"
+          :scripts="displayedLibraryItems"
+          :stats="displayedLibraryStats"
           @edit-script="editLibraryScript"
           @preview-script="previewLibraryScript"
         />

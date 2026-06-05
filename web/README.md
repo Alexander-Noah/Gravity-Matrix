@@ -167,6 +167,17 @@ GET /projects?limit=20&offset=0
 
 项目卡片会使用 `id`、`title`、`author`、`status`、`chapter_count`、`has_analysis`、`has_script`、`updated_at` 字段。点击“打开项目”后，前端会继续调用 `/projects/{project_id}/workbench` 同步工作台状态。
 
+### 剧本库数据
+
+当前后端没有独立的 `/scripts/library` 路由，前端“剧本库”页面暂时复用：
+
+```http
+GET /projects?limit=20&offset=0
+GET /projects/{project_id}/workbench
+```
+
+前端会先筛选 `has_script=true` 的项目，再调用工作台聚合接口读取 `script.diagnosis.summary`，用于展示章节数量、场景数量、对白数量和 YAML Schema 状态。
+
 ### 创建项目
 
 ```http
