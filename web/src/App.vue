@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
+import AiAnalysisPage from './components/AiAnalysisPage.vue'
 import AppSidebar from './components/AppSidebar.vue'
 import NovelImportPage from './components/NovelImportPage.vue'
 import ScriptWorkspace from './components/ScriptWorkspace.vue'
@@ -7,12 +8,18 @@ import SupportColumn from './components/SupportColumn.vue'
 import WorkflowStepper from './components/WorkflowStepper.vue'
 import WorkspaceHeader from './components/WorkspaceHeader.vue'
 import {
+  analysisCharacters,
   analysisMetrics,
+  analysisScenes,
+  analysisWorkflowSteps,
+  characterRelations,
   defaultNovelText,
+  dialogueExtracts,
   iconPaths,
   importWorkflowSteps,
   insightItems,
   navItems,
+  plotEvents,
   previewDialogues,
   projectStages,
   quickActions,
@@ -21,23 +28,45 @@ import {
   yamlLines,
 } from './data/workbench'
 
-const activePage = ref('workbench')
+const activePage = ref('import')
 const novelText = ref(defaultNovelText)
 const selectedFileName = ref('')
 const importNotice = ref('')
+const analysisProgress = ref(100)
+const analysisNotice = ref('')
 
 const activeNavItems = computed(() =>
   navItems.map((item) => ({
     ...item,
-    active: item.id === activePage.value,
+    active: item.id === 'workbench',
   })),
 )
 
-const pageTitle = computed(() => (activePage.value === 'import' ? '小说导入' : '小说转剧本工作台'))
-const pageDescription = computed(() =>
-  activePage.value === 'import' ? '上传文件或粘贴原文，检查章节完整度后进入 AI 解析' : '从小说到剧本，只需几步',
-)
-const currentWorkflowSteps = computed(() => (activePage.value === 'import' ? importWorkflowSteps : workflowSteps))
+const pageTitle = computed(() => {
+  return '小说转剧本工作台'
+})
+const pageDescription = computed(() => {
+  if (activePage.value === 'import') {
+    return '上传文件或粘贴原文，检查章节完整度后进入 AI 解析'
+  }
+
+  if (activePage.value === 'analysis') {
+    return '检查人物、场景、剧情事件、人物关系和对白提取结果'
+  }
+
+  return '从小说到剧本，只需几步'
+})
+const currentWorkflowSteps = computed(() => {
+  if (activePage.value === 'import') {
+    return importWorkflowSteps
+  }
+
+  if (activePage.value === 'analysis') {
+    return analysisWorkflowSteps
+  }
+
+  return workflowSteps
+})
 
 const detectedChapters = computed(() => {
   const matches = [...novelText.value.matchAll(/(?:^|\n)\s*((?:第[\d一二三四五六七八九十百]+章|Chapter\s*\d+)[^\n]*)/gi)]
@@ -59,11 +88,31 @@ const chapterCount = computed(() => detectedChapters.value.length)
 const isNovelValid = computed(() => chapterCount.value >= 3)
 
 const goToPage = (pageId) => {
-  if (!['workbench', 'import'].includes(pageId)) {
+  if (pageId !== 'workbench') {
     return
   }
 
-  activePage.value = pageId
+  activePage.value = 'import'
+}
+
+const goToAnalysis = () => {
+  analysisProgress.value = 100
+  analysisNotice.value = ''
+  activePage.value = 'analysis'
+}
+
+const rerunAnalysis = () => {
+  analysisProgress.value = 36
+  analysisNotice.value = '正在重新解析小说内容...'
+
+  window.setTimeout(() => {
+    analysisProgress.value = 100
+    analysisNotice.value = '重新解析完成，结果已刷新。'
+  }, 450)
+}
+
+const showGenerationPlaceholder = () => {
+  analysisNotice.value = '生成设置弹窗将在下一次小粒度提交中实现。'
 }
 
 const handleFileUpload = async (event) => {
@@ -106,7 +155,22 @@ const handleFileUpload = async (event) => {
           :import-notice="importNotice"
           :is-valid="isNovelValid"
           @file-upload="handleFileUpload"
-          @next="importNotice = 'AI解析页面将在下一次小粒度提交中实现。'"
+          @next="goToAnalysis"
+        />
+
+        <AiAnalysisPage
+          v-else-if="activePage === 'analysis'"
+          :analysis-characters="analysisCharacters"
+          :analysis-metrics="analysisMetrics"
+          :analysis-scenes="analysisScenes"
+          :character-relations="characterRelations"
+          :dialogue-extracts="dialogueExtracts"
+          :icon-paths="iconPaths"
+          :notice="analysisNotice"
+          :plot-events="plotEvents"
+          :progress="analysisProgress"
+          @next="showGenerationPlaceholder"
+          @rerun="rerunAnalysis"
         />
 
         <div v-else class="content-grid">

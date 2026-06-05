@@ -61,6 +61,16 @@
     grid-template-columns: 1fr;
   }
 
+  .analysis-progress-card,
+  .analysis-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-metrics-row,
+  .dialogue-extract-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .novel-preview {
     height: auto;
     max-height: 520px;
@@ -122,6 +132,11 @@
   }
 
   .metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-metrics-row,
+  .dialogue-extract-grid {
     grid-template-columns: 1fr;
   }
 

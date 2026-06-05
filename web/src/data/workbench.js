@@ -1,6 +1,5 @@
 export const navItems = [
   { id: 'workbench', label: '工作台', icon: 'home' },
-  { id: 'import', label: '小说导入', icon: 'upload' },
   { id: 'projects', label: '我的项目', icon: 'folder' },
   { id: 'templates', label: '模板中心', icon: 'grid' },
   { id: 'library', label: '剧本库', icon: 'book' },
@@ -23,6 +22,13 @@ export const workflowSteps = [
 export const importWorkflowSteps = [
   { number: '1', title: '导入小说', description: '上传或粘贴小说内容', status: 'current' },
   { number: '2', title: 'AI 解析', description: '智能识别人物、场景与剧情', status: 'upcoming' },
+  { number: '3', title: '生成剧本', description: '一键生成结构化剧本', status: 'upcoming' },
+  { number: '4', title: '编辑与导出', description: '在线编辑并导出剧本', status: 'upcoming' },
+]
+
+export const analysisWorkflowSteps = [
+  { number: '1', title: '导入小说', description: '上传或粘贴小说内容', status: 'done' },
+  { number: '2', title: 'AI 解析', description: '智能识别人物、场景与剧情', status: 'current' },
   { number: '3', title: '生成剧本', description: '一键生成结构化剧本', status: 'upcoming' },
   { number: '4', title: '编辑与导出', description: '在线编辑并导出剧本', status: 'upcoming' },
 ]
@@ -61,6 +67,40 @@ export const insightItems = [
   { label: '核心主题', value: '梦想、友情、成长' },
   { label: '故事基调', value: '积极 / 温暖' },
   { label: '建议剧本类型', value: '电视剧（30 集）' },
+]
+
+export const analysisCharacters = [
+  { name: '林晓', role: '主角', age: '24', trait: '怀揣音乐梦想，敏感但坚定' },
+  { name: '苏晴', role: '室友 / 盟友', age: '25', trait: '行动力强，习惯用实际帮助表达关心' },
+  { name: '周亦辰', role: '制作人', age: '32', trait: '克制冷静，代表行业门槛与现实压力' },
+  { name: '小剧场导演', role: '机会提供者', age: '38', trait: '关注真实表达，推动林晓完成转折' },
+]
+
+export const analysisScenes = [
+  { title: '地铁站出口', chapter: '第1章', time: '傍晚', mood: '陌生、迷茫' },
+  { title: '合租出租屋', chapter: '第2章', time: '夜晚', mood: '局促、温暖' },
+  { title: '音乐公司面试间', chapter: '第3章', time: '下午', mood: '紧张、受挫' },
+  { title: '小剧场后台', chapter: '第5章', time: '演出前', mood: '忐忑、蓄势' },
+]
+
+export const plotEvents = [
+  { step: '01', chapter: '第1章', title: '抵达城市', detail: '林晓带着吉他来到陌生城市，建立主角目标和孤独感。' },
+  { step: '02', chapter: '第2章', title: '获得陪伴', detail: '苏晴接纳林晓，合租关系成为后续情感支点。' },
+  { step: '03', chapter: '第3章', title: '面试受挫', detail: '制作人的打断让主角第一次直面行业现实。' },
+  { step: '04', chapter: '第4章', title: '好友误会', detail: '苏晴越界帮忙，引发友情冲突，也埋下机会。' },
+  { step: '05', chapter: '第5章', title: '舞台试炼', detail: '林晓完成公开演出，故事进入阶段性成长。' },
+]
+
+export const characterRelations = [
+  { source: '林晓', target: '苏晴', relation: '室友 / 朋友', note: '支持与误会并存，是情绪转折的主要关系。' },
+  { source: '林晓', target: '周亦辰', relation: '求职者 / 评审', note: '体现行业规则和主角自我怀疑。' },
+  { source: '苏晴', target: '小剧场导演', relation: '推荐人 / 导演', note: '推动林晓获得第一次舞台机会。' },
+]
+
+export const dialogueExtracts = [
+  { speaker: '林晓', scene: '地铁站出口', line: '这座城市，真的能实现我的梦想吗？', intent: '表达不确定和核心目标' },
+  { speaker: '苏晴', scene: '出租屋', line: '先把今晚安顿好，梦想明天继续追。', intent: '缓和压力，建立陪伴感' },
+  { speaker: '周亦辰', scene: '面试间', line: '技巧不错，但我听不到你自己的声音。', intent: '制造打击，指出成长方向' },
 ]
 
 export const scriptChapters = [
@@ -137,6 +177,8 @@ export const iconPaths = {
   bell: ['M17.25 10.5a5.25 5.25 0 0 0-10.5 0c0 4-1.75 4.75-1.75 4.75h14s-1.75-.75-1.75-4.75z', 'M10 18.25a2.25 2.25 0 0 0 4 0'],
   check: ['M5.75 12.25 10 16.5 18.25 7.5'],
   chevron: ['M8.75 5.75 15 12l-6.25 6.25'],
+  refresh: ['M18.25 8.75A6.25 6.25 0 0 0 7 6.25L5.25 8', 'M5.75 15.25A6.25 6.25 0 0 0 17 17.75L18.75 16', 'M18.25 5.5v3.25H15', 'M5.75 18.5v-3.25H9'],
+  link: ['M9.25 13.75 14.75 8.25', 'M10.75 6.25l.85-.85a3.2 3.2 0 0 1 4.55 4.5l-.9.9', 'M13.25 17.75l-.85.85a3.2 3.2 0 0 1-4.55-4.5l.9-.9'],
   spark: ['M12 3.75 13.3 8.7 18.25 10 13.3 11.3 12 16.25 10.7 11.3 5.75 10 10.7 8.7z', 'M18.25 15.25 18.85 17.15 20.75 17.75 18.85 18.35 18.25 20.25 17.65 18.35 15.75 17.75 17.65 17.15z'],
   users: ['M9.25 11.25a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M4.5 19.25c.65-3.05 2.25-4.75 4.75-4.75s4.1 1.7 4.75 4.75', 'M16.2 10.75a2.35 2.35 0 1 0 0-4.7', 'M14.9 14.35c2 .25 3.35 1.9 3.85 4.9'],
   scene: ['M4.25 17.75V6.25h15.5v11.5z', 'm7 14 3.25-3.5 2.2 2.35 1.55-1.65 2.75 2.8', 'M8.25 9.25h.01'],
