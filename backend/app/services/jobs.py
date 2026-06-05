@@ -1,0 +1,80 @@
+import json
+
+from sqlalchemy.orm import Session
+
+from app.models.project import Job, JobStatus, JobType, Project
+from app.services.llm import analyze_project, generate_screenplay
+from app.services.screenplay_yaml import dump_screenplay_yaml
+
+
+def run_analysis_job(db: Session, job_id: int) -> None:
+    job = db.get(Job, job_id)
+    if job is None:
+        return
+
+    try:
+        _mark_running(db, job, "正在分析小说人物、场景和冲突", 20)
+        project = _get_project(db, job.project_id)
+        result = analyze_project(project)
+
+        project.analysis_json = json.dumps(result.content, ensure_ascii=False)
+        project.status = "analysis_completed"
+        _mark_succeeded(db, job, "AI 解析完成", 100, project.id)
+    except Exception as exc:  # pragma: no cover - defensive boundary for background tasks
+        _mark_failed(db, job, str(exc))
+
+
+def run_script_generation_job(db: Session, job_id: int) -> None:
+    job = db.get(Job, job_id)
+    if job is None:
+        return
+
+    try:
+        _mark_running(db, job, "正在整理章节结构", 20)
+        project = _get_project(db, job.project_id)
+        analysis = json.loads(project.analysis_json) if project.analysis_json else None
+
+        _mark_running(db, job, "正在生成剧本 YAML", 70)
+        result = generate_screenplay(project, analysis)
+        project.script_yaml = dump_screenplay_yaml(result.content)
+        project.status = "script_completed"
+        _mark_succeeded(db, job, "剧本生成完成", 100, project.id)
+    except Exception as exc:  # pragma: no cover - defensive boundary for background tasks
+        _mark_failed(db, job, str(exc))
+
+
+def _get_project(db: Session, project_id: int) -> Project:
+    project = db.get(Project, project_id)
+    if project is None:
+        raise ValueError("项目不存在。")
+    return project
+
+
+def _mark_running(db: Session, job: Job, step: str, progress: int) -> None:
+    job.status = JobStatus.running.value
+    job.current_step = step
+    job.progress = progress
+    db.commit()
+
+
+def _mark_succeeded(db: Session, job: Job, step: str, progress: int, result_id: int) -> None:
+    job.status = JobStatus.succeeded.value
+    job.current_step = step
+    job.progress = progress
+    job.result_id = result_id
+    db.commit()
+
+
+def _mark_failed(db: Session, job: Job, message: str) -> None:
+    job.status = JobStatus.failed.value
+    job.current_step = "任务失败"
+    job.error_message = message
+    db.commit()
+
+
+def create_job(db: Session, project_id: int, job_type: JobType) -> Job:
+    job = Job(project_id=project_id, type=job_type.value)
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return job
