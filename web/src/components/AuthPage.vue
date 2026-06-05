@@ -1,5 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
+import { getApiErrorMessage } from '../api/http'
+import { login, register } from '../api/auth'
 
 defineProps({
   iconPaths: { type: Object, required: true },
@@ -13,9 +15,16 @@ const email = ref('')
 const password = ref('')
 const agreeTerms = ref(false)
 const notice = ref('')
+const isSubmitting = ref(false)
 
 const isRegister = computed(() => mode.value === 'register')
-const submitLabel = computed(() => (isRegister.value ? '创建账号' : '登录工作台'))
+const submitLabel = computed(() => {
+  if (isSubmitting.value) {
+    return isRegister.value ? '正在创建账号...' : '正在登录...'
+  }
+
+  return isRegister.value ? '创建账号' : '登录工作台'
+})
 const helperText = computed(() =>
   isRegister.value ? '已有账号？返回登录' : '还没有账号？创建一个',
 )
@@ -25,29 +34,59 @@ const switchMode = () => {
   notice.value = ''
 }
 
-const submitAuth = () => {
+const validateForm = () => {
   if (isRegister.value && !fullName.value.trim()) {
-    notice.value = '请输入创作者名称。'
-    return
+    return '请输入创作者名称。'
   }
 
   if (!email.value.trim() || !password.value.trim()) {
-    notice.value = '请输入邮箱和密码。'
-    return
+    return '请输入邮箱和密码。'
   }
 
   if (isRegister.value && password.value.length < 6) {
-    notice.value = '密码至少需要 6 位。'
-    return
+    return '密码至少需要 6 位。'
   }
 
   if (isRegister.value && !agreeTerms.value) {
-    notice.value = '请先确认同意使用规范。'
+    return '请先确认同意使用规范。'
+  }
+
+  return ''
+}
+
+const submitAuth = async () => {
+  const validationMessage = validateForm()
+
+  if (validationMessage) {
+    notice.value = validationMessage
     return
   }
 
-  notice.value = isRegister.value ? '账号已创建，正在进入工作台。' : '登录成功，正在进入工作台。'
-  emit('authenticated')
+  isSubmitting.value = true
+  notice.value = ''
+
+  try {
+    if (isRegister.value) {
+      await register({
+        name: fullName.value.trim(),
+        email: email.value.trim(),
+        password: password.value,
+      })
+      notice.value = '账号已创建，正在进入工作台。'
+    } else {
+      await login({
+        email: email.value.trim(),
+        password: password.value,
+      })
+      notice.value = '登录成功，正在进入工作台。'
+    }
+
+    emit('authenticated')
+  } catch (error) {
+    notice.value = getApiErrorMessage(error)
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 
@@ -88,8 +127,8 @@ const submitAuth = () => {
       </div>
 
       <div class="auth-tabs" role="tablist" aria-label="账号操作">
-        <button :class="{ 'is-active': !isRegister }" type="button" role="tab" @click="mode = 'login'">登录</button>
-        <button :class="{ 'is-active': isRegister }" type="button" role="tab" @click="mode = 'register'">注册</button>
+        <button :class="{ 'is-active': !isRegister }" :disabled="isSubmitting" type="button" role="tab" @click="mode = 'login'">登录</button>
+        <button :class="{ 'is-active': isRegister }" :disabled="isSubmitting" type="button" role="tab" @click="mode = 'register'">注册</button>
       </div>
 
       <form class="auth-form" @submit.prevent="submitAuth">
@@ -115,10 +154,10 @@ const submitAuth = () => {
 
         <p v-if="notice" class="auth-notice">{{ notice }}</p>
 
-        <button class="auth-submit" type="submit">{{ submitLabel }}</button>
+        <button class="auth-submit" :disabled="isSubmitting" type="submit">{{ submitLabel }}</button>
       </form>
 
-      <button class="auth-switch" type="button" @click="switchMode">{{ helperText }}</button>
+      <button class="auth-switch" :disabled="isSubmitting" type="button" @click="switchMode">{{ helperText }}</button>
     </section>
   </main>
 </template>

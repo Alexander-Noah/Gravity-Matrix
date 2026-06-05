@@ -145,6 +145,13 @@
   box-shadow: var(--shadow-panel);
 }
 
+.auth-tabs button:disabled,
+.auth-submit:disabled,
+.auth-switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
 .auth-form {
   display: grid;
   gap: 14px;
@@ -217,6 +224,10 @@
 
 .auth-submit:hover {
   background: var(--primary-strong);
+}
+
+.auth-submit:disabled:hover {
+  background: var(--primary);
 }
 
 .auth-switch {
