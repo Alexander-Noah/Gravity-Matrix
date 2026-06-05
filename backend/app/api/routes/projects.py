@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
@@ -6,6 +8,7 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.models.project import Chapter, Job, JobType, Project
 from app.schemas.project import (
+    AnalysisRead,
     JobRead,
     ProjectCreate,
     ProjectDetail,
@@ -73,6 +76,15 @@ def start_analysis_job(
     return job
 
 
+@router.get("/projects/{project_id}/analysis", response_model=AnalysisRead)
+def get_analysis(project_id: int, db: Session = Depends(get_db)) -> AnalysisRead:
+    project = _require_project(db, project_id)
+    if not project.analysis_json:
+        raise HTTPException(status_code=404, detail="当前项目还没有 AI 分析结果。")
+
+    return AnalysisRead(project_id=project.id, analysis=json.loads(project.analysis_json))
+
+
 @router.post("/projects/{project_id}/script-jobs", response_model=JobRead, status_code=202)
 def start_script_job(
     project_id: int,
@@ -99,6 +111,24 @@ def get_script(project_id: int, db: Session = Depends(get_db)) -> ScriptRead:
     if not project.script_yaml:
         raise HTTPException(status_code=404, detail="当前项目还没有生成剧本。")
     return ScriptRead(project_id=project.id, yaml=project.script_yaml)
+
+
+@router.put("/projects/{project_id}/script", response_model=ScriptRead)
+def save_script(
+    project_id: int,
+    payload: ScriptValidateRequest,
+    db: Session = Depends(get_db),
+) -> ScriptRead:
+    project = _require_project(db, project_id)
+    valid, errors = validate_screenplay_yaml(payload.yaml)
+    if not valid:
+        raise HTTPException(status_code=422, detail={"message": "剧本 YAML 校验失败。", "errors": errors})
+
+    project.script_yaml = payload.yaml
+    project.status = "script_edited"
+    db.commit()
+    db.refresh(project)
+    return ScriptRead(project_id=project.id, yaml=project.script_yaml or "")
 
 
 @router.post("/projects/{project_id}/script/validate", response_model=ScriptValidateResponse)

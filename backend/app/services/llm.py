@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from typing import Any
+
+from openai import OpenAI
+from pydantic import ValidationError
 
 from app.core.config import settings
 from app.models.project import Chapter, Project
+from app.schemas.screenplay import ScreenplayDocument
 
 
 @dataclass(frozen=True)
@@ -13,7 +19,25 @@ class LLMResult:
 
 
 def analyze_project(project: Project) -> LLMResult:
-    # The deterministic fallback keeps the demo runnable before API keys are configured.
+    if _has_llm_config():
+        result = _call_deepseek(_analysis_prompt(project))
+        if isinstance(result, dict) and _is_valid_analysis(result):
+            return LLMResult(provider=settings.llm_provider, content=_normalize_analysis(result))
+
+    return _demo_analyze_project(project)
+
+
+def generate_screenplay(project: Project, analysis: dict | None = None) -> LLMResult:
+    analysis = _normalize_analysis(analysis or analyze_project(project).content)
+    if _has_llm_config():
+        result = _call_deepseek(_screenplay_prompt(project, analysis))
+        if isinstance(result, dict) and _is_valid_screenplay(result):
+            return LLMResult(provider=settings.llm_provider, content=result)
+
+    return _demo_generate_screenplay(project, analysis)
+
+
+def _demo_analyze_project(project: Project) -> LLMResult:
     characters = [
         {
             "id": "char_001",
@@ -42,7 +66,7 @@ def analyze_project(project: Project) -> LLMResult:
     ]
 
     return LLMResult(
-        provider=_provider_label(),
+        provider="deterministic_demo",
         content={
             "characters": characters,
             "locations": locations,
@@ -53,8 +77,8 @@ def analyze_project(project: Project) -> LLMResult:
     )
 
 
-def generate_screenplay(project: Project, analysis: dict | None = None) -> LLMResult:
-    analysis = analysis or analyze_project(project).content
+def _demo_generate_screenplay(project: Project, analysis: dict | None = None) -> LLMResult:
+    analysis = _normalize_analysis(analysis or _demo_analyze_project(project).content)
     characters = analysis.get("characters") or [
         {
             "id": "char_001",
@@ -72,7 +96,7 @@ def generate_screenplay(project: Project, analysis: dict | None = None) -> LLMRe
     chapters = [_chapter_to_script(chapter, locations, characters) for chapter in project.chapters]
 
     return LLMResult(
-        provider=_provider_label(),
+        provider="deterministic_demo",
         content={
             "script": {
                 "schema_version": "1.0",
@@ -97,10 +121,234 @@ def generate_screenplay(project: Project, analysis: dict | None = None) -> LLMRe
     )
 
 
-def _provider_label() -> str:
-    if settings.llm_api_key and settings.llm_base_url and settings.llm_model:
-        return settings.llm_provider
-    return "deterministic_demo"
+def _has_llm_config() -> bool:
+    return bool(settings.llm_api_key and settings.llm_base_url and settings.llm_model)
+
+
+def _call_deepseek(prompt: str) -> dict[str, Any] | None:
+    try:
+        client = OpenAI(
+            api_key=settings.llm_api_key,
+            base_url=settings.llm_base_url,
+            timeout=settings.llm_timeout_seconds,
+        )
+        response = client.chat.completions.create(
+            model=settings.llm_model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "你是专业的小说改编剧本助手。"
+                        "必须只输出一个合法 JSON 对象，不要输出 Markdown、解释文字或代码块。"
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.4,
+        )
+        content = response.choices[0].message.content
+        if not content:
+            return None
+        parsed = json.loads(content)
+    except Exception:
+        return None
+
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _analysis_prompt(project: Project) -> str:
+    return "\n".join(
+        [
+            "请分析以下小说章节，并输出 JSON 对象。",
+            "JSON 字段必须包含 characters、locations、chapter_summaries、themes、conflicts。",
+            "characters 数组元素字段：id、name、role、gender、age、description。",
+            "locations 数组元素字段：id、name、description。",
+            "chapter_summaries 数组元素字段：chapter_number、title、summary。",
+            "themes、conflicts 都是字符串数组。",
+            "",
+            f"小说标题：{project.title}",
+            f"作者：{project.author or '未知'}",
+            "",
+            _chapters_for_prompt(project),
+        ]
+    )
+
+
+def _screenplay_prompt(project: Project, analysis: dict) -> str:
+    return "\n".join(
+        [
+            "请把小说改编为结构化剧本 JSON。",
+            "必须输出顶层包含 script 字段的 JSON 对象，所有字段名必须使用下方模板中的英文 snake_case 字段名。",
+            "不得省略模板中的任何必填字段；未知 age 必须输出 null，不要输出“未知”。",
+            "scene.location_id 必须引用 locations 中已有 id；scene.characters 和 dialogue.speaker_id 必须引用 characters 中已有 id。",
+            "不要输出 YAML，不要输出 Markdown。",
+            "JSON 模板如下：",
+            _screenplay_json_template(project),
+            "",
+            f"小说标题：{project.title}",
+            f"作者：{project.author or '未知'}",
+            f"分析结果 JSON：{json.dumps(analysis, ensure_ascii=False)}",
+            "",
+            _chapters_for_prompt(project),
+        ]
+    )
+
+
+def _screenplay_json_template(project: Project) -> str:
+    template = {
+        "script": {
+            "schema_version": "1.0",
+            "metadata": {
+                "title": project.title,
+                "original_novel": project.title,
+                "author": project.author,
+                "language": "zh-CN",
+                "target_format": "screenplay",
+                "total_chapters": len(project.chapters),
+            },
+            "characters": [
+                {
+                    "id": "char_001",
+                    "name": "人物名",
+                    "role": "主角",
+                    "gender": "unknown",
+                    "age": None,
+                    "description": "人物简介",
+                }
+            ],
+            "locations": [
+                {
+                    "id": "loc_001",
+                    "name": "地点名",
+                    "description": "地点说明",
+                }
+            ],
+            "chapters": [
+                {
+                    "id": "ch_001",
+                    "title": "章节标题",
+                    "source_chapter_numbers": [1],
+                    "summary": "章节摘要",
+                    "scenes": [
+                        {
+                            "id": "sc_001_001",
+                            "title": "场景标题",
+                            "location_id": "loc_001",
+                            "time": "day",
+                            "characters": ["char_001"],
+                            "synopsis": "场景概述",
+                            "stage_directions": ["动作或画面说明"],
+                            "dialogue": [
+                                {
+                                    "speaker_id": "char_001",
+                                    "speaker_name": "人物名",
+                                    "line": "台词",
+                                    "emotion": "calm",
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+            "adaptation_notes": {
+                "themes": ["主题"],
+                "conflicts": ["核心冲突"],
+                "omissions": ["压缩或省略说明"],
+            },
+        }
+    }
+    return json.dumps(template, ensure_ascii=False)
+
+
+def _chapters_for_prompt(project: Project) -> str:
+    parts = []
+    for chapter in project.chapters:
+        parts.append(
+            "\n".join(
+                [
+                    f"第 {chapter.number} 章：{chapter.title}",
+                    _brief(chapter.content, 2500),
+                ]
+            )
+        )
+    return "\n\n".join(parts)
+
+
+def _is_valid_analysis(data: dict[str, Any]) -> bool:
+    required_lists = ["characters", "locations", "chapter_summaries", "themes", "conflicts"]
+    return all(isinstance(data.get(key), list) for key in required_lists)
+
+
+def _normalize_analysis(data: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "characters": _normalize_characters(data.get("characters", [])),
+        "locations": _normalize_locations(data.get("locations", [])),
+        "chapter_summaries": data.get("chapter_summaries", []),
+        "themes": _normalize_string_list(data.get("themes", [])),
+        "conflicts": _normalize_string_list(data.get("conflicts", [])),
+    }
+
+
+def _normalize_characters(characters: Any) -> list[dict[str, Any]]:
+    if not isinstance(characters, list):
+        return []
+
+    normalized = []
+    for index, character in enumerate(characters, start=1):
+        if not isinstance(character, dict):
+            continue
+        normalized.append(
+            {
+                "id": str(character.get("id") or f"char_{index:03d}"),
+                "name": str(character.get("name") or f"角色{index}"),
+                "role": str(character.get("role") or "配角"),
+                "gender": str(character.get("gender") or "unknown"),
+                "age": _normalize_age(character.get("age")),
+                "description": str(character.get("description") or "由小说章节自动识别出的人物。"),
+            }
+        )
+    return normalized
+
+
+def _normalize_locations(locations: Any) -> list[dict[str, str]]:
+    if not isinstance(locations, list):
+        return []
+
+    normalized = []
+    for index, location in enumerate(locations, start=1):
+        if not isinstance(location, dict):
+            continue
+        normalized.append(
+            {
+                "id": str(location.get("id") or f"loc_{index:03d}"),
+                "name": str(location.get("name") or f"地点{index}"),
+                "description": str(location.get("description") or "由小说章节自动识别出的场景地点。"),
+            }
+        )
+    return normalized
+
+
+def _normalize_string_list(values: Any) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    return [str(value) for value in values if value is not None]
+
+
+def _normalize_age(value: Any) -> int | None:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.isdigit():
+        return int(value)
+    return None
+
+
+def _is_valid_screenplay(data: dict[str, Any]) -> bool:
+    try:
+        ScreenplayDocument.model_validate(data)
+    except (ValidationError, ValueError):
+        return False
+    return True
 
 
 def _chapter_to_script(chapter: Chapter, locations: list[dict], characters: list[dict]) -> dict:

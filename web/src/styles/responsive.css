@@ -57,6 +57,15 @@
     grid-template-columns: 1fr;
   }
 
+  .import-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .novel-preview {
+    height: auto;
+    max-height: 520px;
+  }
+
   .script-editor-layout {
     grid-template-columns: 1fr;
   }
@@ -114,6 +123,14 @@
 
   .metric-grid {
     grid-template-columns: 1fr;
+  }
+
+  .import-source-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chapter-summary {
+    display: grid;
   }
 
   .insight-block div {

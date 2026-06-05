@@ -1,9 +1,10 @@
 export const navItems = [
-  { label: '工作台', icon: 'home', active: true },
-  { label: '我的项目', icon: 'folder', active: false },
-  { label: '模板中心', icon: 'grid', active: false },
-  { label: '剧本库', icon: 'book', active: false },
-  { label: '帮助文档', icon: 'help', active: false },
+  { id: 'workbench', label: '工作台', icon: 'home' },
+  { id: 'import', label: '小说导入', icon: 'upload' },
+  { id: 'projects', label: '我的项目', icon: 'folder' },
+  { id: 'templates', label: '模板中心', icon: 'grid' },
+  { id: 'library', label: '剧本库', icon: 'book' },
+  { id: 'help', label: '帮助文档', icon: 'help' },
 ]
 
 export const quickActions = [
@@ -18,6 +19,28 @@ export const workflowSteps = [
   { number: '3', title: '生成剧本', description: '一键生成结构化剧本', status: 'current' },
   { number: '4', title: '编辑与导出', description: '在线编辑并导出剧本', status: 'upcoming' },
 ]
+
+export const importWorkflowSteps = [
+  { number: '1', title: '导入小说', description: '上传或粘贴小说内容', status: 'current' },
+  { number: '2', title: 'AI 解析', description: '智能识别人物、场景与剧情', status: 'upcoming' },
+  { number: '3', title: '生成剧本', description: '一键生成结构化剧本', status: 'upcoming' },
+  { number: '4', title: '编辑与导出', description: '在线编辑并导出剧本', status: 'upcoming' },
+]
+
+export const defaultNovelText = `第1章 初入城市
+林晓拖着行李箱走出地铁站，城市的傍晚像一层淡金色的雾。她背着旧吉他，低头确认地址，却发现手机只剩下百分之三的电。
+
+第2章 梦想启航
+苏晴在出租屋门口等她，两个人合租的第一晚并不宽裕，但窗外的灯光让林晓第一次觉得自己真的抵达了梦想开始的地方。
+
+第3章 现实的挑战
+面试并不顺利，制作人只听了三十秒就打断了她。林晓把简历攥得很紧，仍然礼貌地说谢谢，走出写字楼后却忍不住红了眼眶。
+
+第4章 友情的考验
+苏晴偷偷把林晓的 demo 发给小剧场导演，林晓知道后很生气。她以为好友不理解她的坚持，却没有发现苏晴已经替她跑了很多路。
+
+第5章 破茧成蝶
+小剧场的灯亮起，林晓站在舞台中央唱出第一句歌词。台下的掌声不算热烈，却足够让她重新相信，慢慢来也可以走到远方。`
 
 export const projectStages = [
   { label: '小说导入', status: 'done', note: '' },
@@ -102,6 +125,7 @@ export const previewDialogues = [
 
 export const iconPaths = {
   home: ['M3.5 10.5 12 3.75l8.5 6.75', 'M5.75 9.5v9.25h12.5V9.5', 'M9.5 18.75v-5h5v5'],
+  upload: ['M12 15.25V4.75', 'M8.25 8.5 12 4.75 15.75 8.5', 'M5 14.75v3.75h14v-3.75'],
   folder: ['M3.75 6.5h6l1.6 2h8.9v9.75H3.75z', 'M3.75 8.5h16.5'],
   grid: ['M4.25 4.25h6v6h-6z', 'M13.75 4.25h6v6h-6z', 'M4.25 13.75h6v6h-6z', 'M13.75 13.75h6v6h-6z'],
   book: ['M5 4.75h6.25c1.1 0 2 .9 2 2v12.5c0-.8-.65-1.45-1.45-1.45H5z', 'M13.25 6.75c0-1.1.9-2 2-2H19v13.05h-3.75c-1.1 0-2 .9-2 2z'],
@@ -124,4 +148,6 @@ export const iconPaths = {
   plus: ['M12 5.75v12.5', 'M5.75 12h12.5'],
   more: ['M7.25 12h.01', 'M12 12h.01', 'M16.75 12h.01'],
   arrow: ['M9 5.75 15.25 12 9 18.25'],
+  file: ['M6 4.75h8.25L18 8.5v10.75H6z', 'M14.25 4.75V8.5H18', 'M8.75 12.25h6.5', 'M8.75 15.25h4.5'],
+  text: ['M5.25 6.75h13.5', 'M5.25 10.75h13.5', 'M5.25 14.75h9.5', 'M5.25 18.25h6.25'],
 }

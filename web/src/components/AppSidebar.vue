@@ -4,6 +4,8 @@ defineProps({
   navItems: { type: Array, required: true },
   quickActions: { type: Array, required: true },
 })
+
+defineEmits(['select'])
 </script>
 
 <template>
@@ -32,6 +34,7 @@ defineProps({
         :class="{ 'is-active': item.active }"
         type="button"
         :aria-current="item.active ? 'page' : undefined"
+        @click="$emit('select', item.id)"
       >
         <svg class="item-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path v-for="path in iconPaths[item.icon]" :key="path" :d="path" />
