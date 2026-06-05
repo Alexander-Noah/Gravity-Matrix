@@ -140,6 +140,7 @@ def _detect_chapters(text: str) -> list[dict[str, Any]]:
             {
                 "number": index,
                 "title": match.group("title").strip(),
+                "content": content,
                 "char_count": len(content),
                 "excerpt": _brief(content, 80),
             }

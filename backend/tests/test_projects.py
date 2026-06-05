@@ -85,6 +85,7 @@ def test_import_preview_detects_chapters_and_readiness() -> None:
     assert payload["can_create_project"] is True
     assert payload["issues"][0]["severity"] == "info"
     assert payload["chapters"][0]["title"] == "第1章 初入桃园"
+    assert payload["chapters"][0]["content"]
     assert payload["chapters"][0]["char_count"] > 0
 
 
@@ -131,6 +132,20 @@ def test_scripts_library_returns_empty_frontend_shape() -> None:
     assert payload["stats"][0]["label"] == "全部剧本"
     assert payload["stats"][0]["value"] == "0"
     assert payload["items"] == []
+
+
+def test_templates_endpoint_matches_latest_web_shape() -> None:
+    client = TestClient(app)
+
+    response = client.get("/api/v1/templates")
+
+    assert response.status_code == 200
+    templates = response.json()
+    assert {template["id"] for template in templates} >= {"tv-drama", "short-drama", "stage-play", "storyboard"}
+    assert templates[0]["scenario"]
+    assert templates[0]["features"]
+    assert templates[0]["fields"]
+    assert templates[0]["yamlExample"]
 
 
 def test_list_projects_returns_recent_projects_with_pagination() -> None:
@@ -323,6 +338,16 @@ def test_frontend_extension_endpoints_support_latest_web_calls() -> None:
     )
     assert settings_response.status_code == 200
     assert settings_response.json()["accepted"] is True
+
+    update_response = client.patch(f"/api/v1/projects/{project_id}", json={"title": "改名后的三国项目"})
+    assert update_response.status_code == 200
+    assert update_response.json()["title"] == "改名后的三国项目"
+
+    clone_response = client.post(f"/api/v1/projects/{project_id}/clone")
+    assert clone_response.status_code == 201
+    assert clone_response.json()["id"] != project_id
+    assert clone_response.json()["title"] == "改名后的三国项目 副本"
+    assert clone_response.json()["chapter_count"] == 3
 
     rerun_response = client.post(f"/api/v1/projects/{project_id}/analysis-jobs/rerun")
     assert rerun_response.status_code == 202
