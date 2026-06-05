@@ -109,3 +109,91 @@ def test_save_script_rejects_invalid_yaml() -> None:
     assert save_response.status_code == 422
     assert "剧本 YAML 校验失败" in save_response.text
     assert client.get(f"/api/v1/projects/{project_id}/script").json()["yaml"] == original
+
+
+def test_get_script_diagnosis_requires_generated_script() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    response = client.get(f"/api/v1/projects/{project_id}/script/diagnosis")
+
+    assert response.status_code == 404
+    assert "还没有生成剧本" in response.text
+
+
+def test_get_script_diagnosis_returns_quality_report() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    script_response = client.post(f"/api/v1/projects/{project_id}/script-jobs")
+    assert script_response.status_code == 202
+
+    response = client.get(f"/api/v1/projects/{project_id}/script/diagnosis")
+
+    assert response.status_code == 200
+    report = response.json()
+    assert report["project_id"] == project_id
+    assert report["source"] == "stored_yaml"
+    assert report["valid_schema"] is True
+    assert 0 <= report["score"] <= 100
+    assert report["grade"] in {"excellent", "good", "needs_work", "poor"}
+    assert report["summary"]["chapter_count"] == 3
+    assert report["summary"]["scene_count"] == 3
+    assert report["summary"]["dialogue_count"] >= 0
+    assert "YAML Schema 合法" in report["strengths"]
+    assert isinstance(report["findings"], list)
+
+
+def test_post_script_diagnosis_accepts_request_yaml() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    script_response = client.post(f"/api/v1/projects/{project_id}/script-jobs")
+    assert script_response.status_code == 202
+    yaml_text = client.get(f"/api/v1/projects/{project_id}/script").json()["yaml"]
+
+    response = client.post(f"/api/v1/projects/{project_id}/script/diagnosis", json={"yaml": yaml_text})
+
+    assert response.status_code == 200
+    report = response.json()
+    assert report["project_id"] == project_id
+    assert report["source"] == "request_yaml"
+    assert report["valid_schema"] is True
+    assert report["summary"]["character_count"] >= 1
+
+
+def test_post_script_diagnosis_reports_invalid_yaml_without_422() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    response = client.post(f"/api/v1/projects/{project_id}/script/diagnosis", json={"yaml": "script: []"})
+
+    assert response.status_code == 200
+    report = response.json()
+    assert report["valid_schema"] is False
+    assert report["grade"] == "invalid"
+    assert report["score"] == 0
+    assert report["summary"]["issue_count"] >= 1
+    assert report["findings"][0]["severity"] == "error"
+
+
+def test_script_diagnosis_returns_404_for_missing_project() -> None:
+    client = TestClient(app)
+
+    get_response = client.get("/api/v1/projects/999999/script/diagnosis")
+    post_response = client.post("/api/v1/projects/999999/script/diagnosis", json={"yaml": "script: []"})
+
+    assert get_response.status_code == 404
+    assert post_response.status_code == 404

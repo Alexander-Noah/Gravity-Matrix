@@ -96,6 +96,8 @@ pytest
 - `GET /api/v1/projects/{project_id}/script`：获取剧本 YAML。
 - `PUT /api/v1/projects/{project_id}/script`：保存作者编辑后的剧本 YAML。
 - `POST /api/v1/projects/{project_id}/script/validate`：校验剧本 YAML。
+- `GET /api/v1/projects/{project_id}/script/diagnosis`：诊断当前已生成或已保存的剧本 YAML 质量。
+- `POST /api/v1/projects/{project_id}/script/diagnosis`：诊断请求体中的剧本 YAML 草稿。
 - `GET /api/v1/projects/{project_id}/script/export`：导出剧本 YAML。
 
 如果没有配置大模型 API，后端会使用确定性的演示生成逻辑，保证评委本地可以跑通完整流程。配置 `LLM_API_KEY`、`LLM_BASE_URL` 和 `LLM_MODEL` 后，后端会优先调用 DeepSeek/OpenAI-compatible Chat Completions，并要求模型返回 JSON 对象，再由后端校验后转成剧本 YAML。模型返回为空、不是合法 JSON 或不符合剧本 Schema 时，会自动回退到确定性演示生成逻辑。
