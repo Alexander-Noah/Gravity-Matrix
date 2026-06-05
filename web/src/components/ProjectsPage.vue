@@ -1,5 +1,7 @@
 <script setup>
-defineProps({
+import { computed, ref } from 'vue'
+
+const props = defineProps({
   activities: { type: Array, required: true },
   iconPaths: { type: Object, required: true },
   projects: { type: Array, required: true },
@@ -7,6 +9,42 @@ defineProps({
 })
 
 defineEmits(['open-project'])
+
+const searchKeyword = ref('')
+const activeStatus = ref('all')
+
+const statusFilters = computed(() => [
+  { label: '全部', value: 'all' },
+  ...Array.from(new Set(props.projects.map((project) => project.status))).map((status) => ({
+    label: status,
+    value: status,
+  })),
+])
+
+const filteredProjects = computed(() => {
+  const keyword = searchKeyword.value.trim().toLowerCase()
+
+  return props.projects.filter((project) => {
+    const matchesStatus = activeStatus.value === 'all' || project.status === activeStatus.value
+    const searchableText = [
+      project.title,
+      project.type,
+      project.status,
+      project.updatedAt,
+      project.owner,
+      project.nextAction,
+    ]
+      .join(' ')
+      .toLowerCase()
+
+    return matchesStatus && (!keyword || searchableText.includes(keyword))
+  })
+})
+
+const resetFilters = () => {
+  searchKeyword.value = ''
+  activeStatus.value = 'all'
+}
 </script>
 
 <template>
@@ -24,19 +62,33 @@ defineEmits(['open-project'])
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path v-for="path in iconPaths.eye" :key="path" :d="path" />
         </svg>
-        <input type="search" placeholder="搜索项目、剧本类型或最近动作" />
+        <input v-model="searchKeyword" type="search" placeholder="搜索项目、剧本类型或最近动作" />
       </label>
       <div class="project-filter-tabs" role="tablist" aria-label="项目状态">
-        <button class="is-active" type="button">全部</button>
-        <button type="button">编辑中</button>
-        <button type="button">待校验</button>
-        <button type="button">已导出</button>
+        <button
+          v-for="filter in statusFilters"
+          :key="filter.value"
+          :aria-selected="activeStatus === filter.value"
+          :class="{ 'is-active': activeStatus === filter.value }"
+          role="tab"
+          type="button"
+          @click="activeStatus = filter.value"
+        >
+          {{ filter.label }}
+        </button>
       </div>
     </section>
 
+    <div class="project-result-row">
+      <span>当前显示 {{ filteredProjects.length }} 个项目</span>
+      <button v-if="searchKeyword || activeStatus !== 'all'" class="link-button" type="button" @click="resetFilters">
+        清空筛选
+      </button>
+    </div>
+
     <div class="projects-content-grid">
       <section class="project-card-list" aria-label="项目列表">
-        <article v-for="project in projects" :key="project.title" class="project-card">
+        <article v-for="project in filteredProjects" :key="project.title" class="project-card">
           <div class="project-card-main">
             <div class="project-icon">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -83,6 +135,12 @@ defineEmits(['open-project'])
             </button>
           </div>
         </article>
+
+        <div v-if="filteredProjects.length === 0" class="project-empty-state">
+          <strong>没有找到匹配项目</strong>
+          <p>可以换一个关键词，或清空筛选后查看全部项目。</p>
+          <button class="editor-tool is-primary" type="button" @click="resetFilters">清空筛选</button>
+        </div>
       </section>
 
       <aside class="project-activity-panel" aria-labelledby="activity-title">

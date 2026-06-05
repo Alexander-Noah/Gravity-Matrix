@@ -12,6 +12,7 @@ import SchemaHelpPage from './components/SchemaHelpPage.vue'
 import ScriptPreviewPage from './components/ScriptPreviewPage.vue'
 import ScriptWorkspace from './components/ScriptWorkspace.vue'
 import SupportColumn from './components/SupportColumn.vue'
+import TemplateCenterPage from './components/TemplateCenterPage.vue'
 import WorkflowStepper from './components/WorkflowStepper.vue'
 import WorkspaceHeader from './components/WorkspaceHeader.vue'
 import {
@@ -37,6 +38,7 @@ import {
   quickActions,
   schemaHelpContent,
   schemaValidationMock,
+  scriptGenerationTemplates,
   scriptChapters,
   scriptPreviewScenes,
   workflowSteps,
@@ -58,6 +60,7 @@ const generatedSettings = ref(null)
 const schemaValidation = ref(schemaValidationMock)
 const editorNotice = ref('')
 const previewNotice = ref('')
+const selectedTemplateId = ref('')
 
 const activeRoute = computed(() => getRouteById(route.name))
 const isWorkbenchRoute = computed(() => activeRoute.value.id === 'workbench')
@@ -185,9 +188,24 @@ const goToPage = (pageId) => {
   }
 }
 
-const openProject = () => {
+const openProject = (project) => {
   router.push('/workbench')
+
+  if (project?.scenes === 0 || project?.progress < 50) {
+    activePage.value = 'analysis'
+    return
+  }
+
+  if (project?.progress >= 90) {
+    activePage.value = 'preview'
+    return
+  }
+
   activePage.value = 'script'
+}
+
+const selectGenerationTemplate = (templateId) => {
+  selectedTemplateId.value = templateId
 }
 
 const goToAnalysis = () => {
@@ -347,6 +365,14 @@ const handleFileUpload = async (event) => {
           :projects="projectCards"
           :stats="projectStats"
           @open-project="openProject"
+        />
+
+        <TemplateCenterPage
+          v-else-if="activeRoute.id === 'templates'"
+          :icon-paths="iconPaths"
+          :selected-template-id="selectedTemplateId"
+          :templates="scriptGenerationTemplates"
+          @select-template="selectGenerationTemplate"
         />
 
         <ProductRoutePage v-else-if="!isWorkbenchRoute" :icon-paths="iconPaths" :route="activeRoute" />

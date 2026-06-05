@@ -15,7 +15,7 @@ export const appRoutes = [
     id: 'templates',
     path: '/templates',
     title: '模板中心',
-    description: '管理可复用的剧本结构、场景模板和导出格式',
+    description: '选择剧本生成规则模板，统一后续 YAML 结构、字段和场景组织方式',
   },
   {
     id: 'library',
