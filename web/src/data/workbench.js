@@ -48,6 +48,13 @@ export const analysisWorkflowSteps = [
   { number: '4', title: '编辑与导出', description: '在线编辑并导出剧本', status: 'upcoming' },
 ]
 
+export const previewWorkflowSteps = [
+  { number: '1', title: '导入小说', description: '上传或粘贴小说内容', status: 'done' },
+  { number: '2', title: 'AI 解析', description: '智能识别人物、场景与剧情', status: 'done' },
+  { number: '3', title: '生成剧本', description: '一键生成结构化剧本', status: 'done' },
+  { number: '4', title: '编辑与导出', description: '在线编辑并导出剧本', status: 'current' },
+]
+
 export const defaultNovelText = `第1章 初入城市
 林晓拖着行李箱走出地铁站，城市的傍晚像一层淡金色的雾。她背着旧吉他，低头确认地址，却发现手机只剩下百分之三的电。
 
@@ -175,6 +182,39 @@ export const previewDialogues = [
     speaker: '苏晴',
     note: '（微笑）',
     line: '需要帮助吗？看起来你有点迷路了。',
+  },
+]
+
+export const scriptPreviewScenes = [
+  {
+    title: '场景 1-1 地铁站相遇',
+    meta: '内景 / 地铁站 / 傍晚',
+    characters: ['林晓', '苏晴'],
+    action: '人头攒动的地铁站，广播声回荡。林晓背着吉他包，低头看着手机，神情略显迷茫。手机电量只剩百分之三，她抬头望向出口指示牌。',
+    dialogues: [
+      { speaker: '林晓', line: '这座城市，真的能实现我的梦想吗？' },
+      { speaker: '苏晴', line: '需要帮忙吗？看起来你有点迷路了。' },
+    ],
+  },
+  {
+    title: '场景 1-2 出租屋夜谈',
+    meta: '内景 / 出租屋 / 夜晚',
+    characters: ['林晓', '苏晴'],
+    action: '小小的出租屋里，纸箱还没拆完。窗外灯光落在旧吉他上，林晓终于松下一口气。',
+    dialogues: [
+      { speaker: '苏晴', line: '先把今晚安顿好，梦想明天继续追。' },
+      { speaker: '林晓', line: '我怕自己坚持不到被人看见的那一天。' },
+    ],
+  },
+  {
+    title: '场景 1-3 公司面试',
+    meta: '内景 / 音乐公司面试间 / 下午',
+    characters: ['林晓', '周亦辰'],
+    action: '会议室的白光很亮。周亦辰合上简历，林晓攥紧背包带，努力保持礼貌的微笑。',
+    dialogues: [
+      { speaker: '周亦辰', line: '技巧不错，但我听不到你自己的声音。' },
+      { speaker: '林晓', line: '我可以再试一次，请给我一分钟。' },
+    ],
   },
 ]
 

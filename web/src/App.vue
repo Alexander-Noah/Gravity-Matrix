@@ -4,6 +4,7 @@ import AiAnalysisPage from './components/AiAnalysisPage.vue'
 import AppSidebar from './components/AppSidebar.vue'
 import GenerationSettingsDialog from './components/GenerationSettingsDialog.vue'
 import NovelImportPage from './components/NovelImportPage.vue'
+import ScriptPreviewPage from './components/ScriptPreviewPage.vue'
 import ScriptWorkspace from './components/ScriptWorkspace.vue'
 import SupportColumn from './components/SupportColumn.vue'
 import WorkflowStepper from './components/WorkflowStepper.vue'
@@ -23,10 +24,12 @@ import {
   navItems,
   plotEvents,
   previewDialogues,
+  previewWorkflowSteps,
   projectStages,
   quickActions,
   schemaValidationMock,
   scriptChapters,
+  scriptPreviewScenes,
   workflowSteps,
   yamlLines,
 } from './data/workbench'
@@ -41,6 +44,7 @@ const isGenerationSettingsOpen = ref(false)
 const generatedSettings = ref(null)
 const schemaValidation = ref(schemaValidationMock)
 const editorNotice = ref('')
+const previewNotice = ref('')
 
 const activeNavItems = computed(() =>
   navItems.map((item) => ({
@@ -70,6 +74,10 @@ const currentWorkflowSteps = computed(() => {
 
   if (activePage.value === 'analysis') {
     return analysisWorkflowSteps
+  }
+
+  if (activePage.value === 'preview') {
+    return previewWorkflowSteps
   }
 
   return workflowSteps
@@ -114,6 +122,25 @@ const generatedYamlLines = computed(() => {
 })
 const generatedYamlText = computed(() =>
   generatedYamlLines.value.map((line) => line.map((token) => token.text).join('')).join('\n'),
+)
+const scriptTextPreview = computed(() =>
+  scriptPreviewScenes
+    .map((scene) => {
+      const cast = `出场人物：${scene.characters.join('、')}`
+      const dialogues = scene.dialogues.map((dialogue) => `${dialogue.speaker}\n${dialogue.line}`).join('\n\n')
+
+      return `${scene.title}\n${scene.meta}\n${cast}\n\n${scene.action}\n\n${dialogues}`
+    })
+    .join('\n\n---\n\n'),
+)
+const markdownPreview = computed(() =>
+  scriptPreviewScenes
+    .map((scene) => {
+      const dialogues = scene.dialogues.map((dialogue) => `**${dialogue.speaker}**\n\n${dialogue.line}`).join('\n\n')
+
+      return `## ${scene.title}\n\n${scene.meta}\n\n出场人物：${scene.characters.join('、')}\n\n${scene.action}\n\n${dialogues}`
+    })
+    .join('\n\n'),
 )
 
 const goToPage = (pageId) => {
@@ -195,8 +222,44 @@ const showSchemaPlaceholder = () => {
   editorNotice.value = 'Schema 文档将在下一步功能中实现。'
 }
 
-const showPreviewPlaceholder = () => {
-  editorNotice.value = '完整预览将在下一步功能中实现。'
+const goToPreview = () => {
+  previewNotice.value = ''
+  activePage.value = 'preview'
+}
+
+const goBackToEditor = () => {
+  activePage.value = 'script'
+}
+
+const downloadTextFile = (content, filename, type) => {
+  const blob = new Blob([content], { type })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+const exportPreviewYaml = () => {
+  downloadTextFile(generatedYamlText.value, 'generated-script.yaml', 'text/yaml;charset=utf-8')
+  previewNotice.value = 'YAML 文件已开始下载。'
+}
+
+const exportPreviewTxt = () => {
+  downloadTextFile(scriptTextPreview.value, 'script-preview.txt', 'text/plain;charset=utf-8')
+  previewNotice.value = 'TXT 文件已开始下载。'
+}
+
+const exportPreviewMarkdown = () => {
+  downloadTextFile(markdownPreview.value, 'script-preview.md', 'text/markdown;charset=utf-8')
+  previewNotice.value = 'Markdown 文件已开始下载。'
+}
+
+const exportPreviewPdf = () => {
+  previewNotice.value = '正在打开浏览器打印窗口，可选择另存为 PDF。'
+  window.print()
 }
 
 const handleFileUpload = async (event) => {
@@ -258,6 +321,18 @@ const handleFileUpload = async (event) => {
           @rerun="rerunAnalysis"
         />
 
+        <ScriptPreviewPage
+          v-else-if="activePage === 'preview'"
+          :export-notice="previewNotice"
+          :icon-paths="iconPaths"
+          :scenes="scriptPreviewScenes"
+          @back="goBackToEditor"
+          @export-markdown="exportPreviewMarkdown"
+          @export-pdf="exportPreviewPdf"
+          @export-txt="exportPreviewTxt"
+          @export-yaml="exportPreviewYaml"
+        />
+
         <div v-else class="content-grid">
           <SupportColumn
             :analysis-metrics="analysisMetrics"
@@ -274,7 +349,7 @@ const handleFileUpload = async (event) => {
             :yaml-lines="generatedYamlLines"
             @copy-yaml="copyYaml"
             @download-yaml="downloadYaml"
-            @open-preview="showPreviewPlaceholder"
+            @open-preview="goToPreview"
             @open-schema="showSchemaPlaceholder"
             @validate-yaml="validateYaml"
           />
