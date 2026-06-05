@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { clearAuthSession } from './api/auth'
+import { clearAuthSession, getAuthSession } from './api/auth'
 import { getApiErrorMessage } from './api/http'
 import { createProject, getJob, getProjectAnalysis, startAnalysisJob } from './api/workbench'
 import AddSceneDialog from './components/AddSceneDialog.vue'
@@ -12,6 +12,7 @@ import GenerationSettingsDialog from './components/GenerationSettingsDialog.vue'
 import HelpDocsPage from './components/HelpDocsPage.vue'
 import NovelImportPage from './components/NovelImportPage.vue'
 import ProductRoutePage from './components/ProductRoutePage.vue'
+import ProfileCenterDialog from './components/ProfileCenterDialog.vue'
 import ProjectsPage from './components/ProjectsPage.vue'
 import SchemaHelpPage from './components/SchemaHelpPage.vue'
 import ScriptLibraryPage from './components/ScriptLibraryPage.vue'
@@ -72,6 +73,8 @@ const schemaValidation = ref(schemaValidationMock)
 const editorNotice = ref('')
 const previewNotice = ref('')
 const selectedTemplateId = ref('')
+const currentUser = ref(getAuthSession().user)
+const isProfileCenterOpen = ref(false)
 const displayedAnalysisCharacters = ref(analysisCharacters)
 const displayedAnalysisMetrics = ref(analysisMetrics)
 const displayedAnalysisScenes = ref(analysisScenes)
@@ -292,14 +295,17 @@ const goToPage = (pageId) => {
 }
 
 const handleAuthenticated = () => {
+  currentUser.value = getAuthSession().user
   router.push('/workbench')
 }
 
 const openProfileCenter = () => {
-  router.push('/profile')
+  currentUser.value = getAuthSession().user
+  isProfileCenterOpen.value = true
 }
 
 const logout = () => {
+  isProfileCenterOpen.value = false
   clearAuthSession()
   router.push('/auth')
 }
@@ -655,5 +661,12 @@ const handleFileUpload = async (event) => {
         </template>
       </div>
     </main>
+
+    <ProfileCenterDialog
+      v-model="isProfileCenterOpen"
+      :icon-paths="iconPaths"
+      :user="currentUser"
+      @logout="logout"
+    />
   </div>
 </template>

@@ -1,0 +1,128 @@
+.profile-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(480px, 100%);
+  max-height: min(680px, calc(100vh - 48px));
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 26px 70px oklch(28% 0.06 275 / 0.18);
+}
+
+.profile-dialog-body {
+  display: grid;
+  gap: 18px;
+  min-height: 0;
+  overflow: auto;
+  padding: 22px 24px;
+}
+
+.profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: oklch(98% 0.01 275);
+}
+
+.profile-avatar {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--primary-strong);
+  background: oklch(88% 0.075 55);
+  font-size: 18px;
+  font-weight: 820;
+}
+
+.profile-identity strong,
+.profile-identity span {
+  display: block;
+}
+
+.profile-identity strong {
+  color: var(--text);
+  font-size: 17px;
+}
+
+.profile-identity span {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.profile-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.profile-info-grid div {
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: oklch(99% 0.004 275);
+}
+
+.profile-info-grid dt {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.profile-info-grid dd {
+  margin: 6px 0 0;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 760;
+}
+
+.profile-preference-panel {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 14px;
+  border: 1px solid oklch(87% 0.045 285);
+  border-radius: 12px;
+  background: var(--primary-faint);
+}
+
+.profile-preference-panel div {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--primary-strong);
+  background: var(--surface);
+}
+
+.profile-preference-panel svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.profile-preference-panel p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+@media (max-width: 560px) {
+  .profile-info-grid {
+    grid-template-columns: 1fr;
+  }
+}

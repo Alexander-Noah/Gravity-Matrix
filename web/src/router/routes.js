@@ -35,12 +35,6 @@ export const appRoutes = [
     title: '帮助文档',
     description: '题目三说明、AI 小说转剧本流程与剧本 YAML Schema 定义',
   },
-  {
-    id: 'profile',
-    path: '/profile',
-    title: '个人中心',
-    description: '查看账号信息、创作偏好和登录状态',
-  },
 ]
 
 export const defaultRoute = appRoutes[1]

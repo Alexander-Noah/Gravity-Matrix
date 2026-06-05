@@ -7,6 +7,7 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', redirect: defaultRoute.path },
+    { path: '/profile', redirect: defaultRoute.path },
     ...appRoutes.map((route) => ({
       path: route.path,
       name: route.id,
