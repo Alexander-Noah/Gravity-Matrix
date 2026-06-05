@@ -20,6 +20,27 @@ const workflowSteps = [
   { number: '4', title: '编辑与导出', description: '在线编辑并导出剧本', status: 'upcoming' },
 ]
 
+const projectStages = [
+  { label: '小说导入', status: 'done', note: '' },
+  { label: 'AI内容解析', status: 'done', note: '' },
+  { label: '生成剧本', status: 'active', note: '进行中' },
+  { label: '编辑与导出', status: 'pending', note: '待开始' },
+]
+
+const analysisMetrics = [
+  { label: '人物', value: '12', icon: 'users', tone: 'violet' },
+  { label: '场景', value: '28', icon: 'scene', tone: 'blue' },
+  { label: '章节', value: '5', icon: 'chapter', tone: 'mint' },
+  { label: '冲突事件', value: '16', icon: 'conflict', tone: 'orange' },
+]
+
+const insightItems = [
+  { label: '故事类型', value: '现代 / 都市 / 成长' },
+  { label: '核心主题', value: '梦想、友情、成长' },
+  { label: '故事基调', value: '积极 / 温暖' },
+  { label: '建议剧本类型', value: '电视剧（30 集）' },
+]
+
 const iconPaths = {
   home: ['M3.5 10.5 12 3.75l8.5 6.75', 'M5.75 9.5v9.25h12.5V9.5', 'M9.5 18.75v-5h5v5'],
   folder: ['M3.75 6.5h6l1.6 2h8.9v9.75H3.75z', 'M3.75 8.5h16.5'],
@@ -33,6 +54,11 @@ const iconPaths = {
   bell: ['M17.25 10.5a5.25 5.25 0 0 0-10.5 0c0 4-1.75 4.75-1.75 4.75h14s-1.75-.75-1.75-4.75z', 'M10 18.25a2.25 2.25 0 0 0 4 0'],
   check: ['M5.75 12.25 10 16.5 18.25 7.5'],
   chevron: ['M8.75 5.75 15 12l-6.25 6.25'],
+  spark: ['M12 3.75 13.3 8.7 18.25 10 13.3 11.3 12 16.25 10.7 11.3 5.75 10 10.7 8.7z', 'M18.25 15.25 18.85 17.15 20.75 17.75 18.85 18.35 18.25 20.25 17.65 18.35 15.75 17.75 17.65 17.15z'],
+  users: ['M9.25 11.25a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M4.5 19.25c.65-3.05 2.25-4.75 4.75-4.75s4.1 1.7 4.75 4.75', 'M16.2 10.75a2.35 2.35 0 1 0 0-4.7', 'M14.9 14.35c2 .25 3.35 1.9 3.85 4.9'],
+  scene: ['M4.25 17.75V6.25h15.5v11.5z', 'm7 14 3.25-3.5 2.2 2.35 1.55-1.65 2.75 2.8', 'M8.25 9.25h.01'],
+  chapter: ['M6 4.75h9.75L18 7v12.25H6z', 'M15.75 4.75V7H18', 'M8.75 10.25h6.5', 'M8.75 13.25h6.5', 'M8.75 16.25h4.25'],
+  conflict: ['M12 4.5 20.25 18.75H3.75z', 'M12 9v3.75', 'M12 15.75h.01'],
   arrow: ['M9 5.75 15.25 12 9 18.25'],
 }
 </script>
@@ -179,9 +205,99 @@ const iconPaths = {
         </ol>
       </section>
 
-      <div class="skeleton-grid" aria-hidden="true">
-        <span></span>
-        <span></span>
+      <div class="content-grid">
+        <div class="support-column">
+          <section class="work-card progress-card" aria-labelledby="project-progress-title">
+            <div class="work-card-header">
+              <div class="card-title">
+                <svg class="item-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path v-for="path in iconPaths.folder" :key="path" :d="path" />
+                </svg>
+                <h2 id="project-progress-title">项目进度</h2>
+              </div>
+              <button class="card-link" type="button">
+                <span>查看全部</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
+                </svg>
+              </button>
+            </div>
+
+            <div class="project-summary">
+              <div>
+                <h3>《星辰之下》改编项目</h3>
+                <button class="title-edit" type="button" aria-label="编辑项目名称">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path v-for="path in iconPaths.edit" :key="path" :d="path" />
+                  </svg>
+                </button>
+              </div>
+              <div class="progress-meter">
+                <div class="progress-track" role="progressbar" aria-label="项目完成进度" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100">
+                  <span></span>
+                </div>
+                <strong>75%</strong>
+              </div>
+            </div>
+
+            <ul class="stage-list">
+              <li v-for="stage in projectStages" :key="stage.label" :class="`is-${stage.status}`">
+                <span class="stage-marker">
+                  <svg v-if="stage.status === 'done'" viewBox="0 0 24 24" aria-hidden="true">
+                    <path v-for="path in iconPaths.check" :key="path" :d="path" />
+                  </svg>
+                </span>
+                <span>{{ stage.label }}</span>
+                <strong v-if="stage.note">{{ stage.note }}</strong>
+              </li>
+            </ul>
+          </section>
+
+          <section class="work-card analysis-card" aria-labelledby="analysis-title">
+            <div class="work-card-header">
+              <div class="card-title">
+                <svg class="item-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path v-for="path in iconPaths.spark" :key="path" :d="path" />
+                </svg>
+                <h2 id="analysis-title">AI 解析结果概览</h2>
+              </div>
+              <button class="card-link" type="button">
+                <span>查看详情</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
+                </svg>
+              </button>
+            </div>
+
+            <div class="metric-grid">
+              <article v-for="metric in analysisMetrics" :key="metric.label" class="metric-tile" :class="`tone-${metric.tone}`">
+                <span class="metric-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path v-for="path in iconPaths[metric.icon]" :key="path" :d="path" />
+                  </svg>
+                </span>
+                <span>{{ metric.label }}</span>
+                <strong>{{ metric.value }}</strong>
+              </article>
+            </div>
+
+            <div class="insight-block">
+              <h3>智能分析</h3>
+              <dl>
+                <div v-for="item in insightItems" :key="item.label">
+                  <dt>{{ item.label }}：</dt>
+                  <dd>{{ item.value }}</dd>
+                </div>
+              </dl>
+            </div>
+          </section>
+        </div>
+
+        <div class="main-placeholder" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
       </div>
     </main>
   </div>
