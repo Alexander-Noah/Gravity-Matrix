@@ -1,5 +1,9 @@
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
+from app.db.session import Base, get_db
 from app.main import app
 
 
@@ -29,6 +33,81 @@ def test_create_project_requires_three_chapters() -> None:
 
     assert response.status_code == 422
     assert "至少需要" in response.text
+
+
+def test_list_projects_returns_empty_page() -> None:
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    Base.metadata.create_all(bind=engine)
+
+    def override_get_db():
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+
+    try:
+        response = client.get("/api/v1/projects")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {"items": [], "total": 0, "limit": 20, "offset": 0}
+
+
+def test_list_projects_returns_recent_projects_with_pagination() -> None:
+    client = TestClient(app)
+
+    first_response = client.post("/api/v1/projects", json={**_payload(), "title": "第一个项目"})
+    second_response = client.post("/api/v1/projects", json={**_payload(), "title": "第二个项目"})
+    third_response = client.post("/api/v1/projects", json={**_payload(), "title": "第三个项目"})
+    assert first_response.status_code == 201
+    assert second_response.status_code == 201
+    assert third_response.status_code == 201
+
+    response = client.get("/api/v1/projects", params={"limit": 2, "offset": 0})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["limit"] == 2
+    assert payload["offset"] == 0
+    assert payload["total"] >= 3
+    assert len(payload["items"]) == 2
+    assert [item["id"] for item in payload["items"]] == sorted(
+        [item["id"] for item in payload["items"]],
+        reverse=True,
+    )
+    assert payload["items"][0]["title"] == "第三个项目"
+
+    project = payload["items"][0]
+    assert project["chapter_count"] == 3
+    assert project["has_analysis"] is False
+    assert project["has_script"] is False
+    assert project["created_at"]
+    assert project["updated_at"]
+
+    next_page = client.get("/api/v1/projects", params={"limit": 1, "offset": 2})
+    assert next_page.status_code == 200
+    assert len(next_page.json()["items"]) == 1
+    assert next_page.json()["items"][0]["id"] == first_response.json()["id"]
+
+
+def test_list_projects_rejects_invalid_pagination() -> None:
+    client = TestClient(app)
+
+    invalid_limit = client.get("/api/v1/projects", params={"limit": 0})
+    invalid_offset = client.get("/api/v1/projects", params={"offset": -1})
+
+    assert invalid_limit.status_code == 422
+    assert invalid_offset.status_code == 422
 
 
 def test_get_analysis_requires_completed_analysis() -> None:

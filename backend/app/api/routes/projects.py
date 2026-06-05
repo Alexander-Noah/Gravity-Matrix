@@ -1,7 +1,8 @@
 import json
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import Response
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -12,6 +13,7 @@ from app.schemas.project import (
     JobRead,
     ProjectCreate,
     ProjectDetail,
+    ProjectListRead,
     ProjectRead,
     ProjectWorkbenchRead,
     ScriptDiagnosisResponse,
@@ -59,6 +61,29 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db)) -> Pro
     db.commit()
     db.refresh(project)
     return _project_to_read(project)
+
+
+@router.get("/projects", response_model=ProjectListRead)
+def list_projects(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+) -> ProjectListRead:
+    total = db.query(func.count(Project.id)).scalar() or 0
+    projects = (
+        db.query(Project)
+        .order_by(Project.updated_at.desc(), Project.id.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    return ProjectListRead(
+        items=[_project_to_read(project) for project in projects],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get("/projects/{project_id}", response_model=ProjectDetail)
@@ -198,6 +223,8 @@ def _project_to_read(project: Project) -> ProjectRead:
         chapter_count=len(project.chapters),
         has_analysis=project.analysis_json is not None,
         has_script=project.script_yaml is not None,
+        created_at=project.created_at,
+        updated_at=project.updated_at,
     )
 
 
