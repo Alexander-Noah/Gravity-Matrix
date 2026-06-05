@@ -8,7 +8,7 @@ defineProps({
   yamlLines: { type: Array, required: true },
 })
 
-defineEmits(['copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'validate-yaml'])
+defineEmits(['copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'previous', 'validate-yaml'])
 </script>
 
 <template>
@@ -20,6 +20,12 @@ defineEmits(['copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'valid
           <span>自动保存中...</span>
         </div>
         <div class="editor-actions" aria-label="剧本操作">
+          <button class="editor-tool" type="button" @click="$emit('previous')">
+            <svg class="reverse-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
+            </svg>
+            <span>上一步：AI解析</span>
+          </button>
           <button class="editor-tool" type="button" @click="$emit('open-schema')">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path v-for="path in iconPaths.help" :key="path" :d="path" />

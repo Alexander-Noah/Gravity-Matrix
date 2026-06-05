@@ -67,7 +67,15 @@ const pageDescription = computed(() => {
     return '检查人物、场景、剧情事件、人物关系和对白提取结果'
   }
 
-  return '从小说到剧本，只需几步'
+  if (activePage.value === 'preview') {
+    return '检查完整剧本文本并导出 YAML、TXT、Markdown 或 PDF'
+  }
+
+  if (activePage.value === 'schema-doc') {
+    return '查看 YAML Schema 字段、必填项、示例和设计原因'
+  }
+
+  return '编辑生成的 YAML 剧本，并校验结构后进入完整预览'
 })
 const currentWorkflowSteps = computed(() => {
   if (activePage.value === 'import') {
@@ -161,6 +169,10 @@ const goToAnalysis = () => {
 
 const goBackToImport = () => {
   activePage.value = 'import'
+}
+
+const goBackToAnalysis = () => {
+  activePage.value = 'analysis'
 }
 
 const rerunAnalysis = () => {
@@ -360,6 +372,7 @@ const handleFileUpload = async (event) => {
             @download-yaml="downloadYaml"
             @open-preview="goToPreview"
             @open-schema="goToSchemaHelp"
+            @previous="goBackToAnalysis"
             @validate-yaml="validateYaml"
           />
         </div>
