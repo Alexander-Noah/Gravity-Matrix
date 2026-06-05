@@ -1,0 +1,363 @@
+.support-column {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+}
+
+.main-column {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  gap: 18px;
+}
+
+.work-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: oklch(99% 0.004 275 / 0.9);
+  box-shadow: var(--shadow-soft);
+}
+
+.progress-card {
+  padding: 20px 20px 18px;
+}
+
+.analysis-card {
+  padding: 20px;
+}
+
+.work-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 30px;
+  padding-bottom: 17px;
+  border-bottom: 1px solid var(--border);
+}
+
+.card-title {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+}
+
+.card-title .item-icon {
+  width: 19px;
+  height: 19px;
+  color: var(--primary);
+}
+
+.card-title h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 780;
+  line-height: 1.3;
+}
+
+.card-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  color: var(--text-soft);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 680;
+  transition:
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.card-link svg {
+  width: 15px;
+  height: 15px;
+}
+
+.card-link:hover {
+  color: var(--primary-strong);
+  transform: translateX(1px);
+}
+
+.project-summary {
+  padding: 18px 0 20px;
+}
+
+.project-summary > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+.project-summary h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 760;
+  line-height: 1.4;
+}
+
+.title-edit {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--text-soft);
+  background: transparent;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.title-edit:hover {
+  color: var(--primary-strong);
+  background: var(--primary-faint);
+}
+
+.title-edit svg {
+  width: 16px;
+  height: 16px;
+}
+
+.progress-meter {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 16px;
+}
+
+.progress-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: oklch(93% 0.016 275);
+}
+
+.progress-track span {
+  display: block;
+  width: 75%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  box-shadow: 0 0 0 1px oklch(58% 0.22 285 / 0.08);
+}
+
+.progress-meter strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.stage-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage-list li {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.stage-list li:first-child {
+  border-top: 0;
+}
+
+.stage-marker {
+  display: inline-grid;
+  width: 11px;
+  height: 11px;
+  place-items: center;
+  border-radius: 50%;
+  color: oklch(99% 0.004 275);
+  background: oklch(82% 0.04 270);
+}
+
+.stage-marker svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.2;
+}
+
+.stage-list li.is-done .stage-marker {
+  width: 18px;
+  height: 18px;
+  background: oklch(88% 0.09 165);
+}
+
+.stage-list li.is-active {
+  color: var(--text);
+}
+
+.stage-list li.is-active .stage-marker {
+  background: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-faint);
+}
+
+.stage-list li.is-pending .stage-marker {
+  background: oklch(83% 0.025 270);
+}
+
+.stage-list strong {
+  color: var(--primary-strong);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.stage-list li.is-pending strong {
+  color: var(--text-soft);
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 18px 0 20px;
+}
+
+.metric-tile {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px 12px;
+  min-height: 78px;
+  padding: 15px;
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.metric-icon {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  grid-row: span 2;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.metric-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.metric-tile span:not(.metric-icon) {
+  align-self: end;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.metric-tile strong {
+  align-self: start;
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 780;
+  line-height: 1.1;
+}
+
+.metric-tile.tone-violet {
+  background: oklch(96% 0.025 300);
+}
+
+.metric-tile.tone-violet .metric-icon {
+  color: var(--primary);
+  background: oklch(91% 0.055 300);
+}
+
+.metric-tile.tone-blue {
+  background: oklch(96% 0.024 240);
+}
+
+.metric-tile.tone-blue .metric-icon {
+  color: oklch(58% 0.14 240);
+  background: oklch(91% 0.055 240);
+}
+
+.metric-tile.tone-mint {
+  background: oklch(96% 0.024 165);
+}
+
+.metric-tile.tone-mint .metric-icon {
+  color: oklch(55% 0.12 165);
+  background: oklch(91% 0.055 165);
+}
+
+.metric-tile.tone-orange {
+  background: oklch(96% 0.026 55);
+}
+
+.metric-tile.tone-orange .metric-icon {
+  color: oklch(64% 0.14 55);
+  background: oklch(91% 0.06 55);
+}
+
+.insight-block {
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.insight-block h3 {
+  margin: 0 0 14px;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 780;
+  line-height: 1.3;
+}
+
+.insight-block dl {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.insight-block div {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  align-items: start;
+  gap: 12px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.insight-block dt {
+  position: relative;
+  margin: 0;
+  padding-left: 15px;
+  color: var(--text);
+  font-weight: 720;
+}
+
+.insight-block dt::before {
+  content: "";
+  position: absolute;
+  top: 0.68em;
+  left: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.insight-block dd {
+  margin: 0;
+  min-width: 0;
+}

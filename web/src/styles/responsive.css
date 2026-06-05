@@ -1,0 +1,142 @@
+@media (max-width: 1100px) {
+  .app-shell {
+    display: block;
+  }
+
+  .sidebar {
+    position: relative;
+    min-height: auto;
+    width: 100%;
+    padding: 22px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .brand {
+    margin-bottom: 22px;
+  }
+
+  .primary-nav {
+    grid-template-columns: repeat(5, minmax(110px, 1fr));
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .sidebar-spacer {
+    display: none;
+  }
+
+  .project-panel,
+  .actions-panel {
+    margin-top: 18px;
+  }
+
+  .workspace {
+    padding: 24px;
+  }
+
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .script-editor-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .structure-pane {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .preview-body {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .scene-preview {
+    border-right: 1px solid var(--border);
+  }
+
+  .subway-visual {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .workspace-header,
+  .top-actions {
+    align-items: stretch;
+  }
+
+  .workspace-header {
+    display: grid;
+  }
+
+  .top-actions {
+    display: grid;
+    grid-template-columns: 1fr 42px auto;
+  }
+
+  .workflow-stepper ol {
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-step {
+    min-height: 68px;
+  }
+
+  .workflow-step::before,
+  .workflow-step.is-current::after,
+  .step-arrow {
+    display: none;
+  }
+
+  .primary-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .insight-block div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .script-panel-header,
+  .editor-actions {
+    display: grid;
+  }
+
+  .editor-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .editor-tool {
+    width: 100%;
+  }
+
+  .preview-header {
+    align-items: stretch;
+    height: auto;
+    padding: 14px;
+  }
+
+  .preview-body,
+  .preview-header {
+    display: grid;
+  }
+
+  .preview-body {
+    grid-template-columns: 1fr;
+  }
+
+  .scene-preview {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .dialogue-preview {
+    border-bottom: 1px solid var(--border);
+  }
+}

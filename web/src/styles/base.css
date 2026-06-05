@@ -1,0 +1,108 @@
+:root {
+  --font-sans: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --bg: oklch(98% 0.006 275);
+  --surface: oklch(99% 0.004 275);
+  --surface-muted: oklch(96.5% 0.012 275);
+  --surface-soft: oklch(94.5% 0.025 282);
+  --border: oklch(91% 0.014 270);
+  --border-strong: oklch(86% 0.025 270);
+  --text: oklch(22% 0.025 270);
+  --text-muted: oklch(55% 0.035 270);
+  --text-soft: oklch(66% 0.032 270);
+  --primary: oklch(58% 0.22 285);
+  --primary-strong: oklch(52% 0.24 285);
+  --primary-soft: oklch(94% 0.04 285);
+  --primary-faint: oklch(97% 0.026 285);
+  --success: oklch(72% 0.12 165);
+  --warning: oklch(76% 0.14 55);
+  --shadow-soft: 0 18px 45px oklch(36% 0.06 275 / 0.08);
+  --shadow-panel: 0 12px 30px oklch(36% 0.06 275 / 0.07);
+
+  font-family: var(--font-sans);
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+button {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible {
+  outline: 3px solid oklch(72% 0.15 285 / 0.45);
+  outline-offset: 3px;
+}
+
+#app {
+  min-height: 100svh;
+}
+
+.brand-mark svg,
+.item-icon,
+.icon-button svg,
+.link-button svg,
+.guide-button svg,
+.notification-button svg,
+.profile-button svg,
+.step-marker svg,
+.step-arrow,
+.card-link svg,
+.title-edit svg,
+.metric-icon svg,
+.editor-tool svg,
+.chapter-row svg,
+.add-scene-button svg,
+.code-more svg,
+.preview-toggle svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.75;
+}
+
+.nav-item,
+.utility-row,
+.link-button,
+.icon-button,
+.card-link,
+.title-edit,
+.editor-tool,
+.chapter-row,
+.scene-row,
+.add-scene-button,
+.code-more,
+.preview-toggle {
+  border: 0;
+  cursor: pointer;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
