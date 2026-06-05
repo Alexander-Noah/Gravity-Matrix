@@ -59,6 +59,7 @@ Gravity-Matrix/
 - `GET /api/v1/projects`：分页获取项目列表。
 - `POST /api/v1/projects`：创建小说改编项目。
 - `GET /api/v1/projects/{project_id}`：获取项目详情。
+- `GET /api/v1/projects/{project_id}/readiness`：获取项目下一步操作和可用能力。
 - `POST /api/v1/projects/{project_id}/analysis-jobs`：启动 AI 解析任务。
 - `GET /api/v1/projects/{project_id}/analysis`：读取 AI 分析结果。
 - `POST /api/v1/projects/{project_id}/script-jobs`：启动剧本生成任务。

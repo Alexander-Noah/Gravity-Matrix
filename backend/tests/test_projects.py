@@ -147,6 +147,27 @@ def test_get_workbench_returns_empty_analysis_and_script_for_new_project() -> No
     assert workbench["script"]["diagnosis"] is None
 
 
+def test_get_readiness_for_new_project_points_to_analysis() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    response = client.get(f"/api/v1/projects/{project_id}/readiness")
+
+    assert response.status_code == 200
+    readiness = response.json()
+    assert readiness == {
+        "project_id": project_id,
+        "can_analyze": True,
+        "can_generate_script": True,
+        "can_export": False,
+        "missing_steps": ["analysis", "script"],
+        "next_action": "start_analysis",
+    }
+
+
 def test_create_project_and_generate_script() -> None:
     client = TestClient(app)
 
@@ -194,6 +215,48 @@ def test_create_project_and_generate_script() -> None:
     export_response = client.get(f"/api/v1/projects/{project_id}/script/export")
     assert export_response.status_code == 200
     assert "作者修订版" in export_response.text
+
+
+def test_get_readiness_after_analysis_points_to_script_generation() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    analysis_response = client.post(f"/api/v1/projects/{project_id}/analysis-jobs")
+    assert analysis_response.status_code == 202
+
+    response = client.get(f"/api/v1/projects/{project_id}/readiness")
+
+    assert response.status_code == 200
+    readiness = response.json()
+    assert readiness["can_analyze"] is True
+    assert readiness["can_generate_script"] is True
+    assert readiness["can_export"] is False
+    assert readiness["missing_steps"] == ["script"]
+    assert readiness["next_action"] == "generate_script"
+
+
+def test_get_readiness_after_script_points_to_export() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    script_response = client.post(f"/api/v1/projects/{project_id}/script-jobs")
+    assert script_response.status_code == 202
+
+    response = client.get(f"/api/v1/projects/{project_id}/readiness")
+
+    assert response.status_code == 200
+    readiness = response.json()
+    assert readiness["can_analyze"] is True
+    assert readiness["can_generate_script"] is True
+    assert readiness["can_export"] is True
+    assert readiness["missing_steps"] == []
+    assert readiness["next_action"] == "export_script"
 
 
 def test_save_script_rejects_invalid_yaml() -> None:
@@ -355,5 +418,13 @@ def test_get_workbench_returns_404_for_missing_project() -> None:
     client = TestClient(app)
 
     response = client.get("/api/v1/projects/999999/workbench")
+
+    assert response.status_code == 404
+
+
+def test_get_readiness_returns_404_for_missing_project() -> None:
+    client = TestClient(app)
+
+    response = client.get("/api/v1/projects/999999/readiness")
 
     assert response.status_code == 404
