@@ -77,6 +77,55 @@ export const projectStages = [
   { label: '编辑与导出', status: 'pending', note: '待开始' },
 ]
 
+export const projectStats = [
+  { label: '进行中项目', value: '6', note: '2 个今日更新', tone: 'violet' },
+  { label: '已生成剧本', value: '18', note: '本周新增 5 个', tone: 'blue' },
+  { label: '待校验 YAML', value: '4', note: '建议优先处理', tone: 'orange' },
+  { label: '已导出文件', value: '32', note: '含 TXT / Markdown / PDF', tone: 'mint' },
+]
+
+export const projectCards = [
+  {
+    title: '《星辰之下》改编项目',
+    type: '都市成长 / 影视剧',
+    status: '编辑中',
+    progress: 75,
+    updatedAt: '2 分钟前',
+    chapters: 5,
+    scenes: 28,
+    owner: '创作者',
+    nextAction: '继续编辑 YAML',
+  },
+  {
+    title: '《雨夜来信》短剧项目',
+    type: '悬疑情感 / 短剧',
+    status: '待解析',
+    progress: 35,
+    updatedAt: '昨天 21:40',
+    chapters: 12,
+    scenes: 0,
+    owner: '创作者',
+    nextAction: '进入 AI 解析',
+  },
+  {
+    title: '《旧城咖啡馆》话剧稿',
+    type: '现实题材 / 话剧',
+    status: '待导出',
+    progress: 92,
+    updatedAt: '3 天前',
+    chapters: 8,
+    scenes: 36,
+    owner: '协作组',
+    nextAction: '打开完整预览',
+  },
+]
+
+export const projectActivities = [
+  { title: '编辑《星辰之下》第 1 章场景', time: '2 分钟前', status: '已保存' },
+  { title: '生成《雨夜来信》AI 解析草稿', time: '昨天', status: '待确认' },
+  { title: '导出《旧城咖啡馆》Markdown 文件', time: '3 天前', status: '已导出' },
+]
+
 export const analysisMetrics = [
   { label: '人物', value: '12', icon: 'users', tone: 'violet' },
   { label: '场景', value: '28', icon: 'scene', tone: 'blue' },

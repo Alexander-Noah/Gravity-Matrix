@@ -7,6 +7,7 @@ import AppSidebar from './components/AppSidebar.vue'
 import GenerationSettingsDialog from './components/GenerationSettingsDialog.vue'
 import NovelImportPage from './components/NovelImportPage.vue'
 import ProductRoutePage from './components/ProductRoutePage.vue'
+import ProjectsPage from './components/ProjectsPage.vue'
 import SchemaHelpPage from './components/SchemaHelpPage.vue'
 import ScriptPreviewPage from './components/ScriptPreviewPage.vue'
 import ScriptWorkspace from './components/ScriptWorkspace.vue'
@@ -29,7 +30,10 @@ import {
   plotEvents,
   previewDialogues,
   previewWorkflowSteps,
+  projectActivities,
+  projectCards,
   projectStages,
+  projectStats,
   quickActions,
   schemaHelpContent,
   schemaValidationMock,
@@ -179,6 +183,11 @@ const goToPage = (pageId) => {
   if (pageId === 'workbench') {
     activePage.value = 'import'
   }
+}
+
+const openProject = () => {
+  router.push('/workbench')
+  activePage.value = 'script'
 }
 
 const goToAnalysis = () => {
@@ -331,7 +340,16 @@ const handleFileUpload = async (event) => {
     <main class="main-wrapper" aria-label="工作区">
       <div class="page-content">
         <WorkspaceHeader :description="pageDescription" :icon-paths="iconPaths" :title="pageTitle" />
-        <ProductRoutePage v-if="!isWorkbenchRoute" :icon-paths="iconPaths" :route="activeRoute" />
+        <ProjectsPage
+          v-if="activeRoute.id === 'projects'"
+          :activities="projectActivities"
+          :icon-paths="iconPaths"
+          :projects="projectCards"
+          :stats="projectStats"
+          @open-project="openProject"
+        />
+
+        <ProductRoutePage v-else-if="!isWorkbenchRoute" :icon-paths="iconPaths" :route="activeRoute" />
 
         <template v-else>
           <div class="workflow-sticky">
