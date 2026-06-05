@@ -101,6 +101,24 @@ def get_script(project_id: int, db: Session = Depends(get_db)) -> ScriptRead:
     return ScriptRead(project_id=project.id, yaml=project.script_yaml)
 
 
+@router.put("/projects/{project_id}/script", response_model=ScriptRead)
+def save_script(
+    project_id: int,
+    payload: ScriptValidateRequest,
+    db: Session = Depends(get_db),
+) -> ScriptRead:
+    project = _require_project(db, project_id)
+    valid, errors = validate_screenplay_yaml(payload.yaml)
+    if not valid:
+        raise HTTPException(status_code=422, detail={"message": "剧本 YAML 校验失败。", "errors": errors})
+
+    project.script_yaml = payload.yaml
+    project.status = "script_edited"
+    db.commit()
+    db.refresh(project)
+    return ScriptRead(project_id=project.id, yaml=project.script_yaml or "")
+
+
 @router.post("/projects/{project_id}/script/validate", response_model=ScriptValidateResponse)
 def validate_script(
     project_id: int,
