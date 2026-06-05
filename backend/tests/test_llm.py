@@ -27,6 +27,7 @@ def test_analyze_project_uses_demo_without_llm_config(monkeypatch) -> None:
     result = llm.analyze_project(_project())
 
     assert result.provider == "deterministic_demo"
+    assert result.fallback_reason == "missing_config"
     assert result.content["chapter_summaries"][0]["title"] == "桃园起义"
     assert len(result.content["characters"]) >= 2
     assert result.content["characters"][0]["name"] == "刘备"
@@ -58,6 +59,7 @@ def test_analyze_project_uses_deepseek_when_configured(monkeypatch) -> None:
     result = llm.analyze_project(_project())
 
     assert result.provider == "deepseek"
+    assert result.fallback_reason is None
     assert result.content["characters"][0]["name"] == "刘备"
 
 
@@ -68,6 +70,7 @@ def test_generate_screenplay_falls_back_when_model_output_is_invalid(monkeypatch
     result = llm.generate_screenplay(_project())
 
     assert result.provider == "deterministic_demo"
+    assert result.fallback_reason == "invalid_screenplay_response"
     assert result.content["script"]["metadata"]["title"] == "三国演义"
     scene = result.content["script"]["chapters"][0]["scenes"][0]
     assert len(result.content["script"]["characters"]) >= 2
@@ -101,6 +104,16 @@ def test_analyze_project_normalizes_unknown_character_age(monkeypatch) -> None:
     result = llm.analyze_project(_project())
 
     assert result.content["characters"][0]["age"] is None
+
+
+def test_analyze_project_records_fallback_reason_for_invalid_model_output(monkeypatch) -> None:
+    _settings(monkeypatch, api_key="test-key", base_url="https://api.deepseek.com", model="deepseek-v4-flash")
+    monkeypatch.setattr(llm, "_call_deepseek", lambda prompt: {"bad": "shape"})
+
+    result = llm.analyze_project(_project())
+
+    assert result.provider == "deterministic_demo"
+    assert result.fallback_reason == "invalid_analysis_response"
 
 
 def test_call_deepseek_parses_json_object(monkeypatch) -> None:
