@@ -62,6 +62,44 @@ def test_create_project_requires_three_chapters() -> None:
     assert "至少需要" in response.text
 
 
+def test_import_preview_detects_chapters_and_readiness() -> None:
+    client = TestClient(app)
+    text = "\n\n".join(
+        [
+            "第1章 初入桃园\n刘备在街头遇见关羽，二人谈起天下局势。",
+            "第2章 结义之约\n张飞邀二人到庄后桃园，三人焚香立誓。",
+            "第3章 奔赴战场\n黄巾军起，三兄弟带着乡勇赶赴战阵。",
+        ]
+    )
+
+    response = client.post(
+        "/api/v1/import/preview",
+        json={"title": "三国演义", "author": "罗贯中", "text": text},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["title"] == "三国演义"
+    assert payload["author"] == "罗贯中"
+    assert payload["chapter_count"] == 3
+    assert payload["can_create_project"] is True
+    assert payload["issues"][0]["severity"] == "info"
+    assert payload["chapters"][0]["title"] == "第1章 初入桃园"
+    assert payload["chapters"][0]["char_count"] > 0
+
+
+def test_import_preview_reports_missing_chapters() -> None:
+    client = TestClient(app)
+
+    response = client.post("/api/v1/import/preview", json={"text": "只有一段没有章节标题的小说正文。"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["chapter_count"] == 0
+    assert payload["can_create_project"] is False
+    assert payload["issues"][0]["code"] == "not_enough_chapters"
+
+
 def test_list_projects_returns_empty_page() -> None:
     client = TestClient(app)
 
@@ -69,6 +107,30 @@ def test_list_projects_returns_empty_page() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"items": [], "total": 0, "limit": 20, "offset": 0}
+
+
+def test_projects_dashboard_returns_empty_frontend_shape() -> None:
+    client = TestClient(app)
+
+    response = client.get("/api/v1/projects/dashboard")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert [stat["label"] for stat in payload["stats"]] == ["进行中项目", "已生成剧本", "待校验 YAML", "已导出文件"]
+    assert payload["project_cards"] == []
+    assert payload["activities"] == []
+
+
+def test_scripts_library_returns_empty_frontend_shape() -> None:
+    client = TestClient(app)
+
+    response = client.get("/api/v1/scripts/library")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["stats"][0]["label"] == "全部剧本"
+    assert payload["stats"][0]["value"] == "0"
+    assert payload["items"] == []
 
 
 def test_list_projects_returns_recent_projects_with_pagination() -> None:
@@ -472,6 +534,38 @@ def test_get_workbench_after_script_returns_structure_and_diagnosis() -> None:
     assert workbench["script"]["structure"][0]["open"] is True
     assert workbench["script"]["structure"][0]["scenes"]
     assert workbench["script"]["diagnosis"]["valid_schema"] is True
+
+
+def test_dashboard_and_library_reflect_generated_script() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    analysis_response = client.post(f"/api/v1/projects/{project_id}/analysis-jobs")
+    script_response = client.post(f"/api/v1/projects/{project_id}/script-jobs")
+    assert analysis_response.status_code == 202
+    assert script_response.status_code == 202
+
+    dashboard_response = client.get("/api/v1/projects/dashboard")
+    library_response = client.get("/api/v1/scripts/library")
+
+    assert dashboard_response.status_code == 200
+    dashboard = dashboard_response.json()
+    assert dashboard["stats"][1]["value"] == "1"
+    assert dashboard["project_cards"][0]["id"] == project_id
+    assert dashboard["project_cards"][0]["progress"] == 75
+    assert dashboard["project_cards"][0]["scenes"] == 3
+    assert dashboard["activities"][0]["status"] == "已完成"
+
+    assert library_response.status_code == 200
+    library = library_response.json()
+    assert library["stats"][0]["value"] == "1"
+    assert library["items"][0]["project_id"] == project_id
+    assert library["items"][0]["schemaStatus"] == "校验通过"
+    assert library["items"][0]["scenes"] == 3
+    assert library["items"][0]["dialogues"] >= 6
 
 
 def test_get_workbench_returns_404_for_missing_project() -> None:
