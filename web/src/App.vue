@@ -9,6 +9,7 @@ import NovelImportPage from './components/NovelImportPage.vue'
 import ProductRoutePage from './components/ProductRoutePage.vue'
 import ProjectsPage from './components/ProjectsPage.vue'
 import SchemaHelpPage from './components/SchemaHelpPage.vue'
+import ScriptLibraryPage from './components/ScriptLibraryPage.vue'
 import ScriptPreviewPage from './components/ScriptPreviewPage.vue'
 import ScriptWorkspace from './components/ScriptWorkspace.vue'
 import SupportColumn from './components/SupportColumn.vue'
@@ -40,6 +41,8 @@ import {
   schemaValidationMock,
   scriptGenerationTemplates,
   scriptChapters,
+  scriptLibraryItems,
+  scriptLibraryStats,
   scriptPreviewScenes,
   workflowSteps,
   yamlLines,
@@ -208,6 +211,17 @@ const selectGenerationTemplate = (templateId) => {
   selectedTemplateId.value = templateId
 }
 
+const editLibraryScript = () => {
+  router.push('/workbench')
+  activePage.value = 'script'
+}
+
+const previewLibraryScript = () => {
+  router.push('/workbench')
+  previewNotice.value = ''
+  activePage.value = 'preview'
+}
+
 const goToAnalysis = () => {
   analysisProgress.value = 100
   analysisNotice.value = ''
@@ -373,6 +387,15 @@ const handleFileUpload = async (event) => {
           :selected-template-id="selectedTemplateId"
           :templates="scriptGenerationTemplates"
           @select-template="selectGenerationTemplate"
+        />
+
+        <ScriptLibraryPage
+          v-else-if="activeRoute.id === 'library'"
+          :icon-paths="iconPaths"
+          :scripts="scriptLibraryItems"
+          :stats="scriptLibraryStats"
+          @edit-script="editLibraryScript"
+          @preview-script="previewLibraryScript"
         />
 
         <ProductRoutePage v-else-if="!isWorkbenchRoute" :icon-paths="iconPaths" :route="activeRoute" />

@@ -21,7 +21,7 @@ export const appRoutes = [
     id: 'library',
     path: '/library',
     title: '剧本库',
-    description: '查看已生成、已导出和归档的剧本文档',
+    description: '管理已生成的剧本草稿、版本和导出文件',
   },
   {
     id: 'help',
