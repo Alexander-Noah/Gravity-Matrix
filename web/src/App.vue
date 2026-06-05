@@ -4,6 +4,7 @@ import AiAnalysisPage from './components/AiAnalysisPage.vue'
 import AppSidebar from './components/AppSidebar.vue'
 import GenerationSettingsDialog from './components/GenerationSettingsDialog.vue'
 import NovelImportPage from './components/NovelImportPage.vue'
+import SchemaHelpPage from './components/SchemaHelpPage.vue'
 import ScriptPreviewPage from './components/ScriptPreviewPage.vue'
 import ScriptWorkspace from './components/ScriptWorkspace.vue'
 import SupportColumn from './components/SupportColumn.vue'
@@ -27,6 +28,7 @@ import {
   previewWorkflowSteps,
   projectStages,
   quickActions,
+  schemaHelpContent,
   schemaValidationMock,
   scriptChapters,
   scriptPreviewScenes,
@@ -218,8 +220,8 @@ const downloadYaml = () => {
   editorNotice.value = 'YAML 文件已开始下载。'
 }
 
-const showSchemaPlaceholder = () => {
-  editorNotice.value = 'Schema 文档将在下一步功能中实现。'
+const goToSchemaHelp = () => {
+  activePage.value = 'schema-doc'
 }
 
 const goToPreview = () => {
@@ -333,6 +335,13 @@ const handleFileUpload = async (event) => {
           @export-yaml="exportPreviewYaml"
         />
 
+        <SchemaHelpPage
+          v-else-if="activePage === 'schema-doc'"
+          :content="schemaHelpContent"
+          :icon-paths="iconPaths"
+          @back="goBackToEditor"
+        />
+
         <div v-else class="content-grid">
           <SupportColumn
             :analysis-metrics="analysisMetrics"
@@ -350,7 +359,7 @@ const handleFileUpload = async (event) => {
             @copy-yaml="copyYaml"
             @download-yaml="downloadYaml"
             @open-preview="goToPreview"
-            @open-schema="showSchemaPlaceholder"
+            @open-schema="goToSchemaHelp"
             @validate-yaml="validateYaml"
           />
         </div>

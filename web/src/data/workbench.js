@@ -218,6 +218,38 @@ export const scriptPreviewScenes = [
   },
 ]
 
+export const schemaHelpContent = {
+  fields: [
+    { name: 'script.title', type: 'string', required: true, description: '剧本标题，用于导出文件名和预览页标题。' },
+    { name: 'script.format', type: 'string', required: true, description: '剧本类型，例如影视剧、短剧、话剧或分镜剧本。' },
+    { name: 'characters[].name', type: 'string', required: true, description: '人物名称，需与场景中的出场人物保持一致。' },
+    { name: 'chapters[].scenes[]', type: 'array', required: true, description: '章节内的场景列表，是生成标准剧本文本的主要来源。' },
+    { name: 'dialogues[].line', type: 'string', required: false, description: '对白正文，可由 AI 提取后继续人工调整。' },
+  ],
+  requiredFields: ['script.title', 'script.format', 'characters[].name', 'chapters[].title', 'chapters[].scenes[].title'],
+  exampleYaml: [
+    'script:',
+    '  title: "星辰之下"',
+    '  format: "影视剧"',
+    'characters:',
+    '  - id: char_001',
+    '    name: 林晓',
+    'chapters:',
+    '  - id: ch_001',
+    '    title: 初入城市',
+    '    scenes:',
+    '      - id: sc_001_001',
+    '        title: 地铁站相遇',
+    '        location: 地铁站',
+    '        time: 傍晚',
+  ],
+  reasons: [
+    '用 YAML 保留章节、场景、人物和对白之间的结构关系，便于后续校验和导出。',
+    '必填字段只覆盖生成剧本所需的最小骨架，减少创作者在早期编辑时的负担。',
+    '字段命名尽量接近剧本制作语境，让非技术用户也能判断内容是否放在正确位置。',
+  ],
+}
+
 export const iconPaths = {
   home: ['M3.5 10.5 12 3.75l8.5 6.75', 'M5.75 9.5v9.25h12.5V9.5', 'M9.5 18.75v-5h5v5'],
   upload: ['M12 15.25V4.75', 'M8.25 8.5 12 4.75 15.75 8.5', 'M5 14.75v3.75h14v-3.75'],
