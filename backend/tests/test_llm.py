@@ -136,3 +136,15 @@ def test_call_deepseek_parses_json_object(monkeypatch) -> None:
     monkeypatch.setattr(llm, "OpenAI", FakeOpenAI)
 
     assert llm._call_deepseek("prompt") == {"characters": [], "locations": []}
+
+
+def test_brief_prefers_sentence_boundary() -> None:
+    text = "第一句完整。第二句也完整。第三句会被截断在后面。"
+
+    assert llm._brief(text, 16) == "第一句完整。第二句也完整。..."
+
+
+def test_brief_falls_back_to_character_limit_without_sentence_boundary() -> None:
+    text = "没有明显断点的一长串内容"
+
+    assert llm._brief(text, 8) == "没有明显断点的..."
