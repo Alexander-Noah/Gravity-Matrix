@@ -52,7 +52,7 @@
 - **请求方式**: `GET /projects/{project_id}` / `GET /projects/{project_id}/readiness`
 - **说明**: 获取项目的详情或是否准备好导出（包含 `can_export`, `progress` 等）。
 
-### 1.4 【新增预留】删除项目
+### 1.4 删除项目
 - **请求方式**: `DELETE /projects/{project_id}`
 - **说明**: 根据项目 ID 删除项目及其相关的解析、任务和剧本记录。
 - **响应 (200 OK 或 204 No Content)**:
@@ -61,6 +61,21 @@
     "detail": "项目删除成功"
   }
   ```
+
+### 1.5 【新增预留】更新项目基础信息
+- **请求方式**: `PATCH /projects/{project_id}`
+- **说明**: 用于重命名项目或更新其他元数据。
+- **请求体 (JSON)**:
+  ```json
+  {
+    "title": "新的项目名称"
+  }
+  ```
+
+### 1.6 【新增预留】复制项目为新版本
+- **请求方式**: `POST /projects/{project_id}/clone`
+- **说明**: 将现有的项目及关联的剧本复制一份，作为新项目返回。
+- **响应 (201 Created)**: 返回新创建的 `Project` 基础信息。
 
 ---
 

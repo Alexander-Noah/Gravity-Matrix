@@ -7,7 +7,7 @@ const props = defineProps({
   stats: { type: Array, required: true },
 })
 
-const emit = defineEmits(['edit-script', 'preview-script'])
+const emit = defineEmits(['edit-script', 'preview-script', 'export-script', 'delete-script', 'rename-script', 'clone-script'])
 
 const searchKeyword = ref('')
 const selectedType = ref('全部')
@@ -50,7 +50,7 @@ const closeExport = () => {
 }
 
 const confirmExport = (format) => {
-  actionNotice.value = `${exportTarget.value.title} 已加入 ${format} 导出任务。`
+  emit('export-script', exportTarget.value, format)
   closeExport()
 }
 
@@ -59,7 +59,9 @@ const toggleMore = (scriptId) => {
 }
 
 const handleMoreAction = (script, action) => {
-  actionNotice.value = `${script.title} 已执行：${action}。`
+  if (action === '移动到回收站') emit('delete-script', script)
+  else if (action === '重命名') emit('rename-script', script)
+  else if (action === '复制为新版本') emit('clone-script', script)
   activeMoreId.value = ''
 }
 </script>

@@ -768,6 +768,72 @@ const previewLibraryScript = async (script) => {
   activePage.value = 'preview'
 }
 
+const exportLibraryScript = async (script, format) => {
+  const projectId = script?.projectId || script?.raw?.id
+  if (!projectId) return
+
+  try {
+    let blob
+    if (format === 'Markdown') {
+      blob = await exportProjectMarkdown(projectId)
+    } else {
+      blob = await exportProjectTxt(projectId)
+    }
+
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${script.title}.${format === 'Markdown' ? 'md' : 'txt'}`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    alert('导出失败: ' + getApiErrorMessage(error))
+  }
+}
+
+const deleteLibraryScript = async (script) => {
+  const projectId = script?.projectId || script?.raw?.id
+  if (!projectId) return
+
+  if (!confirm(`确定要删除剧本《${script.title}》吗？此操作无法恢复。`)) return
+
+  try {
+    await deleteProject(projectId)
+    await fetchScriptLibrary()
+  } catch (error) {
+    alert('删除失败: ' + getApiErrorMessage(error))
+  }
+}
+
+const renameLibraryScript = async (script) => {
+  const projectId = script?.projectId || script?.raw?.id
+  if (!projectId) return
+
+  const newName = prompt('请输入新的剧本名称：', script.title)
+  if (!newName || newName === script.title) return
+
+  try {
+    await updateProject(projectId, { title: newName })
+    await fetchScriptLibrary()
+  } catch (error) {
+    alert('重命名失败: ' + getApiErrorMessage(error))
+  }
+}
+
+const cloneLibraryScript = async (script) => {
+  const projectId = script?.projectId || script?.raw?.id
+  if (!projectId) return
+
+  try {
+    await cloneProject(projectId)
+    await fetchScriptLibrary()
+  } catch (error) {
+    alert('复制失败: ' + getApiErrorMessage(error))
+  }
+}
+
 const goToAnalysis = async () => {
   if (!isNovelValid.value || isImportSubmitting.value) {
     return
@@ -1068,7 +1134,8 @@ const handleFileUpload = async (event) => {
 
         <ScriptLibraryPage v-else-if="activeRoute.id === 'library'" :icon-paths="iconPaths"
           :scripts="displayedLibraryItems" :stats="displayedLibraryStats" @edit-script="editLibraryScript"
-          @preview-script="previewLibraryScript" />
+          @preview-script="previewLibraryScript" @export-script="exportLibraryScript" @delete-script="deleteLibraryScript"
+          @rename-script="renameLibraryScript" @clone-script="cloneLibraryScript" />
 
         <HelpDocsPage v-else-if="activeRoute.id === 'help'" :content="productHelpDocs" :icon-paths="iconPaths" />
 

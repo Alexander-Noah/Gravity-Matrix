@@ -114,3 +114,13 @@ export const getScriptTemplates = async () => {
   const response = await http.get('/templates')
   return response.data
 }
+
+export const updateProject = async (projectId, data) => {
+  const response = await http.patch(`/projects/${projectId}`, data)
+  return response.data
+}
+
+export const cloneProject = async (projectId) => {
+  const response = await http.post(`/projects/${projectId}/clone`)
+  return response.data
+}
