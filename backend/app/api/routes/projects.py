@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
@@ -6,6 +8,7 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.models.project import Chapter, Job, JobType, Project
 from app.schemas.project import (
+    AnalysisRead,
     JobRead,
     ProjectCreate,
     ProjectDetail,
@@ -71,6 +74,15 @@ def start_analysis_job(
     job = create_job(db, project_id, JobType.analysis)
     background_tasks.add_task(_run_analysis_job_task, job.id)
     return job
+
+
+@router.get("/projects/{project_id}/analysis", response_model=AnalysisRead)
+def get_analysis(project_id: int, db: Session = Depends(get_db)) -> AnalysisRead:
+    project = _require_project(db, project_id)
+    if not project.analysis_json:
+        raise HTTPException(status_code=404, detail="当前项目还没有 AI 分析结果。")
+
+    return AnalysisRead(project_id=project.id, analysis=json.loads(project.analysis_json))
 
 
 @router.post("/projects/{project_id}/script-jobs", response_model=JobRead, status_code=202)

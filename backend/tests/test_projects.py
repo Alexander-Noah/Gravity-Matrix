@@ -31,6 +31,19 @@ def test_create_project_requires_three_chapters() -> None:
     assert "至少需要" in response.text
 
 
+def test_get_analysis_requires_completed_analysis() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    response = client.get(f"/api/v1/projects/{project_id}/analysis")
+
+    assert response.status_code == 404
+    assert "还没有 AI 分析结果" in response.text
+
+
 def test_create_project_and_generate_script() -> None:
     client = TestClient(app)
 
@@ -42,6 +55,13 @@ def test_create_project_and_generate_script() -> None:
     assert analysis_response.status_code == 202
     analysis_job = client.get(f"/api/v1/jobs/{analysis_response.json()['id']}")
     assert analysis_job.json()["status"] == "succeeded"
+
+    analysis = client.get(f"/api/v1/projects/{project_id}/analysis")
+    assert analysis.status_code == 200
+    assert analysis.json()["project_id"] == project_id
+    assert analysis.json()["analysis"]["characters"]
+    assert "id" in analysis.json()["analysis"]["characters"][0]
+    assert len(analysis.json()["analysis"]["chapter_summaries"]) == 3
 
     script_response = client.post(f"/api/v1/projects/{project_id}/script-jobs")
     assert script_response.status_code == 202

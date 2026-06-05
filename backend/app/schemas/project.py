@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from typing import Any
 
 
 class ChapterCreate(BaseModel):
@@ -51,6 +52,11 @@ class JobRead(BaseModel):
 class ScriptRead(BaseModel):
     project_id: int
     yaml: str
+
+
+class AnalysisRead(BaseModel):
+    project_id: int
+    analysis: dict[str, Any]
 
 
 class ScriptValidateRequest(BaseModel):

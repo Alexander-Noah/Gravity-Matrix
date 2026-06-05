@@ -90,6 +90,7 @@ pytest
 - `POST /api/v1/projects`：创建小说改编项目，至少需要 3 个章节。
 - `GET /api/v1/projects/{project_id}`：获取项目详情。
 - `POST /api/v1/projects/{project_id}/analysis-jobs`：启动 AI 解析任务。
+- `GET /api/v1/projects/{project_id}/analysis`：获取 AI 解析结果。
 - `POST /api/v1/projects/{project_id}/script-jobs`：启动剧本生成任务。
 - `GET /api/v1/jobs/{job_id}`：查询任务状态。
 - `GET /api/v1/projects/{project_id}/script`：获取剧本 YAML。
