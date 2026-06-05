@@ -306,6 +306,62 @@ def test_create_project_and_generate_script() -> None:
     assert "作者修订版" in export_response.text
 
 
+def test_frontend_extension_endpoints_support_latest_web_calls() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    settings_response = client.post(
+        f"/api/v1/projects/{project_id}/generation-settings",
+        json={
+            "scriptType": "影视剧",
+            "adaptationStyle": "忠于原文",
+            "contentOptions": ["动作描写", "情绪提示"],
+        },
+    )
+    assert settings_response.status_code == 200
+    assert settings_response.json()["accepted"] is True
+
+    rerun_response = client.post(f"/api/v1/projects/{project_id}/analysis-jobs/rerun")
+    assert rerun_response.status_code == 202
+    assert client.get(f"/api/v1/jobs/{rerun_response.json()['id']}").json()["status"] == "succeeded"
+
+    script_response = client.post(f"/api/v1/projects/{project_id}/script-jobs")
+    assert script_response.status_code == 202
+
+    markdown_response = client.get(f"/api/v1/projects/{project_id}/script/export/markdown")
+    txt_response = client.get(f"/api/v1/projects/{project_id}/script/export/txt")
+    assert markdown_response.status_code == 200
+    assert txt_response.status_code == 200
+    assert markdown_response.text.startswith("# ")
+    assert "时间：" in txt_response.text
+
+    add_scene_response = client.post(
+        f"/api/v1/projects/{project_id}/scenes",
+        json={
+            "chapterTitle": "第 1 章",
+            "sceneTitle": "新增对峙",
+            "location": "桃园",
+            "time": "夜晚",
+            "characters": "刘备、关羽",
+            "action": "刘备与关羽重新确认结义初心。",
+        },
+    )
+    assert add_scene_response.status_code == 200
+    assert "新增对峙" in add_scene_response.json()["yaml"]
+
+    diagnosis_response = client.get(f"/api/v1/projects/{project_id}/script/diagnosis")
+    assert diagnosis_response.status_code == 200
+    assert diagnosis_response.json()["summary"]["scene_count"] == 4
+
+    delete_response = client.delete(f"/api/v1/projects/{project_id}")
+    assert delete_response.status_code == 200
+    assert delete_response.json() == {"deleted": True, "project_id": project_id}
+    assert client.get(f"/api/v1/projects/{project_id}").status_code == 404
+
+
 def test_get_readiness_after_analysis_points_to_script_generation() -> None:
     client = TestClient(app)
 
