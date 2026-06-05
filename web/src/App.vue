@@ -425,6 +425,31 @@ const detectedChapters = ref([])
 const isNovelValid = ref(false)
 const chapterCount = ref(0)
 
+const detectChaptersLocally = (text) => {
+  const matches = [
+    ...text.matchAll(
+      /(^|\n)\s*((?:第\s*[\d一二三四五六七八九十百千万零〇两]+\s*[章节回幕]|Chapter\s*\d+)[^\n]*)/gi,
+    ),
+  ]
+
+  return matches.map((match, index) => {
+    const titleStart = (match.index || 0) + match[1].length
+    const nextStart = matches[index + 1]
+      ? (matches[index + 1].index || 0) + matches[index + 1][1].length
+      : text.length
+    const chapterText = text.slice(titleStart, nextStart).trim()
+    const body = chapterText.replace(match[2], '').trim()
+    const excerpt = body.replace(/\s+/g, ' ').slice(0, 46)
+
+    return {
+      number: index + 1,
+      title: match[2].trim(),
+      content: body || chapterText,
+      excerpt: excerpt ? `${excerpt}...` : '等待补充正文',
+    }
+  })
+}
+
 let previewTimeout = null
 watch(novelText, (newText) => {
   if (previewTimeout) clearTimeout(previewTimeout)
@@ -436,18 +461,27 @@ watch(novelText, (newText) => {
   }
 
   previewTimeout = setTimeout(async () => {
+    const localChapters = detectChaptersLocally(newText)
+
     try {
       const result = await previewImport({
         title: selectedFileName.value ? selectedFileName.value.replace(/\.[^.]+$/, '') : '未命名小说',
         author: '创作者',
         text: newText,
       })
-      detectedChapters.value = result.chapters || []
-      chapterCount.value = result.chapter_count || 0
+      detectedChapters.value = (result.chapters || []).map((chapter, index) => ({
+        ...chapter,
+        content: chapter.content || localChapters[index]?.content || '',
+        excerpt: chapter.excerpt || localChapters[index]?.excerpt || '等待补充正文',
+      }))
+      chapterCount.value = result.chapter_count || detectedChapters.value.length
       isNovelValid.value = result.can_create_project || false
     } catch (error) {
       console.warn('后端解析章节失败，请检查网络或后端服务', error)
-      isNovelValid.value = false
+      detectedChapters.value = localChapters
+      chapterCount.value = localChapters.length
+      isNovelValid.value = localChapters.length >= 3
+      importNotice.value = '后端章节预览接口暂不可用，已使用本地章节识别。'
     }
   }, 800)
 }, { immediate: true })
