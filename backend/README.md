@@ -142,6 +142,7 @@ pytest
 - `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`：DeepSeek/OpenAI-compatible 大模型平台配置。
 - `OLLAMA_BASE_URL`、`OLLAMA_MODEL`：本地模型兜底配置，后续 PR 使用。
 - `MIN_CHAPTERS`：小说最少章节数，比赛要求至少 3 章。
+- `MAX_SCRIPT_YAML_CHARS`：用户提交的剧本 YAML 最大字符数，默认 1000000。
 
 DeepSeek 配置示例：
 

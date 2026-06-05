@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -6,6 +7,31 @@ from sqlalchemy.pool import StaticPool
 from app.api.routes import projects as project_routes
 from app.db.session import Base, get_db
 from app.main import app
+
+
+@pytest.fixture(autouse=True)
+def isolated_database(monkeypatch):
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    Base.metadata.create_all(bind=engine)
+
+    def override_get_db():
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+    monkeypatch.setattr("app.db.session.SessionLocal", TestingSessionLocal)
+    try:
+        yield
+    finally:
+        app.dependency_overrides.clear()
 
 
 def _payload(chapter_count: int = 3) -> dict:
@@ -37,28 +63,9 @@ def test_create_project_requires_three_chapters() -> None:
 
 
 def test_list_projects_returns_empty_page() -> None:
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-    Base.metadata.create_all(bind=engine)
-
-    def override_get_db():
-        db = TestingSessionLocal()
-        try:
-            yield db
-        finally:
-            db.close()
-
-    app.dependency_overrides[get_db] = override_get_db
     client = TestClient(app)
 
-    try:
-        response = client.get("/api/v1/projects")
-    finally:
-        app.dependency_overrides.clear()
+    response = client.get("/api/v1/projects")
 
     assert response.status_code == 200
     assert response.json() == {"items": [], "total": 0, "limit": 20, "offset": 0}
@@ -80,7 +87,7 @@ def test_list_projects_returns_recent_projects_with_pagination() -> None:
     payload = response.json()
     assert payload["limit"] == 2
     assert payload["offset"] == 0
-    assert payload["total"] >= 3
+    assert payload["total"] == 3
     assert len(payload["items"]) == 2
     assert [item["id"] for item in payload["items"]] == sorted(
         [item["id"] for item in payload["items"]],
@@ -310,6 +317,22 @@ def test_save_script_rejects_invalid_yaml() -> None:
     assert save_response.status_code == 422
     assert "剧本 YAML 校验失败" in save_response.text
     assert client.get(f"/api/v1/projects/{project_id}/script").json()["yaml"] == original
+
+
+def test_script_yaml_request_rejects_oversized_content() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/script/validate",
+        json={"yaml": "x" * 1_000_001},
+    )
+
+    assert response.status_code == 422
+    assert "String should have at most 1000000 characters" in response.text
 
 
 def test_get_script_diagnosis_requires_generated_script() -> None:

@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     min_chapters: int = Field(default=3, ge=1)
     max_chapters: int = Field(default=30, ge=1)
     max_chapter_chars: int = Field(default=20000, ge=100)
+    max_script_yaml_chars: int = Field(default=1_000_000, ge=1000)
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
