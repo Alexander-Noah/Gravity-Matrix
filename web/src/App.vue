@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { clearAuthSession, getAuthSession } from './api/auth'
 import { getApiErrorMessage } from './api/http'
@@ -10,6 +10,7 @@ import {
   getProjectAnalysis,
   getProjectScript,
   getProjectWorkbench,
+  listProjects,
   startAnalysisJob,
   startScriptJob,
   validateProjectScript,
@@ -93,6 +94,9 @@ const displayedPlotEvents = ref(plotEvents)
 const displayedCharacterRelations = ref(characterRelations)
 const displayedDialogueExtracts = ref(dialogueExtracts)
 const displayedScriptChapters = ref(scriptChapters)
+const displayedProjectCards = ref(projectCards)
+const displayedProjectStats = ref(projectStats)
+const displayedProjectActivities = ref(projectActivities)
 
 const activeRoute = computed(() => getRouteById(route.name))
 const isAuthRoute = computed(() => activeRoute.value.id === 'auth')
@@ -188,6 +192,97 @@ const mapDiagnosisToSchemaValidation = (diagnosis, fallbackValid = true) => {
   }
 }
 
+const formatProjectTime = (value) => {
+  if (!value) {
+    return '刚刚更新'
+  }
+
+  return new Date(value).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+const mapProjectStatus = (project) => {
+  if (project.status === 'script_edited') {
+    return '编辑中'
+  }
+
+  if (project.has_script) {
+    return '待导出'
+  }
+
+  if (project.has_analysis) {
+    return '待生成剧本'
+  }
+
+  return '待解析'
+}
+
+const mapProjectProgress = (project) => {
+  if (project.status === 'script_edited') {
+    return 100
+  }
+
+  if (project.has_script) {
+    return 90
+  }
+
+  if (project.has_analysis) {
+    return 60
+  }
+
+  return 30
+}
+
+const mapProjectNextAction = (project) => {
+  if (project.has_script) {
+    return '继续编辑 YAML'
+  }
+
+  if (project.has_analysis) {
+    return '生成剧本'
+  }
+
+  return '进入 AI 解析'
+}
+
+const mapProjectCard = (project) => ({
+  id: project.id,
+  title: `《${project.title}》改编项目`,
+  type: project.has_script ? '结构化剧本 / YAML' : '小说改编 / 工作台',
+  status: mapProjectStatus(project),
+  progress: mapProjectProgress(project),
+  updatedAt: formatProjectTime(project.updated_at),
+  chapters: project.chapter_count,
+  scenes: project.has_script ? '已生成' : 0,
+  owner: project.author || '创作者',
+  nextAction: mapProjectNextAction(project),
+  raw: project,
+})
+
+const applyProjectsResult = (result) => {
+  const projects = result.items || []
+  const scriptCount = projects.filter((project) => project.has_script).length
+  const editingCount = projects.filter((project) => project.status === 'script_edited').length
+  const analysisPendingCount = projects.filter((project) => !project.has_analysis).length
+
+  displayedProjectCards.value = projects.length ? projects.map(mapProjectCard) : projectCards
+  displayedProjectStats.value = [
+    { label: '全部项目', value: String(result.total ?? projects.length), note: '来自后端项目列表', tone: 'violet' },
+    { label: '编辑中', value: String(editingCount), note: '已保存剧本草稿', tone: 'blue' },
+    { label: '已生成剧本', value: String(scriptCount), note: '可继续编辑或导出', tone: 'mint' },
+    { label: '待解析', value: String(analysisPendingCount), note: '需要进入 AI 解析', tone: 'orange' },
+  ]
+  displayedProjectActivities.value = projects.slice(0, 4).map((project) => ({
+    title: `${mapProjectNextAction(project)}：${project.title}`,
+    time: formatProjectTime(project.updated_at),
+    status: mapProjectStatus(project),
+  }))
+}
+
 const applyWorkbenchScript = (workbench) => {
   if (workbench?.script?.yaml) {
     generatedScriptYaml.value = workbench.script.yaml
@@ -208,6 +303,32 @@ const applyWorkbenchScript = (workbench) => {
     schemaValidation.value = mapDiagnosisToSchemaValidation(workbench.script.diagnosis)
   }
 }
+
+const fetchProjects = async () => {
+  try {
+    const result = await listProjects()
+    applyProjectsResult(result)
+  } catch (error) {
+    displayedProjectActivities.value = [
+      {
+        title: getApiErrorMessage(error),
+        time: '刚刚',
+        status: '加载失败',
+      },
+      ...projectActivities,
+    ]
+  }
+}
+
+watch(
+  () => activeRoute.value.id,
+  (routeId) => {
+    if (routeId === 'projects') {
+      fetchProjects()
+    }
+  },
+  { immediate: true },
+)
 
 const detectedChapters = computed(() => {
   const matches = [
@@ -388,20 +509,49 @@ const logout = () => {
   router.push('/auth')
 }
 
-const openProject = (project) => {
+const openProject = async (project) => {
   router.push('/workbench')
+  currentProjectId.value = project?.id || project?.raw?.id || null
 
-  if (project?.scenes === 0 || project?.progress < 50) {
+  if (!currentProjectId.value) {
+    if (project?.scenes === 0 || project?.progress < 50) {
+      activePage.value = 'analysis'
+      return
+    }
+
+    if (project?.progress >= 90) {
+      activePage.value = 'preview'
+      return
+    }
+
+    activePage.value = 'script'
+    return
+  }
+
+  try {
+    const workbench = await getProjectWorkbench(currentProjectId.value)
+
+    if (workbench.analysis?.raw) {
+      applyAnalysisResult(workbench.analysis.raw)
+    }
+
+    applyWorkbenchScript(workbench)
+
+    if (workbench.project.has_script) {
+      activePage.value = 'script'
+      return
+    }
+
+    if (workbench.project.has_analysis) {
+      activePage.value = 'analysis'
+      return
+    }
+
+    activePage.value = 'import'
+  } catch (error) {
+    analysisNotice.value = getApiErrorMessage(error)
     activePage.value = 'analysis'
-    return
   }
-
-  if (project?.progress >= 90) {
-    activePage.value = 'preview'
-    return
-  }
-
-  activePage.value = 'script'
 }
 
 const selectGenerationTemplate = (templateId) => {
@@ -659,10 +809,10 @@ const handleFileUpload = async (event) => {
         />
         <ProjectsPage
           v-if="activeRoute.id === 'projects'"
-          :activities="projectActivities"
+          :activities="displayedProjectActivities"
           :icon-paths="iconPaths"
-          :projects="projectCards"
-          :stats="projectStats"
+          :projects="displayedProjectCards"
+          :stats="displayedProjectStats"
           @open-project="openProject"
         />
 

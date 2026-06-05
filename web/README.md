@@ -146,6 +146,27 @@ Authorization: Bearer <token>
 
 前端工作台 API 封装在 `src/api/workbench.js`。
 
+### 项目列表
+
+```http
+GET /projects?limit=20&offset=0
+```
+
+前端“我的项目”页面进入时会调用该接口，并把返回的 `items` 映射为项目卡片、顶部统计和最近编辑记录。
+
+期望响应：
+
+```json
+{
+  "items": [],
+  "total": 0,
+  "limit": 20,
+  "offset": 0
+}
+```
+
+项目卡片会使用 `id`、`title`、`author`、`status`、`chapter_count`、`has_analysis`、`has_script`、`updated_at` 字段。点击“打开项目”后，前端会继续调用 `/projects/{project_id}/workbench` 同步工作台状态。
+
 ### 创建项目
 
 ```http

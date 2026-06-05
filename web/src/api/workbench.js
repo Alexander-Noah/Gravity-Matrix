@@ -1,5 +1,13 @@
 import { http } from './http'
 
+export const listProjects = async ({ limit = 20, offset = 0 } = {}) => {
+  const response = await http.get('/projects', {
+    params: { limit, offset },
+  })
+
+  return response.data
+}
+
 export const createProject = async ({ title, author, chapters }) => {
   const response = await http.post('/projects', {
     title,
