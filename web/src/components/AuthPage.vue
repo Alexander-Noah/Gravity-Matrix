@@ -26,7 +26,7 @@ const submitLabel = computed(() => {
   return isRegister.value ? '创建账号' : '登录工作台'
 })
 const helperText = computed(() =>
-  isRegister.value ? '已有账号？返回登录' : '还没有账号？创建一个',
+  isRegister.value ? '已有账号？返回登录' : '还没有账号？立即注册',
 )
 
 const switchMode = () => {
@@ -92,72 +92,109 @@ const submitAuth = async () => {
 
 <template>
   <main class="auth-page" aria-labelledby="auth-title">
-    <section class="auth-brand-panel" aria-label="产品说明">
-      <div class="auth-brand-mark">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path v-for="path in iconPaths.edit" :key="path" :d="path" />
-        </svg>
-      </div>
-      <div>
-        <span>AI小说转剧本</span>
-        <h1>把长篇小说整理成可编辑的剧本初稿。</h1>
-        <p>登录后继续导入小说、查看 AI 解析结果、编辑 YAML 剧本并导出成常用格式。</p>
-      </div>
-      <ul class="auth-feature-list">
-        <li>
-          <strong>章节识别</strong>
-          <span>校验 3 章以上文本并保留原文结构。</span>
-        </li>
-        <li>
-          <strong>结构化生成</strong>
-          <span>输出人物、场景、动作和对白 YAML。</span>
-        </li>
-        <li>
-          <strong>编辑导出</strong>
-          <span>在线校验 Schema，导出 YAML、TXT、Markdown、PDF。</span>
-        </li>
-      </ul>
-    </section>
+    <div class="auth-shell">
+      <section class="auth-brand-panel" aria-label="产品说明">
+        <div class="auth-brand-topline">
+          <div class="auth-brand-mark">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path v-for="path in iconPaths.edit" :key="path" :d="path" />
+            </svg>
+          </div>
+          <strong>AI小说转剧本</strong>
+        </div>
 
-    <section class="auth-form-panel" aria-label="登录注册表单">
-      <div class="auth-form-header">
-        <span>{{ isRegister ? '创建创作者账号' : '欢迎回来' }}</span>
-        <h2 id="auth-title">{{ isRegister ? '注册账号' : '登录账号' }}</h2>
-        <p>{{ isRegister ? '保存项目、模板选择和剧本版本。' : '进入你的小说改编工作台。' }}</p>
-      </div>
+        <div class="auth-brand-copy">
+          <h1>把长篇小说，快速改编成结构化剧本</h1>
+          <p>导入三个章节以上的小说文本，AI 自动识别人设、场景、对白与剧情事件，并生成可编辑的 YAML 剧本初稿。</p>
+        </div>
 
-      <div class="auth-tabs" role="tablist" aria-label="账号操作">
-        <button :class="{ 'is-active': !isRegister }" :disabled="isSubmitting" type="button" role="tab" @click="mode = 'login'">登录</button>
-        <button :class="{ 'is-active': isRegister }" :disabled="isSubmitting" type="button" role="tab" @click="mode = 'register'">注册</button>
-      </div>
+        <div class="auth-product-preview" aria-label="产品流程预览">
+          <div class="auth-preview-head">
+            <span>工作流预览</span>
+            <small>当前项目：星辰之下</small>
+          </div>
+          <ol class="auth-flow-list">
+            <li>
+              <strong>01</strong>
+              <span>小说导入</span>
+            </li>
+            <li>
+              <strong>02</strong>
+              <span>AI解析</span>
+            </li>
+            <li>
+              <strong>03</strong>
+              <span>YAML生成</span>
+            </li>
+            <li>
+              <strong>04</strong>
+              <span>编辑导出</span>
+            </li>
+          </ol>
+          <div class="auth-yaml-card">
+            <span>script:</span>
+            <span>  format: "影视剧"</span>
+            <span>  chapters: 5</span>
+            <span>  scenes: 28</span>
+          </div>
+        </div>
 
-      <form class="auth-form" @submit.prevent="submitAuth">
-        <label v-if="isRegister" class="auth-field">
-          <span>创作者名称</span>
-          <input v-model="fullName" autocomplete="name" type="text" placeholder="例如：林默" />
-        </label>
+        <ul class="auth-feature-list">
+          <li>
+            <strong>章节识别</strong>
+            <span>自动识别小说章节结构</span>
+          </li>
+          <li>
+            <strong>AI解析</strong>
+            <span>提取人物、场景、对白与事件</span>
+          </li>
+          <li>
+            <strong>YAML剧本</strong>
+            <span>生成可校验、可编辑、可导出的结构化剧本</span>
+          </li>
+        </ul>
+      </section>
 
-        <label class="auth-field">
-          <span>邮箱</span>
-          <input v-model="email" autocomplete="email" type="email" placeholder="creator@example.com" />
-        </label>
+      <section class="auth-form-panel" aria-label="登录注册表单">
+        <div class="auth-form-header">
+          <span>{{ isRegister ? '创建创作者账号' : '欢迎回来' }}</span>
+          <h2 id="auth-title">{{ isRegister ? '注册账号' : '登录账号' }}</h2>
+          <p>继续管理你的小说改编项目、剧本草稿和导出文件。</p>
+        </div>
 
-        <label class="auth-field">
-          <span>密码</span>
-          <input v-model="password" :autocomplete="isRegister ? 'new-password' : 'current-password'" type="password" placeholder="至少 6 位" />
-        </label>
+        <div class="auth-tabs" role="tablist" aria-label="账号操作">
+          <button :class="{ 'is-active': !isRegister }" :disabled="isSubmitting" type="button" role="tab" @click="mode = 'login'">登录</button>
+          <button :class="{ 'is-active': isRegister }" :disabled="isSubmitting" type="button" role="tab" @click="mode = 'register'">注册</button>
+        </div>
 
-        <label v-if="isRegister" class="auth-check">
-          <input v-model="agreeTerms" type="checkbox" />
-          <span>我确认仅上传本人有权处理的小说内容。</span>
-        </label>
+        <form class="auth-form" @submit.prevent="submitAuth">
+          <label v-if="isRegister" class="auth-field">
+            <span>创作者名称</span>
+            <input v-model="fullName" autocomplete="name" type="text" placeholder="例如：林默" />
+          </label>
 
-        <p v-if="notice" class="auth-notice">{{ notice }}</p>
+          <label class="auth-field">
+            <span>邮箱</span>
+            <input v-model="email" autocomplete="email" type="email" placeholder="creator@example.com" />
+          </label>
 
-        <button class="auth-submit" :disabled="isSubmitting" type="submit">{{ submitLabel }}</button>
-      </form>
+          <label class="auth-field">
+            <span>密码</span>
+            <input v-model="password" :autocomplete="isRegister ? 'new-password' : 'current-password'" type="password" placeholder="至少 6 位" />
+          </label>
 
-      <button class="auth-switch" :disabled="isSubmitting" type="button" @click="switchMode">{{ helperText }}</button>
-    </section>
+          <label v-if="isRegister" class="auth-check">
+            <input v-model="agreeTerms" type="checkbox" />
+            <span>我确认仅上传本人有权处理的小说内容。</span>
+          </label>
+
+          <p v-if="notice" class="auth-notice">{{ notice }}</p>
+
+          <button class="auth-submit" :disabled="isSubmitting" type="submit">{{ submitLabel }}</button>
+        </form>
+
+        <button class="auth-switch" :disabled="isSubmitting" type="button" @click="switchMode">{{ helperText }}</button>
+      </section>
+    </div>
   </main>
 </template>
