@@ -568,7 +568,7 @@ const markdownPreview = computed(() =>
 )
 
 const waitForJob = async (jobId, onProgress) => {
-  for (let attempt = 0; attempt < 12; attempt += 1) {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
     const job = await getJob(jobId)
 
     if (onProgress) {
@@ -587,11 +587,11 @@ const waitForJob = async (jobId, onProgress) => {
     }
 
     await new Promise((resolve) => {
-      window.setTimeout(resolve, 600)
+      window.setTimeout(resolve, 1000)
     })
   }
 
-  throw new Error('AI 解析任务仍在处理中，请稍后重试。')
+  throw new Error('任务仍在处理中，请稍后在当前页面重试。')
 }
 
 const applyAnalysisResult = (analysis) => {
@@ -879,6 +879,7 @@ const goToAnalysis = async () => {
   isImportSubmitting.value = true
   analysisProgress.value = 10
   importNotice.value = '正在创建小说改编项目...'
+  let hasEnteredAnalysis = false
 
   try {
     const project = await createProject({
@@ -896,6 +897,7 @@ const goToAnalysis = async () => {
 
     const job = await startAnalysisJob(project.id)
     activePage.value = 'analysis'
+    hasEnteredAnalysis = true
     analysisNotice.value = job.current_step || 'AI 解析任务已启动。'
     analysisProgress.value = job.progress ?? 30
 
@@ -907,7 +909,9 @@ const goToAnalysis = async () => {
   } catch (error) {
     importNotice.value = getApiErrorMessage(error)
     analysisNotice.value = getApiErrorMessage(error)
-    activePage.value = 'import'
+    if (!hasEnteredAnalysis) {
+      activePage.value = 'import'
+    }
   } finally {
     isImportSubmitting.value = false
   }
