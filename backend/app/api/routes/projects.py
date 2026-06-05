@@ -13,11 +13,13 @@ from app.schemas.project import (
     ProjectCreate,
     ProjectDetail,
     ProjectRead,
+    ScriptDiagnosisResponse,
     ScriptRead,
     ScriptValidateRequest,
     ScriptValidateResponse,
 )
 from app.services.jobs import create_job, run_analysis_job, run_script_generation_job
+from app.services.script_diagnosis import diagnose_screenplay_yaml
 from app.services.screenplay_yaml import validate_screenplay_yaml
 
 router = APIRouter(tags=["projects"])
@@ -140,6 +142,29 @@ def validate_script(
     _require_project(db, project_id)
     valid, errors = validate_screenplay_yaml(payload.yaml)
     return ScriptValidateResponse(valid=valid, errors=errors)
+
+
+@router.get("/projects/{project_id}/script/diagnosis", response_model=ScriptDiagnosisResponse)
+def diagnose_stored_script(project_id: int, db: Session = Depends(get_db)) -> ScriptDiagnosisResponse:
+    project = _require_project(db, project_id)
+    if not project.script_yaml:
+        raise HTTPException(status_code=404, detail="当前项目还没有生成剧本。")
+
+    return ScriptDiagnosisResponse.model_validate(
+        diagnose_screenplay_yaml(project.id, project.script_yaml, "stored_yaml")
+    )
+
+
+@router.post("/projects/{project_id}/script/diagnosis", response_model=ScriptDiagnosisResponse)
+def diagnose_script_draft(
+    project_id: int,
+    payload: ScriptValidateRequest,
+    db: Session = Depends(get_db),
+) -> ScriptDiagnosisResponse:
+    project = _require_project(db, project_id)
+    return ScriptDiagnosisResponse.model_validate(
+        diagnose_screenplay_yaml(project.id, payload.yaml, "request_yaml")
+    )
 
 
 @router.get("/projects/{project_id}/script/export")
