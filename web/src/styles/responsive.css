@@ -12,6 +12,10 @@
     overflow: visible;
   }
 
+  .main-wrapper {
+    display: block;
+  }
+
   .sidebar {
     position: relative;
     min-height: auto;
@@ -42,8 +46,9 @@
     margin-top: 18px;
   }
 
-  .page-content {
-    padding: 24px;
+  .workspace-header,
+  .workspace-body {
+    padding-inline: 24px;
   }
 
   .workflow-sticky {
@@ -78,6 +83,7 @@
 
   .script-editor-layout {
     grid-template-columns: 1fr;
+    min-height: 0;
   }
 
   .structure-pane {
@@ -111,6 +117,10 @@
 
   .workspace-header {
     display: grid;
+  }
+
+  .title-line {
+    align-items: flex-start;
   }
 
   .top-actions {
@@ -169,6 +179,17 @@
 
   .editor-tool {
     width: 100%;
+    min-width: 0;
+  }
+
+  .editor-tool span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .code-pane pre {
+    min-width: 620px;
   }
 
   .preview-header {

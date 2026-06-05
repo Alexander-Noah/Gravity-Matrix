@@ -13,9 +13,10 @@
 
 .work-card {
   border: 1px solid var(--border);
-  border-radius: 12px;
-  background: oklch(99% 0.004 275 / 0.9);
-  box-shadow: var(--shadow-soft);
+  border-radius: 10px;
+  background: oklch(99% 0.004 275 / 0.94);
+  box-shadow: 0 14px 34px oklch(36% 0.06 275 / 0.07);
+  backdrop-filter: blur(10px);
 }
 
 .progress-card {
@@ -44,9 +45,12 @@
 }
 
 .card-title .item-icon {
-  width: 19px;
-  height: 19px;
+  width: 30px;
+  height: 30px;
+  padding: 6px;
+  border-radius: 8px;
   color: var(--primary);
+  background: var(--primary-faint);
 }
 
 .card-title h2 {

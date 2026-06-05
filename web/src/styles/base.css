@@ -14,7 +14,13 @@
   --primary-soft: oklch(94% 0.04 285);
   --primary-faint: oklch(97% 0.026 285);
   --success: oklch(72% 0.12 165);
+  --success-soft: oklch(96% 0.028 165);
   --warning: oklch(76% 0.14 55);
+  --warning-soft: oklch(96% 0.035 55);
+  --danger: oklch(58% 0.18 25);
+  --danger-soft: oklch(96% 0.028 25);
+  --editor-bg: oklch(19% 0.035 265);
+  --editor-line: oklch(27% 0.035 265);
   --shadow-soft: 0 18px 45px oklch(36% 0.06 275 / 0.08);
   --shadow-panel: 0 12px 30px oklch(36% 0.06 275 / 0.07);
 
@@ -42,8 +48,34 @@ body {
   overflow-x: hidden;
 }
 
+* {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(78% 0.045 275) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: oklch(78% 0.045 275);
+  background-clip: padding-box;
+}
+
 button {
   font: inherit;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 button,

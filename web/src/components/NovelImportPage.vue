@@ -31,12 +31,15 @@ defineEmits(['file-upload', 'next', 'update:novelText'])
       <div class="import-source-grid">
         <label class="upload-dropzone" for="novel-file">
           <input id="novel-file" type="file" accept=".txt,.docx" @change="$emit('file-upload', $event)" />
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path v-for="path in iconPaths.file" :key="path" :d="path" />
-          </svg>
-          <span>上传 txt/docx 文件</span>
+          <span class="upload-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path v-for="path in iconPaths.file" :key="path" :d="path" />
+            </svg>
+          </span>
+          <span>上传 txt / docx 文件</span>
           <strong>{{ fileName || '选择文件或拖入此处' }}</strong>
-          <small>静态原型中 txt 会读取正文，docx 仅记录文件名</small>
+          <small>支持长篇小说，系统将自动识别章节结构</small>
+          <em>TXT 可读取正文，DOCX 将先记录文件名</em>
         </label>
 
         <label class="paste-panel">
@@ -57,13 +60,16 @@ defineEmits(['file-upload', 'next', 'update:novelText'])
           <span>自动识别章节</span>
           <strong>{{ chapterCount }} 章</strong>
         </div>
-        <p>{{ isValid ? '内容已满足进入 AI 解析的最低要求。' : '继续补充文本，系统需要至少 3 章才能进入 AI 解析。' }}</p>
+        <p>{{ isValid ? '已满足 AI 解析最低要求，可以进入下一步。' : '继续补充文本，系统至少需要识别 3 章。' }}</p>
       </div>
 
       <ul class="chapter-list" aria-label="章节列表">
-        <li v-for="chapter in chapters" :key="chapter.title">
-          <strong>{{ chapter.title }}</strong>
-          <span>{{ chapter.excerpt }}</span>
+        <li v-for="(chapter, index) in chapters" :key="chapter.title" :class="{ 'is-current': index === 0 }">
+          <span class="chapter-index">{{ String(index + 1).padStart(2, '0') }}</span>
+          <div>
+            <strong>{{ chapter.title }}</strong>
+            <span>{{ chapter.excerpt }}</span>
+          </div>
         </li>
       </ul>
 
@@ -85,6 +91,12 @@ defineEmits(['file-upload', 'next', 'update:novelText'])
           </svg>
           <h2 id="novel-preview-title">小说原文预览</h2>
         </div>
+        <span class="preview-status">实时预览</span>
+      </div>
+      <div class="preview-meta-row">
+        <span>{{ novelText.length }} 字</span>
+        <span>{{ chapterCount }} 章</span>
+        <span>{{ isValid ? '可解析' : '待补充' }}</span>
       </div>
       <div class="novel-preview">
         <p v-for="paragraph in novelText.split('\n').filter(Boolean)" :key="paragraph">{{ paragraph }}</p>

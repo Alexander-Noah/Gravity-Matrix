@@ -1,7 +1,7 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
-defineProps({
+const props = defineProps({
   description: { type: String, default: '从小说到剧本，只需几步' },
   iconPaths: { type: Object, required: true },
   title: { type: String, default: '小说转剧本工作台' },
@@ -9,6 +9,7 @@ defineProps({
 
 const emit = defineEmits(['logout', 'open-profile'])
 const isProfileMenuOpen = ref(false)
+const showWorkflowBadge = computed(() => props.title.includes('工作台'))
 
 const toggleProfileMenu = () => {
   isProfileMenuOpen.value = !isProfileMenuOpen.value
@@ -28,7 +29,10 @@ const logout = () => {
 <template>
   <header class="workspace-header">
     <div class="title-block">
-      <h1>{{ title }}</h1>
+      <div class="title-line">
+        <h1>{{ title }}</h1>
+        <span v-if="showWorkflowBadge" class="header-badge">AI 创作流程</span>
+      </div>
       <p>{{ description }}</p>
     </div>
 

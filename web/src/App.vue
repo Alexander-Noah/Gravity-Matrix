@@ -149,7 +149,7 @@ const pageDescription = computed(() => {
   }
 
   if (activePage.value === 'import') {
-    return '上传文件或粘贴原文，检查章节完整度后进入 AI 解析'
+    return '导入小说原文，确认章节结构后进入 AI 解析与剧本生成流程'
   }
 
   if (activePage.value === 'analysis') {

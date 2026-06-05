@@ -2,18 +2,18 @@
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  background: oklch(99% 0.004 275 / 0.92);
-  box-shadow: var(--shadow-soft);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 12px 30px oklch(36% 0.06 275 / 0.06);
 }
 
 .script-panel-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
-  min-height: 72px;
-  padding: 16px 18px 15px 20px;
+  min-height: 70px;
+  padding: 16px 18px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -35,10 +35,10 @@
 
 .editor-actions {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: flex-end;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
   flex: 1 1 auto;
 }
 
@@ -47,8 +47,8 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 40px;
-  padding: 0 13px;
+  min-height: 36px;
+  padding: 0 11px;
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text);
@@ -76,7 +76,8 @@
 
 .editor-tool.is-safe {
   color: oklch(46% 0.1 165);
-  background: oklch(96% 0.026 165);
+  border-color: oklch(84% 0.055 165);
+  background: var(--success-soft);
 }
 
 .editor-tool.is-primary {
@@ -99,15 +100,15 @@
 
 .script-editor-layout {
   display: grid;
-  grid-template-columns: 250px minmax(360px, 1fr) 280px;
-  min-height: 520px;
+  grid-template-columns: minmax(220px, 250px) minmax(420px, 1fr) minmax(240px, 270px);
+  min-height: 560px;
 }
 
 .structure-pane {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: 18px 16px;
+  padding: 16px 14px;
   border-right: 1px solid var(--border);
   background: oklch(99% 0.004 275);
 }
@@ -137,7 +138,9 @@
 
 .chapter-tree {
   display: grid;
-  gap: 8px;
+  gap: 6px;
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 .chapter-row,
@@ -206,6 +209,10 @@
   background: var(--primary-soft);
 }
 
+.scene-row.is-active {
+  box-shadow: inset 0 0 0 1px oklch(84% 0.06 285);
+}
+
 .add-scene-button {
   display: inline-flex;
   align-items: center;
@@ -240,9 +247,7 @@
   position: relative;
   min-width: 0;
   overflow: auto;
-  background:
-    radial-gradient(circle at 72% 0%, oklch(32% 0.04 255 / 0.35), transparent 18rem),
-    oklch(19% 0.035 265);
+  background: var(--editor-bg);
 }
 
 .code-more {
@@ -275,7 +280,7 @@
 .code-pane pre {
   min-width: 720px;
   margin: 0;
-  padding: 18px 0 22px;
+  padding: 16px 0 22px;
 }
 
 .code-pane code {
@@ -291,9 +296,13 @@
   min-height: 21px;
 }
 
+.code-line:nth-child(2n) {
+  background: oklch(17% 0.025 265 / 0.22);
+}
+
 .line-number {
   padding-right: 18px;
-  color: oklch(67% 0.025 260);
+  color: oklch(64% 0.02 260);
   text-align: right;
   user-select: none;
 }
@@ -325,7 +334,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: 18px;
+  padding: 16px;
   border-left: 1px solid var(--border);
   background: oklch(99% 0.004 275);
 }
@@ -374,11 +383,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 42px;
-  padding: 0 12px;
+  min-height: 40px;
+  padding: 0 11px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--primary-faint);
+  background: var(--surface-muted);
 }
 
 .schema-check-list dt {
@@ -396,6 +405,10 @@
 
 .schema-check-list dd.is-valid {
   color: oklch(46% 0.1 165);
+}
+
+.schema-check-list dd:not(.is-valid) {
+  color: var(--danger);
 }
 
 .schema-message {

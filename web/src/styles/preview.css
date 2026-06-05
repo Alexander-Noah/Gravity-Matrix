@@ -1,9 +1,9 @@
 .preview-panel {
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  background: oklch(99% 0.004 275 / 0.92);
-  box-shadow: var(--shadow-soft);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 10px 24px oklch(36% 0.06 275 / 0.05);
 }
 
 .preview-header {
@@ -55,8 +55,8 @@
 
 .preview-body {
   display: grid;
-  grid-template-columns: minmax(220px, 0.95fr) minmax(260px, 1.15fr) minmax(220px, 0.8fr);
-  min-height: 172px;
+  grid-template-columns: minmax(240px, 0.95fr) minmax(280px, 1.15fr) minmax(220px, 0.76fr);
+  min-height: 190px;
 }
 
 .scene-preview,
@@ -129,7 +129,7 @@
 
 .subway-visual {
   position: relative;
-  min-height: 172px;
+  min-height: 190px;
   overflow: hidden;
   background:
     linear-gradient(180deg, oklch(83% 0.035 72), oklch(94% 0.02 82) 48%, oklch(70% 0.03 68) 49%, oklch(84% 0.025 76)),
