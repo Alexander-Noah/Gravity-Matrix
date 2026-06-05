@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { clearAuthSession } from './api/auth'
 import AddSceneDialog from './components/AddSceneDialog.vue'
 import AiAnalysisPage from './components/AiAnalysisPage.vue'
 import AppSidebar from './components/AppSidebar.vue'
@@ -199,6 +200,15 @@ const handleAuthenticated = () => {
   router.push('/workbench')
 }
 
+const openProfileCenter = () => {
+  router.push('/profile')
+}
+
+const logout = () => {
+  clearAuthSession()
+  router.push('/auth')
+}
+
 const openProject = (project) => {
   router.push('/workbench')
 
@@ -381,7 +391,13 @@ const handleFileUpload = async (event) => {
 
     <main class="main-wrapper" aria-label="工作区">
       <div class="page-content">
-        <WorkspaceHeader :description="pageDescription" :icon-paths="iconPaths" :title="pageTitle" />
+        <WorkspaceHeader
+          :description="pageDescription"
+          :icon-paths="iconPaths"
+          :title="pageTitle"
+          @logout="logout"
+          @open-profile="openProfileCenter"
+        />
         <ProjectsPage
           v-if="activeRoute.id === 'projects'"
           :activities="projectActivities"

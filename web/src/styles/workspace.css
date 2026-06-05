@@ -125,6 +125,10 @@
   font-weight: 720;
 }
 
+.profile-menu-wrap {
+  position: relative;
+}
+
 .profile-button .avatar {
   display: inline-grid;
   width: 34px;
@@ -144,6 +148,37 @@
   width: 16px;
   height: 16px;
   transform: rotate(90deg);
+}
+
+.profile-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  min-width: 138px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-panel);
+}
+
+.profile-menu button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+  font: 740 13px/1 var(--font-sans);
+  text-align: left;
+  padding: 0 10px;
+}
+
+.profile-menu button:hover {
+  color: var(--primary-strong);
+  background: var(--primary-faint);
 }
 
 .workflow-sticky {
