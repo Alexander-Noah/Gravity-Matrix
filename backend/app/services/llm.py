@@ -17,6 +17,7 @@ from app.schemas.screenplay import ScreenplayDocument
 class LLMResult:
     provider: str
     content: dict
+    fallback_reason: str | None = None
 
 
 def analyze_project(project: Project) -> LLMResult:
@@ -24,8 +25,9 @@ def analyze_project(project: Project) -> LLMResult:
         result = _call_deepseek(_analysis_prompt(project))
         if isinstance(result, dict) and _is_valid_analysis(result):
             return LLMResult(provider=settings.llm_provider, content=_normalize_analysis(result))
+        return _demo_analyze_project(project, "invalid_analysis_response")
 
-    return _demo_analyze_project(project)
+    return _demo_analyze_project(project, "missing_config")
 
 
 def generate_screenplay(project: Project, analysis: dict | None = None) -> LLMResult:
@@ -34,11 +36,12 @@ def generate_screenplay(project: Project, analysis: dict | None = None) -> LLMRe
         result = _call_deepseek(_screenplay_prompt(project, analysis))
         if isinstance(result, dict) and _is_valid_screenplay(result):
             return LLMResult(provider=settings.llm_provider, content=result)
+        return _demo_generate_screenplay(project, analysis, "invalid_screenplay_response")
 
-    return _demo_generate_screenplay(project, analysis)
+    return _demo_generate_screenplay(project, analysis, "missing_config")
 
 
-def _demo_analyze_project(project: Project) -> LLMResult:
+def _demo_analyze_project(project: Project, fallback_reason: str | None = None) -> LLMResult:
     characters = _demo_characters(project)
     locations = [
         {
@@ -59,6 +62,7 @@ def _demo_analyze_project(project: Project) -> LLMResult:
 
     return LLMResult(
         provider="deterministic_demo",
+        fallback_reason=fallback_reason,
         content={
             "characters": characters,
             "locations": locations,
@@ -69,7 +73,11 @@ def _demo_analyze_project(project: Project) -> LLMResult:
     )
 
 
-def _demo_generate_screenplay(project: Project, analysis: dict | None = None) -> LLMResult:
+def _demo_generate_screenplay(
+    project: Project,
+    analysis: dict | None = None,
+    fallback_reason: str | None = None,
+) -> LLMResult:
     analysis = _normalize_analysis(analysis or _demo_analyze_project(project).content)
     characters = analysis.get("characters") or _demo_characters(project)
     locations = analysis.get("locations") or [
@@ -80,6 +88,7 @@ def _demo_generate_screenplay(project: Project, analysis: dict | None = None) ->
 
     return LLMResult(
         provider="deterministic_demo",
+        fallback_reason=fallback_reason,
         content={
             "script": {
                 "schema_version": "1.0",
