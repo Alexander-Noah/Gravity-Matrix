@@ -28,6 +28,8 @@ def test_analyze_project_uses_demo_without_llm_config(monkeypatch) -> None:
 
     assert result.provider == "deterministic_demo"
     assert result.content["chapter_summaries"][0]["title"] == "桃园起义"
+    assert len(result.content["characters"]) >= 2
+    assert result.content["characters"][0]["name"] == "刘备"
 
 
 def test_analyze_project_uses_deepseek_when_configured(monkeypatch) -> None:
@@ -67,6 +69,10 @@ def test_generate_screenplay_falls_back_when_model_output_is_invalid(monkeypatch
 
     assert result.provider == "deterministic_demo"
     assert result.content["script"]["metadata"]["title"] == "三国演义"
+    scene = result.content["script"]["chapters"][0]["scenes"][0]
+    assert len(result.content["script"]["characters"]) >= 2
+    assert len(scene["dialogue"]) >= 2
+    assert {line["speaker_id"] for line in scene["dialogue"]}.issubset(set(scene["characters"]))
 
 
 def test_analyze_project_normalizes_unknown_character_age(monkeypatch) -> None:

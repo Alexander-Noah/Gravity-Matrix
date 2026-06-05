@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -38,16 +39,7 @@ def generate_screenplay(project: Project, analysis: dict | None = None) -> LLMRe
 
 
 def _demo_analyze_project(project: Project) -> LLMResult:
-    characters = [
-        {
-            "id": "char_001",
-            "name": project.author or "主角",
-            "role": "主角",
-            "gender": "unknown",
-            "age": None,
-            "description": "根据小说章节自动识别出的核心人物。",
-        }
-    ]
+    characters = _demo_characters(project)
     locations = [
         {
             "id": f"loc_{chapter.number:03d}",
@@ -79,16 +71,7 @@ def _demo_analyze_project(project: Project) -> LLMResult:
 
 def _demo_generate_screenplay(project: Project, analysis: dict | None = None) -> LLMResult:
     analysis = _normalize_analysis(analysis or _demo_analyze_project(project).content)
-    characters = analysis.get("characters") or [
-        {
-            "id": "char_001",
-            "name": project.author or "主角",
-            "role": "主角",
-            "gender": "unknown",
-            "age": None,
-            "description": "小说中的核心人物。",
-        }
-    ]
+    characters = analysis.get("characters") or _demo_characters(project)
     locations = analysis.get("locations") or [
         {"id": "loc_001", "name": "主要场景", "description": "由小说内容概括出的主要空间。"}
     ]
@@ -351,9 +334,66 @@ def _is_valid_screenplay(data: dict[str, Any]) -> bool:
     return True
 
 
+def _demo_characters(project: Project) -> list[dict[str, Any]]:
+    names = _extract_character_names(project)
+    if not names:
+        names = ["主角", "重要角色"]
+    elif len(names) == 1:
+        names.append("重要角色")
+
+    roles = ["主角", "重要角色", "重要角色"]
+    return [
+        {
+            "id": f"char_{index:03d}",
+            "name": name,
+            "role": roles[min(index - 1, len(roles) - 1)],
+            "gender": "unknown",
+            "age": None,
+            "description": "根据小说章节自动识别出的核心人物。",
+        }
+        for index, name in enumerate(names[:3], start=1)
+    ]
+
+
+def _extract_character_names(project: Project) -> list[str]:
+    text = "\n".join(chapter.content for chapter in project.chapters)
+    candidates: list[str] = []
+
+    for match in re.finditer(r"([\u4e00-\u9fff]{2})、([\u4e00-\u9fff]{2})、([\u4e00-\u9fff]{2})", text):
+        candidates.extend(match.groups())
+
+    for match in re.finditer(r"([\u4e00-\u9fff]{2})(?:庄|在|率|与|和|同|向|说|道|问|答)", text):
+        candidates.append(match.group(1))
+
+    stopwords = {
+        "天下",
+        "大势",
+        "东汉",
+        "朝政",
+        "群雄",
+        "乱世",
+        "黄巾",
+        "朝廷",
+        "豪杰",
+        "国家",
+        "黎庶",
+        "小说",
+        "章节",
+    }
+    seen = set()
+    names = []
+    for candidate in candidates:
+        if candidate in stopwords or candidate in seen:
+            continue
+        seen.add(candidate)
+        names.append(candidate)
+    return names
+
+
 def _chapter_to_script(chapter: Chapter, locations: list[dict], characters: list[dict]) -> dict:
     location = locations[min(chapter.number - 1, len(locations) - 1)]
     character = characters[0]
+    supporting_character = characters[1] if len(characters) > 1 else character
 
     return {
         "id": f"ch_{chapter.number:03d}",
@@ -366,7 +406,7 @@ def _chapter_to_script(chapter: Chapter, locations: list[dict], characters: list
                 "title": f"{chapter.title} - 核心场景",
                 "location_id": location["id"],
                 "time": "day",
-                "characters": [character["id"]],
+                "characters": list(dict.fromkeys([character["id"], supporting_character["id"]])),
                 "synopsis": _brief(chapter.content, 140),
                 "stage_directions": [
                     "镜头跟随主要人物进入场景，环境细节烘托本章情绪。",
@@ -378,6 +418,12 @@ def _chapter_to_script(chapter: Chapter, locations: list[dict], characters: list
                         "speaker_name": character["name"],
                         "line": "这一刻，我必须做出选择。",
                         "emotion": "determined",
+                    },
+                    {
+                        "speaker_id": supporting_character["id"],
+                        "speaker_name": supporting_character["name"],
+                        "line": "那就一起面对眼前的阻碍。",
+                        "emotion": "supportive",
                     }
                 ],
             }
