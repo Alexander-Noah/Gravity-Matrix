@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import yaml from 'js-yaml'
 import { clearAuthSession, getAuthSession } from './api/auth'
 import { getApiErrorMessage } from './api/http'
 import {
@@ -21,6 +22,7 @@ import {
   addProjectScene,
   exportProjectMarkdown,
   exportProjectTxt,
+  deleteProject,
 } from './api/workbench'
 import AddSceneDialog from './components/AddSceneDialog.vue'
 import AiAnalysisPage from './components/AiAnalysisPage.vue'
@@ -61,7 +63,6 @@ import {
   projectStages,
   projectStats,
   productHelpDocs,
-  quickActions,
   schemaHelpContent,
   schemaValidationMock,
   scriptGenerationTemplates,
@@ -91,7 +92,7 @@ const generatedScriptYaml = ref('')
 const schemaValidation = ref(schemaValidationMock)
 const editorNotice = ref('')
 const previewNotice = ref('')
-const selectedTemplateId = ref('')
+const selectedTemplateId = ref(localStorage.getItem('gravityMatrixSelectedTemplate') || 'tv-drama')
 const currentUser = ref(getAuthSession().user)
 const isProfileCenterOpen = ref(false)
 const displayedAnalysisCharacters = ref(analysisCharacters)
@@ -462,8 +463,44 @@ const generatedYamlLines = computed(() => {
 const generatedYamlText = computed(() =>
   generatedScriptYaml.value || generatedYamlLines.value.map((line) => line.map((token) => token.text).join('')).join('\n'),
 )
+const displayedPreviewScenes = computed(() => {
+  if (!generatedScriptYaml.value) return scriptPreviewScenes
+
+  try {
+    const parsed = yaml.load(generatedScriptYaml.value)
+    if (!parsed || !parsed.script || !parsed.script.chapters) return scriptPreviewScenes
+    
+    const scenes = []
+    parsed.script.chapters.forEach((chapter, cIdx) => {
+      if (!chapter.scenes) return
+      chapter.scenes.forEach((scene, sIdx) => {
+        const characters = new Set()
+        const dialogues = []
+        if (scene.dialogues) {
+          scene.dialogues.forEach(d => {
+            characters.add(d.speaker)
+            dialogues.push({ speaker: d.speaker, note: d.note || '', line: d.line })
+          })
+        }
+        
+        scenes.push({
+          title: `场景 ${cIdx + 1}-${sIdx + 1} ${scene.label || scene.location || '未知场景'}`,
+          meta: `${scene.interior || '内/外景'} / ${scene.location || '未知地点'} / ${scene.time || '未知时间'}`,
+          characters: Array.from(characters),
+          action: scene.action || '无动作描写',
+          dialogues: dialogues
+        })
+      })
+    })
+    return scenes.length ? scenes : scriptPreviewScenes
+  } catch (e) {
+    console.error('YAML parsing error', e)
+    return scriptPreviewScenes
+  }
+})
+
 const scriptTextPreview = computed(() =>
-  scriptPreviewScenes
+  displayedPreviewScenes.value
     .map((scene) => {
       const cast = `出场人物：${scene.characters.join('、')}`
       const dialogues = scene.dialogues.map((dialogue) => `${dialogue.speaker}\n${dialogue.line}`).join('\n\n')
@@ -473,7 +510,7 @@ const scriptTextPreview = computed(() =>
     .join('\n\n---\n\n'),
 )
 const markdownPreview = computed(() =>
-  scriptPreviewScenes
+  displayedPreviewScenes.value
     .map((scene) => {
       const dialogues = scene.dialogues.map((dialogue) => `**${dialogue.speaker}**\n\n${dialogue.line}`).join('\n\n')
 
@@ -535,6 +572,23 @@ const applyAnalysisResult = (analysis) => {
     }))
     : analysisScenes
 
+  displayedAnalysisMetrics.value = [
+    { label: '出场人物', value: String(characters.length), note: '主要角色', icon: 'user', tone: 'blue' },
+    { label: '核心场景', value: String(locations.length), note: '主要发生地', icon: 'location', tone: 'mint' },
+    { label: '核心主题', value: String(themes.length), note: '故事基调', icon: 'message', tone: 'violet' },
+    { label: '冲突事件', value: String(conflicts.length), note: '高潮与转折', icon: 'conflict', tone: 'orange' },
+  ]
+
+  if (themes.length) {
+    displayedInsightItems.value = themes.map((theme, idx) => ({
+      title: `主题 ${idx + 1}`,
+      description: `剧本围绕 "${theme}" 展开，建议在对白中强化这一主旨。`,
+      tone: ['blue', 'mint', 'orange', 'violet'][idx % 4]
+    }))
+  } else {
+    displayedInsightItems.value = insightItems
+  }
+
   displayedPlotEvents.value = chapterSummaries.length
     ? chapterSummaries.map((chapter, index) => ({
       step: String(index + 1).padStart(2, '0'),
@@ -591,6 +645,17 @@ const logout = () => {
   router.push('/auth')
 }
 
+const handleDeleteProject = async (project) => {
+  if (!confirm(`确定要删除项目《${project.raw?.title || project.title}》吗？此操作无法恢复。`)) return
+
+  try {
+    await deleteProject(project.id)
+    await fetchProjects()
+  } catch (error) {
+    alert('删除失败: ' + getApiErrorMessage(error))
+  }
+}
+
 const openProject = async (project) => {
   router.push('/workbench')
   currentProjectId.value = project?.id || project?.raw?.id || null
@@ -638,7 +703,26 @@ const openProject = async (project) => {
 
 const selectGenerationTemplate = (templateId) => {
   selectedTemplateId.value = templateId
+  localStorage.setItem('gravityMatrixSelectedTemplate', templateId)
+  // Navigate back to workbench if selected from template center
+  if (activeRoute.value.id === 'templates') {
+    router.push('/workbench')
+  }
 }
+
+const defaultGenerationSettings = computed(() => {
+  const templateId = selectedTemplateId.value
+  let scriptType = '影视剧'
+  if (templateId === 'short-drama') scriptType = '短剧'
+  if (templateId === 'stage-play') scriptType = '话剧'
+  if (templateId === 'storyboard') scriptType = '分镜剧本'
+
+  return {
+    scriptType,
+    adaptationStyle: generationSettingOptions.adaptationStyles[0],
+    contentOptions: generationSettingOptions.contentOptions.slice(0, 2),
+  }
+})
 
 const editLibraryScript = async (script) => {
   router.push('/workbench')
@@ -957,7 +1041,7 @@ const handleFileUpload = async (event) => {
   <AuthPage v-if="isAuthRoute" :icon-paths="iconPaths" @authenticated="handleAuthenticated" />
 
   <div v-else class="app-layout">
-    <AppSidebar :icon-paths="iconPaths" :nav-items="activeNavItems" :quick-actions="quickActions" @select="goToPage" />
+    <AppSidebar :icon-paths="iconPaths" :nav-items="activeNavItems" @select="goToPage" />
 
     <main class="main-wrapper" aria-label="工作区">
       <div class="page-content">
@@ -965,7 +1049,7 @@ const handleFileUpload = async (event) => {
           @open-profile="openProfileCenter" />
         <ProjectsPage v-if="activeRoute.id === 'projects'" :activities="displayedProjectActivities"
           :icon-paths="iconPaths" :projects="displayedProjectCards" :stats="displayedProjectStats"
-          @open-project="openProject" />
+          @open-project="openProject" @delete-project="handleDeleteProject" />
 
         <TemplateCenterPage v-else-if="activeRoute.id === 'templates'" :icon-paths="iconPaths"
           :selected-template-id="selectedTemplateId" :templates="scriptGenerationTemplates"
@@ -997,14 +1081,15 @@ const handleFileUpload = async (event) => {
             @rerun="rerunAnalysis" />
 
           <ScriptPreviewPage v-else-if="activePage === 'preview'" :export-notice="previewNotice" :icon-paths="iconPaths"
-            :scenes="scriptPreviewScenes" @back="goBackToEditor" @export-markdown="exportPreviewMarkdown"
+            :scenes="displayedPreviewScenes" @back="goBackToEditor" @export-markdown="exportPreviewMarkdown"
             @export-pdf="exportPreviewPdf" @export-txt="exportPreviewTxt" @export-yaml="exportPreviewYaml" />
 
           <SchemaHelpPage v-else-if="activePage === 'schema-doc'" :content="schemaHelpContent" :icon-paths="iconPaths"
             @back="goBackToEditor" />
 
           <div v-else class="content-grid">
-            <SupportColumn :analysis-metrics="analysisMetrics" :icon-paths="iconPaths" :insight-items="insightItems"
+            <SupportColumn
+              :analysis-metrics="displayedAnalysisMetrics" :icon-paths="iconPaths" :insight-items="displayedInsightItems"
               :project-stages="projectStages" />
             <ScriptWorkspace :icon-paths="iconPaths" :preview-dialogues="previewDialogues"
               :schema-validation="schemaValidation" :script-chapters="displayedScriptChapters"
@@ -1013,7 +1098,7 @@ const handleFileUpload = async (event) => {
               @open-schema="goToSchemaHelp" @previous="goBackToAnalysis" @validate-yaml="validateYaml" />
           </div>
 
-          <GenerationSettingsDialog v-model="isGenerationSettingsOpen" :initial-settings="generatedSettings"
+          <GenerationSettingsDialog v-model="isGenerationSettingsOpen" :initial-settings="generatedSettings || defaultGenerationSettings"
             :options="generationSettingOptions" @confirm="confirmGenerationSettings" />
           <AddSceneDialog v-model="isAddSceneOpen" :chapters="displayedScriptChapters" @confirm="confirmAddScene" />
         </template>

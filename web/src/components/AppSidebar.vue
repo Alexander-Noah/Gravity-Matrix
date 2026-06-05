@@ -2,7 +2,6 @@
 defineProps({
   iconPaths: { type: Object, required: true },
   navItems: { type: Array, required: true },
-  quickActions: { type: Array, required: true },
 })
 
 defineEmits(['select'])
@@ -73,23 +72,5 @@ defineEmits(['select'])
       </button>
     </section>
 
-    <section class="sidebar-panel actions-panel" aria-labelledby="quick-actions-title">
-      <h2 id="quick-actions-title">智能操作</h2>
-      <ul class="action-list">
-        <li v-for="action in quickActions" :key="action.label">
-          <svg class="item-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path v-for="path in iconPaths.edit" :key="path" :d="path" />
-          </svg>
-          <span>{{ action.label }}</span>
-          <time>{{ action.time }}</time>
-        </li>
-      </ul>
-      <button class="link-button" type="button">
-        <span>查看全部记录</span>
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
-        </svg>
-      </button>
-    </section>
   </aside>
 </template>

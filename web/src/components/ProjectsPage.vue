@@ -8,7 +8,7 @@ const props = defineProps({
   stats: { type: Array, required: true },
 })
 
-defineEmits(['open-project'])
+defineEmits(['open-project', 'delete-project'])
 
 const searchKeyword = ref('')
 const activeStatus = ref('all')
@@ -126,7 +126,7 @@ const resetFilters = () => {
           </dl>
 
           <div class="project-card-actions">
-            <button class="editor-tool" type="button">更多</button>
+            <button class="editor-tool" type="button" @click="$emit('delete-project', project)">删除项目</button>
             <button class="editor-tool is-primary" type="button" @click="$emit('open-project', project)">
               <span>打开项目</span>
               <svg viewBox="0 0 24 24" aria-hidden="true">
