@@ -13,6 +13,7 @@ from app.schemas.project import (
     ProjectCreate,
     ProjectDetail,
     ProjectRead,
+    ProjectWorkbenchRead,
     ScriptDiagnosisResponse,
     ScriptRead,
     ScriptValidateRequest,
@@ -21,6 +22,7 @@ from app.schemas.project import (
 from app.services.jobs import create_job, run_analysis_job, run_script_generation_job
 from app.services.script_diagnosis import diagnose_screenplay_yaml
 from app.services.screenplay_yaml import validate_screenplay_yaml
+from app.services.workbench import build_project_workbench
 
 router = APIRouter(tags=["projects"])
 
@@ -64,6 +66,12 @@ def get_project(project_id: int, db: Session = Depends(get_db)) -> ProjectDetail
     project = _require_project(db, project_id)
     base = _project_to_read(project).model_dump()
     return ProjectDetail(**base, chapters=project.chapters)
+
+
+@router.get("/projects/{project_id}/workbench", response_model=ProjectWorkbenchRead)
+def get_project_workbench(project_id: int, db: Session = Depends(get_db)) -> ProjectWorkbenchRead:
+    project = _require_project(db, project_id)
+    return ProjectWorkbenchRead.model_validate(build_project_workbench(project))
 
 
 @router.post("/projects/{project_id}/analysis-jobs", response_model=JobRead, status_code=202)
