@@ -31,9 +31,15 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  height: 100%;
+}
+
 body {
   margin: 0;
   min-width: 320px;
+  overflow-x: hidden;
 }
 
 button {
@@ -51,7 +57,9 @@ button:focus-visible {
 }
 
 #app {
+  height: 100svh;
   min-height: 100svh;
+  overflow: hidden;
 }
 
 .brand-mark svg,

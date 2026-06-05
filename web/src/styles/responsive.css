@@ -1,12 +1,23 @@
 @media (max-width: 1100px) {
-  .app-shell {
+  .app-layout {
     display: block;
+    height: auto;
+    min-height: 100svh;
+    overflow: visible;
+  }
+
+  .main-wrapper,
+  .page-content {
+    height: auto;
+    overflow: visible;
   }
 
   .sidebar {
     position: relative;
     min-height: auto;
+    height: auto;
     width: 100%;
+    flex-basis: auto;
     padding: 22px;
     border-right: 0;
     border-bottom: 1px solid var(--border);
@@ -31,8 +42,15 @@
     margin-top: 18px;
   }
 
-  .workspace {
+  .page-content {
     padding: 24px;
+  }
+
+  .workflow-sticky {
+    position: relative;
+    margin-bottom: 24px;
+    padding-bottom: 0;
+    background: transparent;
   }
 
   .content-grid {

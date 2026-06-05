@@ -19,7 +19,6 @@ defineProps({
       <div>
         <div class="brand-title">
           <span>AI小说转剧本</span>
-          <span class="plan-badge">Pro</span>
         </div>
         <p>让创作，更简单</p>
       </div>
