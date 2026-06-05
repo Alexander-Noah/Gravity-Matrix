@@ -10,24 +10,36 @@ from app.db.session import get_db
 from app.models.project import Chapter, Job, JobType, Project
 from app.schemas.project import (
     AnalysisRead,
+    ImportPreviewRequest,
+    ImportPreviewResponse,
     JobRead,
     ProjectCreate,
+    ProjectsDashboardRead,
     ProjectDetail,
     ProjectListRead,
     ProjectReadinessRead,
     ProjectRead,
     ProjectWorkbenchRead,
+    ScriptLibraryRead,
     ScriptDiagnosisResponse,
     ScriptRead,
     ScriptValidateRequest,
     ScriptValidateResponse,
 )
+from app.services.frontend_data import build_projects_dashboard, build_scripts_library, preview_import_text
 from app.services.jobs import create_job, get_active_job, run_analysis_job, run_script_generation_job
 from app.services.script_diagnosis import diagnose_screenplay_yaml
 from app.services.screenplay_yaml import validate_screenplay_yaml
 from app.services.workbench import build_project_workbench
 
 router = APIRouter(tags=["projects"])
+
+
+@router.post("/import/preview", response_model=ImportPreviewResponse)
+def preview_import(payload: ImportPreviewRequest) -> ImportPreviewResponse:
+    return ImportPreviewResponse.model_validate(
+        preview_import_text(payload.title, payload.author, payload.text)
+    )
 
 
 @router.post("/projects", response_model=ProjectRead, status_code=201)
@@ -85,6 +97,16 @@ def list_projects(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get("/projects/dashboard", response_model=ProjectsDashboardRead)
+def get_projects_dashboard(db: Session = Depends(get_db)) -> ProjectsDashboardRead:
+    return ProjectsDashboardRead.model_validate(build_projects_dashboard(db))
+
+
+@router.get("/scripts/library", response_model=ScriptLibraryRead)
+def get_scripts_library(db: Session = Depends(get_db)) -> ScriptLibraryRead:
+    return ScriptLibraryRead.model_validate(build_scripts_library(db))
 
 
 @router.get("/projects/{project_id}", response_model=ProjectDetail)

@@ -16,6 +16,35 @@ class ProjectCreate(BaseModel):
     chapters: list[ChapterCreate]
 
 
+class ImportPreviewRequest(BaseModel):
+    text: str = Field(min_length=1)
+    title: str | None = Field(default=None, max_length=255)
+    author: str | None = Field(default=None, max_length=255)
+
+
+class ImportPreviewChapter(BaseModel):
+    number: int
+    title: str
+    char_count: int
+    excerpt: str
+
+
+class ImportPreviewIssue(BaseModel):
+    code: str
+    severity: str
+    message: str
+
+
+class ImportPreviewResponse(BaseModel):
+    title: str
+    author: str | None
+    chapter_count: int
+    total_chars: int
+    can_create_project: bool
+    issues: list[ImportPreviewIssue]
+    chapters: list[ImportPreviewChapter]
+
+
 class ChapterRead(BaseModel):
     id: int
     number: int
@@ -42,6 +71,58 @@ class ProjectListRead(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class DashboardStat(BaseModel):
+    label: str
+    value: str
+    note: str
+    tone: str
+
+
+class DashboardProjectCard(BaseModel):
+    id: int
+    title: str
+    type: str
+    status: str
+    progress: int
+    updatedAt: str
+    chapters: int
+    scenes: int
+    owner: str
+    nextAction: str
+
+
+class DashboardActivity(BaseModel):
+    title: str
+    time: str
+    status: str
+
+
+class ProjectsDashboardRead(BaseModel):
+    stats: list[DashboardStat]
+    project_cards: list[DashboardProjectCard]
+    activities: list[DashboardActivity]
+
+
+class ScriptLibraryItem(BaseModel):
+    id: str
+    project_id: int
+    title: str
+    sourceNovel: str
+    type: str
+    chapters: int
+    scenes: int
+    dialogues: int
+    schemaStatus: str
+    status: str
+    updatedAt: str
+    tags: list[str]
+
+
+class ScriptLibraryRead(BaseModel):
+    stats: list[DashboardStat]
+    items: list[ScriptLibraryItem]
 
 
 class ProjectReadinessRead(BaseModel):
