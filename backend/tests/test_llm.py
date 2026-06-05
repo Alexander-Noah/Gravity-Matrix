@@ -72,6 +72,7 @@ def test_generate_screenplay_falls_back_when_model_output_is_invalid(monkeypatch
     scene = result.content["script"]["chapters"][0]["scenes"][0]
     assert len(result.content["script"]["characters"]) >= 2
     assert len(scene["dialogue"]) >= 2
+    assert {line["speaker_id"] for line in scene["dialogue"]}.issubset(set(scene["characters"]))
 
 
 def test_analyze_project_normalizes_unknown_character_age(monkeypatch) -> None:

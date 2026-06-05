@@ -406,7 +406,7 @@ def _chapter_to_script(chapter: Chapter, locations: list[dict], characters: list
                 "title": f"{chapter.title} - 核心场景",
                 "location_id": location["id"],
                 "time": "day",
-                "characters": [character["id"]],
+                "characters": list(dict.fromkeys([character["id"], supporting_character["id"]])),
                 "synopsis": _brief(chapter.content, 140),
                 "stage_directions": [
                     "镜头跟随主要人物进入场景，环境细节烘托本章情绪。",
