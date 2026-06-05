@@ -109,3 +109,8 @@ export const deleteProject = async (projectId) => {
   const response = await http.delete(`/projects/${projectId}`)
   return response.data
 }
+
+export const getScriptTemplates = async () => {
+  const response = await http.get('/templates')
+  return response.data
+}

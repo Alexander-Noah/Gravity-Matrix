@@ -23,6 +23,7 @@ import {
   exportProjectMarkdown,
   exportProjectTxt,
   deleteProject,
+  getScriptTemplates,
 } from './api/workbench'
 import AddSceneDialog from './components/AddSceneDialog.vue'
 import AiAnalysisPage from './components/AiAnalysisPage.vue'
@@ -65,7 +66,7 @@ import {
   productHelpDocs,
   schemaHelpContent,
   schemaValidationMock,
-  scriptGenerationTemplates,
+  scriptGenerationTemplates as mockTemplates,
   scriptChapters,
   scriptLibraryItems,
   scriptLibraryStats,
@@ -107,6 +108,16 @@ const displayedProjectStats = ref(projectStats)
 const displayedProjectActivities = ref(projectActivities)
 const displayedLibraryItems = ref(scriptLibraryItems)
 const displayedLibraryStats = ref(scriptLibraryStats)
+const displayedTemplates = ref(mockTemplates)
+
+const fetchTemplates = async () => {
+  try {
+    const templates = await getScriptTemplates()
+    displayedTemplates.value = templates?.length ? templates : mockTemplates
+  } catch (error) {
+    console.warn('获取模板失败，使用本地默认模板', error)
+  }
+}
 
 const activeRoute = computed(() => getRouteById(route.name))
 const isAuthRoute = computed(() => activeRoute.value.id === 'auth')
@@ -404,9 +415,9 @@ watch(
   (routeId) => {
     if (routeId === 'projects') {
       fetchProjects()
-    }
-
-    if (routeId === 'library') {
+    } else if (routeId === 'templates') {
+      fetchTemplates()
+    } else if (routeId === 'library') {
       fetchScriptLibrary()
     }
   },
@@ -1052,7 +1063,7 @@ const handleFileUpload = async (event) => {
           @open-project="openProject" @delete-project="handleDeleteProject" />
 
         <TemplateCenterPage v-else-if="activeRoute.id === 'templates'" :icon-paths="iconPaths"
-          :selected-template-id="selectedTemplateId" :templates="scriptGenerationTemplates"
+          :selected-template-id="selectedTemplateId" :templates="displayedTemplates"
           @select-template="selectGenerationTemplate" />
 
         <ScriptLibraryPage v-else-if="activeRoute.id === 'library'" :icon-paths="iconPaths"
