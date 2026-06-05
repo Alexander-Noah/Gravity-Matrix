@@ -44,6 +44,30 @@ def test_get_analysis_requires_completed_analysis() -> None:
     assert "还没有 AI 分析结果" in response.text
 
 
+def test_get_workbench_returns_empty_analysis_and_script_for_new_project() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    response = client.get(f"/api/v1/projects/{project_id}/workbench")
+
+    assert response.status_code == 200
+    workbench = response.json()
+    assert workbench["project"]["id"] == project_id
+    assert workbench["project"]["has_analysis"] is False
+    assert workbench["project"]["has_script"] is False
+    assert workbench["workflow_steps"][0]["status"] == "done"
+    assert workbench["workflow_steps"][1]["status"] == "current"
+    assert workbench["progress"]["percent"] == 25
+    assert workbench["analysis"]["raw"] is None
+    assert workbench["analysis"]["overview"]["character_count"] == 0
+    assert workbench["script"]["yaml"] is None
+    assert workbench["script"]["structure"] == []
+    assert workbench["script"]["diagnosis"] is None
+
+
 def test_create_project_and_generate_script() -> None:
     client = TestClient(app)
 
@@ -197,3 +221,60 @@ def test_script_diagnosis_returns_404_for_missing_project() -> None:
 
     assert get_response.status_code == 404
     assert post_response.status_code == 404
+
+
+def test_get_workbench_after_analysis_returns_analysis_overview() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    analysis_response = client.post(f"/api/v1/projects/{project_id}/analysis-jobs")
+    assert analysis_response.status_code == 202
+
+    response = client.get(f"/api/v1/projects/{project_id}/workbench")
+
+    assert response.status_code == 200
+    workbench = response.json()
+    assert workbench["project"]["has_analysis"] is True
+    assert workbench["project"]["has_script"] is False
+    assert workbench["workflow_steps"][1]["status"] == "done"
+    assert workbench["workflow_steps"][2]["status"] == "current"
+    assert workbench["progress"]["percent"] == 50
+    assert workbench["analysis"]["raw"]["characters"]
+    assert workbench["analysis"]["overview"]["chapter_summary_count"] == 3
+    assert workbench["script"]["yaml"] is None
+
+
+def test_get_workbench_after_script_returns_structure_and_diagnosis() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    script_response = client.post(f"/api/v1/projects/{project_id}/script-jobs")
+    assert script_response.status_code == 202
+
+    response = client.get(f"/api/v1/projects/{project_id}/workbench")
+
+    assert response.status_code == 200
+    workbench = response.json()
+    assert workbench["project"]["has_script"] is True
+    assert workbench["workflow_steps"][2]["status"] == "done"
+    assert workbench["workflow_steps"][3]["status"] == "current"
+    assert workbench["progress"]["percent"] == 75
+    assert "script:" in workbench["script"]["yaml"]
+    assert len(workbench["script"]["structure"]) == 3
+    assert workbench["script"]["structure"][0]["open"] is True
+    assert workbench["script"]["structure"][0]["scenes"]
+    assert workbench["script"]["diagnosis"]["valid_schema"] is True
+
+
+def test_get_workbench_returns_404_for_missing_project() -> None:
+    client = TestClient(app)
+
+    response = client.get("/api/v1/projects/999999/workbench")
+
+    assert response.status_code == 404
