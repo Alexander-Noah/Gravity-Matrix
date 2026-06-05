@@ -78,3 +78,16 @@ def create_job(db: Session, project_id: int, job_type: JobType) -> Job:
     db.commit()
     db.refresh(job)
     return job
+
+
+def get_active_job(db: Session, project_id: int, job_type: JobType) -> Job | None:
+    return (
+        db.query(Job)
+        .filter(
+            Job.project_id == project_id,
+            Job.type == job_type.value,
+            Job.status.in_([JobStatus.queued.value, JobStatus.running.value]),
+        )
+        .order_by(Job.created_at.desc(), Job.id.desc())
+        .first()
+    )
