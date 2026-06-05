@@ -124,3 +124,18 @@ export const cloneProject = async (projectId) => {
   const response = await http.post(`/projects/${projectId}/clone`)
   return response.data
 }
+
+export const previewImport = async (data) => {
+  const response = await http.post('/import/preview', data)
+  return response.data
+}
+
+export const getProjectsDashboard = async () => {
+  const response = await http.get('/projects/dashboard')
+  return response.data
+}
+
+export const getScriptsLibrary = async () => {
+  const response = await http.get('/scripts/library')
+  return response.data
+}

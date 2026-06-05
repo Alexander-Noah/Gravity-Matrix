@@ -24,6 +24,11 @@ import {
   exportProjectTxt,
   deleteProject,
   getScriptTemplates,
+  updateProject,
+  cloneProject,
+  previewImport,
+  getProjectsDashboard,
+  getScriptsLibrary
 } from './api/workbench'
 import AddSceneDialog from './components/AddSceneDialog.vue'
 import AiAnalysisPage from './components/AiAnalysisPage.vue'
@@ -374,39 +379,31 @@ const applyWorkbenchScript = (workbench) => {
 
 const fetchProjects = async () => {
   try {
-    const result = await listProjects()
-    applyProjectsResult(result)
+    const dashboard = await getProjectsDashboard()
+    if (dashboard) {
+      displayedProjectStats.value = dashboard.stats || projectStats
+      displayedProjectCards.value = dashboard.cards || projectCards
+      displayedProjectActivities.value = dashboard.activities || projectActivities
+    }
   } catch (error) {
-    displayedProjectActivities.value = [
-      {
-        title: getApiErrorMessage(error),
-        time: '刚刚',
-        status: '加载失败',
-      },
-      ...projectActivities,
-    ]
+    console.warn('Backend dashboard not available, falling back to mock data.', error)
+    displayedProjectStats.value = projectStats
+    displayedProjectCards.value = projectCards
+    displayedProjectActivities.value = projectActivities
   }
 }
 
 const fetchScriptLibrary = async () => {
   try {
-    const result = await listProjects()
-    const scriptProjects = (result.items || []).filter((project) => project.has_script)
-    const items = await Promise.all(
-      scriptProjects.map(async (project) => {
-        try {
-          const workbench = await getProjectWorkbench(project.id)
-          return mapLibraryItem(project, workbench)
-        } catch {
-          return mapLibraryItem(project, null)
-        }
-      }),
-    )
-
-    applyLibraryResult(items)
-  } catch {
-    displayedLibraryItems.value = scriptLibraryItems
+    const library = await getScriptsLibrary()
+    if (library) {
+      displayedLibraryStats.value = library.stats || scriptLibraryStats
+      displayedLibraryItems.value = library.items || scriptLibraryItems
+    }
+  } catch (error) {
+    console.warn('Backend library not available, falling back to mock data.', error)
     displayedLibraryStats.value = scriptLibraryStats
+    displayedLibraryItems.value = scriptLibraryItems
   }
 }
 
@@ -424,30 +421,36 @@ watch(
   { immediate: true },
 )
 
-const detectedChapters = computed(() => {
-  const matches = [
-    ...novelText.value.matchAll(
-      /(?:^|\n)\s*((?:第\s*[\d一二三四五六七八九十百千万零〇两]+\s*[章节回]|Chapter\s*\d+)[^\n]*)/gi,
-    ),
-  ]
+const detectedChapters = ref([])
+const isNovelValid = ref(false)
+const chapterCount = ref(0)
 
-  return matches.map((match, index) => {
-    const start = match.index || 0
-    const end = matches[index + 1]?.index ?? novelText.value.length
-    const chapterText = novelText.value.slice(start, end).trim()
-    const body = chapterText.replace(match[1], '').trim()
-    const excerpt = body.replace(/\s+/g, ' ').slice(0, 46)
+let previewTimeout = null
+watch(novelText, (newText) => {
+  if (previewTimeout) clearTimeout(previewTimeout)
+  if (!newText || !newText.trim()) {
+    detectedChapters.value = []
+    chapterCount.value = 0
+    isNovelValid.value = false
+    return
+  }
 
-    return {
-      title: match[1].trim(),
-      content: body || chapterText,
-      excerpt: excerpt ? `${excerpt}...` : '等待补充正文',
+  previewTimeout = setTimeout(async () => {
+    try {
+      const result = await previewImport({
+        title: selectedFileName.value ? selectedFileName.value.replace(/\.[^.]+$/, '') : '未命名小说',
+        author: '创作者',
+        text: newText,
+      })
+      detectedChapters.value = result.chapters || []
+      chapterCount.value = result.chapter_count || 0
+      isNovelValid.value = result.can_create_project || false
+    } catch (error) {
+      console.warn('后端解析章节失败，请检查网络或后端服务', error)
+      isNovelValid.value = false
     }
-  })
-})
-
-const chapterCount = computed(() => detectedChapters.value.length)
-const isNovelValid = computed(() => chapterCount.value >= 3)
+  }, 800)
+}, { immediate: true })
 const generatedYamlLines = computed(() => {
   if (generatedScriptYaml.value) {
     return yamlTextToLines(generatedScriptYaml.value)
@@ -1095,6 +1098,31 @@ const exportPreviewTxt = async () => {
   previewNotice.value = 'TXT 文件已开始下载。'
 }
 
+const showRecycleBin = ref(false)
+const recycleBinItems = ref([])
+
+const openRecycleBin = () => {
+  recycleBinItems.value = JSON.parse(localStorage.getItem('gravityMatrixRecycleBin') || '[]')
+  showRecycleBin.value = true
+}
+
+const closeRecycleBin = () => {
+  showRecycleBin.value = false
+}
+
+const clearRecycleBin = () => {
+  if (!confirm('确定要清空回收站吗？此操作无法恢复。')) return
+  localStorage.removeItem('gravityMatrixRecycleBin')
+  recycleBinItems.value = []
+}
+
+const restoreFromRecycleBin = (scriptId) => {
+  alert('后端暂未实现恢复项目接口，仅作前端演示。')
+  recycleBinItems.value = recycleBinItems.value.filter(item => item.id !== scriptId)
+  localStorage.setItem('gravityMatrixRecycleBin', JSON.stringify(recycleBinItems.value))
+}
+
+
 const handleFileUpload = async (event) => {
   const file = event.target.files?.[0]
 
@@ -1118,7 +1146,7 @@ const handleFileUpload = async (event) => {
   <AuthPage v-if="isAuthRoute" :icon-paths="iconPaths" @authenticated="handleAuthenticated" />
 
   <div v-else class="app-layout">
-    <AppSidebar :icon-paths="iconPaths" :nav-items="activeNavItems" @select="goToPage" />
+    <AppSidebar :icon-paths="iconPaths" :nav-items="activeNavItems" @select="goToPage" @open-recycle-bin="openRecycleBin" />
 
     <main class="main-wrapper" aria-label="工作区">
       <div class="page-content">
@@ -1184,5 +1212,51 @@ const handleFileUpload = async (event) => {
     </main>
 
     <ProfileCenterDialog v-model="isProfileCenterOpen" :icon-paths="iconPaths" :user="currentUser" @logout="logout" />
+
+    <Teleport to="body">
+      <div v-if="showRecycleBin" class="dialog-backdrop" role="presentation" @click.self="closeRecycleBin">
+        <section class="generation-dialog" style="max-width: 800px; width: 90%;" role="dialog" aria-modal="true" aria-labelledby="recycle-bin-title">
+          <header class="dialog-header">
+            <div>
+              <span>项目管理</span>
+              <h2 id="recycle-bin-title">回收站</h2>
+            </div>
+            <button class="dialog-close" type="button" aria-label="关闭回收站" @click="closeRecycleBin">×</button>
+          </header>
+
+          <div class="dialog-body" style="max-height: 60vh; overflow-y: auto;">
+            <div v-if="recycleBinItems.length === 0" class="library-empty-state" style="padding: 40px 0;">
+              <strong>回收站是空的</strong>
+            </div>
+            <table v-else style="width: 100%; border-collapse: collapse; text-align: left;">
+              <thead>
+                <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-secondary);">
+                  <th style="padding: 12px 8px; font-weight: 500;">剧本名称</th>
+                  <th style="padding: 12px 8px; font-weight: 500;">删除时间</th>
+                  <th style="padding: 12px 8px; font-weight: 500; text-align: right;">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in recycleBinItems" :key="item.id" style="border-bottom: 1px solid var(--border-color-light);">
+                  <td style="padding: 16px 8px;">
+                    <strong>{{ item.title }}</strong>
+                    <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">来源小说：{{ item.sourceNovel }}</div>
+                  </td>
+                  <td style="padding: 16px 8px; color: var(--text-secondary);">{{ item.deletedAt }}</td>
+                  <td style="padding: 16px 8px; text-align: right;">
+                    <button class="link-button" type="button" @click="restoreFromRecycleBin(item.id)">恢复</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <footer class="dialog-actions" style="justify-content: space-between;">
+            <button class="editor-tool is-danger" type="button" :disabled="recycleBinItems.length === 0" @click="clearRecycleBin">清空回收站</button>
+            <button class="editor-tool is-primary" type="button" @click="closeRecycleBin">关闭</button>
+          </footer>
+        </section>
+      </div>
+    </Teleport>
   </div>
 </template>

@@ -59,7 +59,14 @@ const toggleMore = (scriptId) => {
 }
 
 const handleMoreAction = (script, action) => {
-  if (action === '移动到回收站') emit('delete-script', script)
+  if (action === '移动到回收站') {
+    const items = JSON.parse(localStorage.getItem('gravityMatrixRecycleBin') || '[]')
+    if (!items.find((i) => i.id === script.id)) {
+      items.push({ ...script, deletedAt: new Date().toLocaleString() })
+      localStorage.setItem('gravityMatrixRecycleBin', JSON.stringify(items))
+    }
+    emit('delete-script', script)
+  }
   else if (action === '重命名') emit('rename-script', script)
   else if (action === '复制为新版本') emit('clone-script', script)
   activeMoreId.value = ''

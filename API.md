@@ -1,79 +1,102 @@
-# Gravity-Matrix 全量接口文档
+# Gravity-Matrix 全量接口文档 (前端对接后端)
 
-本文档描述了 Gravity-Matrix 整个项目的前后端 API 接口情况。为了清晰反映目前的工程进度，文档被划分为两大部分：**第一部分**记录了后端已通过 FastAPI 真实实现的接口；**第二部分**记录了前端已在 UI 逻辑中调用，但后端暂时【待实现】的缺失接口。
+本文档结合了后端最新的真实路由表与前端所需交互，旨在提供整个 Gravity-Matrix 项目最权威的接口规范。
 
 ## 基础约定
 - **Base URL**: `http://127.0.0.1:8000/api/v1`
-- **内容类型**: 默认使用 `application/json`。
+- **数据格式**: 默认使用 `application/json`（导出与导入除外）
 
 ---
 
-## 第一部分：后端已实现的真实接口 (Implemented)
+## 1. 核心流程接口 (已实现)
 
-### 1. 系统状态
-- **GET /health**
-  健康检查接口。返回 `{"status": "ok"}`。
+### 1.1 小说导入预检
+- **请求方式**: `POST /import/preview`
+- **说明**: 接收用户上传或粘贴的纯文本，由后端完成章节解析与前置校验。
+- **请求体 (JSON)**:
+  ```json
+  {
+    "title": "三国演义",
+    "author": "罗贯中",
+    "text": "第一章 ...\n第二章 ..."
+  }
+  ```
+- **响应重点字段**:
+  ```json
+  {
+    "chapter_count": 3,
+    "can_create_project": true,
+    "chapters": [ { "number": 1, "title": "...", "excerpt": "..." } ]
+  }
+  ```
 
-### 2. 项目管理 (Projects)
-- **GET /projects**
-  获取项目列表（支持 `limit` 和 `offset` 分页）。
-- **POST /projects**
-  创建项目。入参: `{ title, author, chapters: [{title, content}] }`。
-- **GET /projects/{project_id}**
-  获取项目基础信息及章节列表。
-- **GET /projects/{project_id}/workbench**
-  获取项目工作台详情（聚合项目信息、解析结果、YAML剧本）。
-- **GET /projects/{project_id}/readiness**
-  检查项目就绪状态（是否可解析、是否可生成剧本、是否可导出）。
+### 1.2 创建项目
+- **请求方式**: `POST /projects`
+- **说明**: 将确认后的章节列表传入，正式生成项目实体。
 
-### 3. 工作流任务 (Jobs & Analysis)
-- **GET /jobs/{job_id}**
-  轮询查询任务（AI 解析、剧本生成）进度和详情。
-- **POST /projects/{project_id}/analysis-jobs**
-  异步启动 AI 小说解析任务，返回对应的 Job 信息。
-- **GET /projects/{project_id}/analysis**
-  获取项目完整的 AI 解析 JSON 结果。
-- **POST /projects/{project_id}/script-jobs**
-  异步启动大模型剧本生成任务，返回对应的 Job 信息。
+### 1.3 启动/查询 AI 分析任务
+- **启动分析**: `POST /projects/{project_id}/analysis-jobs`
+- **轮询任务**: `GET /jobs/{job_id}`
+- **获取解析结果**: `GET /projects/{project_id}/analysis`
 
-### 4. 剧本编辑与校验 (Scripting)
-- **GET /projects/{project_id}/script**
-  获取项目已生成的剧本 YAML 内容。
-- **PUT /projects/{project_id}/script**
-  全量保存修改后的剧本 YAML 草稿。
-- **POST /projects/{project_id}/script/validate**
-  对传入的剧本 YAML 进行结构与语法初步校验。
-- **GET /projects/{project_id}/script/diagnosis**
-  针对**已存库**的剧本 YAML 进行深度业务逻辑与规则诊断。
-- **POST /projects/{project_id}/script/diagnosis**
-  针对**前端草稿**的剧本 YAML 进行深度业务逻辑与规则诊断。
-- **GET /projects/{project_id}/script/export**
-  将数据库中已生成的剧本 YAML 文件以附件流（`application/x-yaml`）的形式导出下载。
+### 1.4 启动/查询剧本生成
+- **启动生成**: `POST /projects/{project_id}/script-jobs`
+- **轮询任务**: `GET /jobs/{job_id}`
+- **获取生成好的剧本**: `GET /projects/{project_id}/script`
+
+### 1.5 工作台全量状态聚合
+- **请求方式**: `GET /projects/{project_id}/workbench`
+- **说明**: 一次性拿到当前项目所有基础信息、结构、YAML和诊断结果，用于恢复编辑器界面。
 
 ---
 
-## 第二部分：前端已调用但后端【待实现】的预留接口 (To Be Implemented)
+## 2. 剧本校验与诊断接口 (已实现)
 
-此部分为前端已写好 Axios 请求，但后端 Python 尚未编写对应的路由逻辑。**开发后续需补齐。**
+- **初步校验**: `POST /projects/{project_id}/script/validate`
+- **质量诊断 (前端草稿)**: `POST /projects/{project_id}/script/diagnosis`
+- **质量诊断 (已存库剧本)**: `GET /projects/{project_id}/script/diagnosis`
+- **全量保存草稿**: `PUT /projects/{project_id}/script`
+- **直接导出YAML附件**: `GET /projects/{project_id}/script/export`
 
-### 1. 认证与用户模块 (Auth)
-- **POST /auth/register**：用户注册。
-- **POST /auth/login**：用户登录。
-- **GET /auth/me**：获取当前登录用户信息。
+---
 
-### 2. 模板中心 (Templates)
-- **GET /templates**：获取系统默认的剧本格式模板列表（如影视剧、短剧等）。前端目前带有本地数据兜底机制。
+## 3. 大盘聚合页面数据 (已实现)
 
-### 3. 项目管理高级操作 (Project Operations)
-- **PATCH /projects/{project_id}**：修改项目元数据（如重命名）。
-- **DELETE /projects/{project_id}**：彻底删除该项目及其关联的所有任务、解析与剧本。
-- **POST /projects/{project_id}/clone**：复制项目为全新版本，包含剧本内容。
+### 3.1 我的项目页仪表盘
+- **请求方式**: `GET /projects/dashboard`
+- **说明**: 后端直出当前用户的项目总览统计卡片、项目列表及近期动态活动。
 
-### 4. 工作台与任务控制 (Workbench Extensions)
-- **POST /projects/{project_id}/generation-settings**：持久化保存用户生成剧本时的偏好设置（如文风、选项等）。
-- **POST /projects/{project_id}/analysis-jobs/rerun**：清除旧解析缓存并重新触发一次解析 Job。
+### 3.2 剧本库列表数据
+- **请求方式**: `GET /scripts/library`
+- **说明**: 获取有剧本的项目专用的统计状态与所有剧本条目，供剧本库页面展示。
 
-### 5. 剧本高级编辑与特定导出 (Scripting Extensions)
-- **POST /projects/{project_id}/scenes**：追加/保存前端侧边栏新建的单场景片段。
-- **GET /projects/{project_id}/script/export/markdown**：将剧本直接导出并下载为 Markdown 格式。
-- **GET /projects/{project_id}/script/export/txt**：将剧本直接导出并下载为纯文本 TXT 格式。
+### 3.3 常规分页项目列表
+- **请求方式**: `GET /projects`
+- **说明**: 支持带 `limit` 和 `offset` 的标准分页。
+
+---
+
+## 4. 待补齐的边缘功能与暂无接口预留 (待实现)
+
+后端同学已明确以下功能暂不提供或接不上，属于后续迭代范畴，前端需增加 mock 或特定页面状态流转：
+
+### 4.1 认证模块 (Auth)
+- `POST /auth/register`、`POST /auth/login`、`GET /auth/me` **当前后端全部没有路由**。
+- **应对方案**：前端可直接绕过或允许在无 `Authorization` 头时使用 mock session。
+
+### 4.2 高级文档导入
+- **Docx 等文件上传**：当前无后端接口，前端只应允许上传 TXT 或直接粘贴，随后转字符串喂给 `POST /import/preview`。
+
+### 4.3 基础模板数据获取
+- `GET /templates`：获取可用剧本模板（当前前端退化为本地默认变量）。
+
+### 4.4 项目管理二次操作
+- `DELETE /projects/{id}`：删除项目。
+- `PATCH /projects/{id}`：重命名项目。
+- `POST /projects/{id}/clone`：克隆项目。
+
+### 4.5 高级生成与多格式导出
+- `POST /projects/{id}/generation-settings`：保存用户剧本生成时的配置偏好。
+- `POST /projects/{id}/analysis-jobs/rerun`：覆盖原分析并重跑大模型。
+- `POST /projects/{id}/scenes`：添加右侧单场景编辑入库。
+- `GET /projects/{id}/script/export/markdown`、`/txt`：导出特定格式附件。

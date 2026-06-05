@@ -4,7 +4,7 @@ defineProps({
   navItems: { type: Array, required: true },
 })
 
-defineEmits(['select'])
+defineEmits(['select', 'open-recycle-bin'])
 </script>
 
 <template>
@@ -64,7 +64,7 @@ defineEmits(['select'])
         </div>
       </div>
 
-      <button class="utility-row" type="button">
+      <button class="utility-row" type="button" @click="$emit('open-recycle-bin')">
         <svg class="item-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path v-for="path in iconPaths.trash" :key="path" :d="path" />
         </svg>
