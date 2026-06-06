@@ -17,8 +17,48 @@ class ProjectCreate(BaseModel):
 
 
 class ProjectUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    author: str | None = Field(default=None, max_length=255)
+
+
+class ImportPreviewRequest(BaseModel):
+    text: str = Field(min_length=1)
     title: str | None = Field(default=None, max_length=255)
-    name: str | None = Field(default=None, max_length=255)
+    author: str | None = Field(default=None, max_length=255)
+
+
+class ImportPreviewChapter(BaseModel):
+    number: int
+    title: str
+    content: str
+    char_count: int
+    excerpt: str
+
+
+class ImportPreviewIssue(BaseModel):
+    code: str
+    severity: str
+    message: str
+
+
+class ImportPreprocessResult(BaseModel):
+    characters: list[dict[str, Any]] = Field(default_factory=list)
+    locations: list[dict[str, Any]] = Field(default_factory=list)
+    chapter_summaries: list[dict[str, Any]] = Field(default_factory=list)
+    themes: list[str] = Field(default_factory=list)
+    conflicts: list[str] = Field(default_factory=list)
+    preparation_notes: list[str] = Field(default_factory=list)
+
+
+class ImportPreviewResponse(BaseModel):
+    title: str
+    author: str | None
+    chapter_count: int
+    total_chars: int
+    can_create_project: bool
+    issues: list[ImportPreviewIssue]
+    chapters: list[ImportPreviewChapter]
+    preprocess: ImportPreprocessResult
 
 
 class ChapterRead(BaseModel):
@@ -49,6 +89,61 @@ class ProjectListRead(BaseModel):
     offset: int
 
 
+class DashboardStat(BaseModel):
+    label: str
+    value: str
+    note: str
+    tone: str
+
+
+class DashboardProjectCard(BaseModel):
+    id: int
+    title: str
+    type: str
+    status: str
+    progress: int
+    updatedAt: str
+    chapters: int
+    scenes: int
+    owner: str
+    nextAction: str
+
+
+class DashboardActivity(BaseModel):
+    title: str
+    time: str
+    status: str
+
+
+class ProjectsDashboardRead(BaseModel):
+    stats: list[DashboardStat]
+    project_cards: list[DashboardProjectCard]
+    activities: list[DashboardActivity]
+
+
+class ScriptLibraryItem(BaseModel):
+    id: str
+    project_id: int | None = None
+    source_id: str | None = None
+    source_type: str = "project"
+    title: str
+    sourceNovel: str
+    type: str
+    chapters: int
+    scenes: int
+    dialogues: int
+    schemaStatus: str
+    status: str
+    updatedAt: str
+    tags: list[str]
+    summary: str | None = None
+
+
+class ScriptLibraryRead(BaseModel):
+    stats: list[DashboardStat]
+    items: list[ScriptLibraryItem]
+
+
 class ProjectReadinessRead(BaseModel):
     project_id: int
     can_analyze: bool
@@ -56,23 +151,6 @@ class ProjectReadinessRead(BaseModel):
     can_export: bool
     missing_steps: list[str] = Field(default_factory=list)
     next_action: str
-
-
-class MessageResponse(BaseModel):
-    success: bool
-    message: str
-
-
-class AnalysisRerunResponse(BaseModel):
-    id: int
-    job_id: int
-    status: str
-    message: str
-
-
-class GenerationSettingsRead(BaseModel):
-    project_id: int
-    settings: dict[str, Any]
 
 
 class ProjectDetail(ProjectRead):
@@ -95,6 +173,50 @@ class JobRead(BaseModel):
 class ScriptRead(BaseModel):
     project_id: int
     yaml: str
+
+
+class ProjectDeleteResponse(BaseModel):
+    deleted: bool
+    project_id: int
+
+
+class TemplateRead(BaseModel):
+    id: str
+    name: str
+    scenario: str
+    target_format: str
+    backend_rules: list[str] = Field(default_factory=list)
+    features: list[str]
+    fields: list[str]
+    yamlExample: list[str]
+
+
+class GenerationSettingsRequest(BaseModel):
+    templateId: str | None = Field(default=None, max_length=80)
+    scriptType: str | None = None
+    adaptationStyle: str | None = None
+    contentOptions: list[str] = Field(default_factory=list)
+
+
+class GenerationSettingsResponse(BaseModel):
+    project_id: int
+    accepted: bool
+    settings: GenerationSettingsRequest
+
+
+class SceneCreateRequest(BaseModel):
+    chapterTitle: str = Field(min_length=1, max_length=255)
+    sceneTitle: str = Field(min_length=1, max_length=255)
+    location: str = Field(min_length=1, max_length=255)
+    time: str = Field(min_length=1, max_length=255)
+    characters: str | None = Field(default=None, max_length=1000)
+    action: str | None = Field(default=None, max_length=5000)
+
+
+class SceneCreateResponse(BaseModel):
+    project_id: int
+    yaml: str
+    scene_id: str
 
 
 class AnalysisRead(BaseModel):

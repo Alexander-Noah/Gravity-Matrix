@@ -2,9 +2,11 @@
 defineProps({
   iconPaths: { type: Object, required: true },
   navItems: { type: Array, required: true },
+  projectProgress: { type: Number, default: 0 },
+  projectTitle: { type: String, default: '导入小说开始新项目' },
 })
 
-defineEmits(['select', 'open-recycle-bin'])
+defineEmits(['select', 'open-current-project', 'open-recycle-bin'])
 </script>
 
 <template>
@@ -47,7 +49,7 @@ defineEmits(['select', 'open-recycle-bin'])
     <section class="sidebar-panel project-panel" aria-labelledby="current-project-title">
       <div class="panel-heading">
         <h2 id="current-project-title">当前项目</h2>
-        <button class="icon-button" type="button" aria-label="查看当前项目">
+        <button class="icon-button" type="button" aria-label="查看当前项目" @click="$emit('open-current-project')">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path v-for="path in iconPaths.eye" :key="path" :d="path" />
           </svg>
@@ -59,8 +61,8 @@ defineEmits(['select', 'open-recycle-bin'])
           <path v-for="path in iconPaths.folder" :key="path" :d="path" />
         </svg>
         <div>
-          <strong>《星辰之下》改编项目</strong>
-          <span>已保存 2 分钟前</span>
+          <strong>{{ projectTitle }}</strong>
+          <span>{{ projectProgress > 0 ? `流程进度 ${projectProgress}%` : '等待导入小说' }}</span>
         </div>
       </div>
 

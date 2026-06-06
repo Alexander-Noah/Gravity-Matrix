@@ -1,12 +1,10 @@
 .script-panel {
-  display: flex;
-  flex-direction: column;
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
-  box-shadow: 0 12px 30px oklch(36% 0.06 275 / 0.06);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-soft);
 }
 
 .script-panel-header {
@@ -14,15 +12,15 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
-  min-height: 70px;
-  padding: 16px 18px;
+  min-height: 68px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--border);
 }
 
 .script-panel-header h2 {
   margin: 0;
   color: var(--text);
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 780;
   line-height: 1.3;
 }
@@ -44,17 +42,35 @@
   flex: 1 1 auto;
 }
 
+.editor-action-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.editor-action-group > span:first-child {
+  padding: 0 5px;
+  color: var(--text-soft);
+  font-size: 12px;
+  font-weight: 760;
+}
+
 .editor-tool {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 36px;
-  padding: 0 11px;
+  min-height: 34px;
+  padding: 0 10px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 7px;
   color: var(--text);
-  background: var(--surface);
+  background: var(--surface-raised);
   font-size: 13px;
   font-weight: 720;
   transition:
@@ -68,7 +84,7 @@
   color: var(--primary-strong);
   border-color: var(--border-strong);
   background: var(--primary-faint);
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .editor-tool svg {
@@ -83,15 +99,15 @@
 }
 
 .editor-tool.is-primary {
-  color: oklch(99% 0.004 275);
+  color: var(--surface);
   border-color: transparent;
-  background: var(--primary);
-  box-shadow: 0 12px 24px oklch(56% 0.2 285 / 0.22);
+  background: var(--primary-strong);
+  box-shadow: none;
 }
 
 .editor-tool.is-primary:hover {
-  color: oklch(99% 0.004 275);
-  background: var(--primary-strong);
+  color: var(--surface);
+  background: var(--primary);
 }
 
 .button-chevron {
@@ -102,19 +118,17 @@
 
 .script-editor-layout {
   display: grid;
-  grid-template-columns: minmax(220px, 250px) minmax(420px, 1fr) minmax(240px, 270px);
-  height: clamp(520px, calc(100svh - 370px), 680px);
-  min-height: 0;
+  grid-template-columns: minmax(200px, 230px) minmax(580px, 1fr) minmax(230px, 260px);
+  min-height: 590px;
 }
 
 .structure-pane {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 0;
-  padding: 16px 14px;
+  padding: 14px 12px;
   border-right: 1px solid var(--border);
-  background: oklch(99% 0.004 275);
+  background: var(--surface-muted);
 }
 
 .structure-heading {
@@ -142,10 +156,7 @@
 
 .chapter-tree {
   display: grid;
-  align-content: start;
-  min-height: 0;
   gap: 6px;
-  flex: 1 1 auto;
   overflow-y: auto;
   padding-right: 2px;
 }
@@ -163,7 +174,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 34px;
+  min-height: 32px;
   padding: 0 4px;
   border-radius: 7px;
   font-size: 13px;
@@ -196,7 +207,7 @@
 }
 
 .scene-row {
-  min-height: 34px;
+  min-height: 32px;
   padding: 0 12px;
   overflow: hidden;
   border-radius: 7px;
@@ -217,7 +228,7 @@
 }
 
 .scene-row.is-active {
-  box-shadow: inset 0 0 0 1px oklch(84% 0.06 285);
+  box-shadow: inset 0 0 0 1px oklch(82% 0.028 238);
 }
 
 .add-scene-button {
@@ -225,9 +236,9 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 40px;
+  min-height: 38px;
   margin-top: auto;
-  border: 1px solid oklch(78% 0.12 285);
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
   color: var(--primary-strong);
   background: transparent;
@@ -253,8 +264,7 @@
 .code-pane {
   position: relative;
   min-width: 0;
-  min-height: 0;
-  overflow: hidden;
+  overflow: auto;
   background: var(--editor-bg);
 }
 
@@ -285,40 +295,8 @@
   height: 17px;
 }
 
-.yaml-editor {
-  width: 100%;
-  height: 100%;
-  min-width: 720px;
-  min-height: 100%;
-  resize: none;
-  overflow: auto;
-  padding: 16px 68px 22px 54px;
-  border: 0;
-  color: oklch(86% 0.04 255);
-  background:
-    repeating-linear-gradient(
-      180deg,
-      transparent 0 20.8px,
-      oklch(17% 0.025 265 / 0.22) 20.8px 41.6px
-    ),
-    var(--editor-bg);
-  font: 13px/1.6 "JetBrains Mono", "SFMono-Regular", Consolas, "Microsoft YaHei", monospace;
-  outline: none;
-  tab-size: 2;
-  white-space: pre;
-}
-
-.yaml-editor:focus {
-  box-shadow: inset 0 0 0 2px oklch(62% 0.18 285 / 0.72);
-}
-
-.yaml-editor::selection {
-  color: oklch(99% 0.004 275);
-  background: oklch(58% 0.2 285 / 0.42);
-}
-
 .code-pane pre {
-  min-width: 720px;
+  min-width: 760px;
   margin: 0;
   padding: 16px 0 22px;
 }
@@ -374,11 +352,9 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 16px;
+  padding: 14px;
   border-left: 1px solid var(--border);
-  background: oklch(99% 0.004 275);
+  background: var(--surface-muted);
 }
 
 .schema-panel-header {
@@ -469,4 +445,26 @@
 
 .schema-status {
   margin-top: auto;
+}
+
+.scene-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-raised);
+}
+
+.scene-facts span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: var(--primary-strong);
+  background: var(--primary-faint);
+  font-size: 12px;
+  font-weight: 740;
 }

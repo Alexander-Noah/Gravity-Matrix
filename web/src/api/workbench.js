@@ -54,6 +54,12 @@ export const startScriptJob = async (projectId) => {
   return response.data
 }
 
+export const rerunScriptJob = async (projectId) => {
+  const response = await http.post(`/projects/${projectId}/script-jobs/rerun`)
+
+  return response.data
+}
+
 export const getProjectScript = async (projectId) => {
   const response = await http.get(`/projects/${projectId}/script`)
 
@@ -156,5 +162,10 @@ export const getProjectsDashboard = async () => {
 
 export const getScriptsLibrary = async () => {
   const response = await http.get('/scripts/library')
+  return response.data
+}
+
+export const importLibrarySource = async (sourceId) => {
+  const response = await http.post(`/scripts/library/sources/${sourceId}/import`)
   return response.data
 }

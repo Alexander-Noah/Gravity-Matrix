@@ -76,6 +76,8 @@ Authorization: Bearer <token>
 
 退出登录时会清理这两个 localStorage key。
 
+> 当前后端主流程尚未实现真实账号数据库和 `/auth/*` 路由。前端在检测到认证路由不存在时，会创建本地演示会话，避免比赛演示被登录页阻断。企业级版本应补真实用户表、密码哈希、Token 签发和鉴权中间件。
+
 ## 认证接口
 
 ### 注册
@@ -167,16 +169,39 @@ GET /projects?limit=20&offset=0
 
 项目卡片会使用 `id`、`title`、`author`、`status`、`chapter_count`、`has_analysis`、`has_script`、`updated_at` 字段。点击“打开项目”后，前端会继续调用 `/projects/{project_id}/workbench` 同步工作台状态。
 
-### 剧本库数据
-
-当前后端没有独立的 `/scripts/library` 路由，前端“剧本库”页面暂时复用：
+### 导入预检
 
 ```http
-GET /projects?limit=20&offset=0
-GET /projects/{project_id}/workbench
+POST /import/preview
 ```
 
-前端会先筛选 `has_script=true` 的项目，再调用工作台聚合接口读取 `script.diagnosis.summary`，用于展示章节数量、场景数量、对白数量和 YAML Schema 状态。
+请求体：
+
+```json
+{
+  "title": "chapter_demo",
+  "author": "创作者",
+  "text": "第1章 ...\n正文..."
+}
+```
+
+响应会返回 `chapter_count`、`can_create_project`、`issues` 和 `chapters`。每个章节必须包含 `title`、`content`、`char_count`、`excerpt`，前端创建项目时会直接使用 `chapters[].content`。
+
+### 项目看板数据
+
+```http
+GET /projects/dashboard
+```
+
+前端“我的项目”页面使用该接口读取统计卡片、项目卡片和最近活动。接口失败时页面显示空状态和错误提示，不再回退到本地 mock 项目。
+
+### 剧本库数据
+
+```http
+GET /scripts/library
+```
+
+前端“剧本库”页面使用该接口展示已生成剧本。条目需包含 `project_id`、`title`、`sourceNovel`、`type`、`chapters`、`scenes`、`dialogues`、`schemaStatus`、`status`、`updatedAt`、`tags`。
 
 ### 创建项目
 
@@ -276,6 +301,14 @@ POST /projects/{project_id}/script-jobs
 
 前端在“生成设置”弹窗确认后调用该接口。当前后端接口不接收生成设置请求体，前端会先在本地保存设置，再按项目当前 AI 解析结果启动剧本生成任务。
 
+### 生成设置
+
+```http
+POST /projects/{project_id}/generation-settings
+```
+
+当前后端只做兼容接收，不落库，不影响生成逻辑。企业级版本可将模板、风格、内容选项持久化并传给 LLM prompt。
+
 ### 获取剧本 YAML
 
 ```http
@@ -323,6 +356,21 @@ POST /projects/{project_id}/script/diagnosis
 ```
 
 前端在点击“校验格式”时会同时调用校验和诊断接口，并把 `summary.chapter_count`、`summary.scene_count`、`valid_schema`、`grade` 映射到右侧 Schema 校验面板。
+
+### 前端兼容操作接口
+
+```http
+GET /templates
+PATCH /projects/{project_id}
+POST /projects/{project_id}/clone
+POST /projects/{project_id}/analysis-jobs/rerun
+POST /projects/{project_id}/scenes
+GET /projects/{project_id}/script/export/txt
+GET /projects/{project_id}/script/export/markdown
+DELETE /projects/{project_id}
+```
+
+这些接口用于模板中心、项目重命名、复制为新版本、重新解析、添加场景、导出和删除等页面操作。
 
 ## 前端路由
 

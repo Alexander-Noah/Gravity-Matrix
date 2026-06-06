@@ -6,7 +6,10 @@ class Settings(BaseSettings):
     app_name: str = "Gravity-Matrix Backend"
     api_prefix: str = "/api/v1"
     database_url: str = "sqlite:///./data/gravity_matrix.db"
-    frontend_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    frontend_origins: str = (
+        "http://localhost:5173,http://127.0.0.1:5173,"
+        "http://localhost:5174,http://127.0.0.1:5174"
+    )
 
     llm_provider: str = "openai_compatible"
     llm_api_key: str = ""

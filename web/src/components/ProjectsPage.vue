@@ -4,6 +4,9 @@ import { computed, ref } from 'vue'
 const props = defineProps({
   activities: { type: Array, required: true },
   iconPaths: { type: Object, required: true },
+  isLoaded: { type: Boolean, default: false },
+  isLoading: { type: Boolean, default: false },
+  notice: { type: String, default: '' },
   projects: { type: Array, required: true },
   stats: { type: Array, required: true },
 })
@@ -45,6 +48,18 @@ const resetFilters = () => {
   searchKeyword.value = ''
   activeStatus.value = 'all'
 }
+
+const hasActiveFilters = computed(() => searchKeyword.value.trim() || activeStatus.value !== 'all')
+const emptyTitle = computed(() => {
+  if (props.isLoading && !props.isLoaded) return '正在读取真实项目'
+  if (hasActiveFilters.value) return '没有找到匹配项目'
+  return '暂无真实项目'
+})
+const emptyDescription = computed(() => {
+  if (props.isLoading && !props.isLoaded) return '正在从后端同步项目列表，请稍候。'
+  if (hasActiveFilters.value) return '可以换一个关键词，或清空筛选后查看全部项目。'
+  return '当前后端没有项目数据。可以从工作台导入小说，或从剧本库素材导入后生成剧本。'
+})
 </script>
 
 <template>
@@ -80,7 +95,8 @@ const resetFilters = () => {
     </section>
 
     <div class="project-result-row">
-      <span>当前显示 {{ filteredProjects.length }} 个项目</span>
+      <span>{{ isLoading ? '正在同步项目列表...' : `当前显示 ${filteredProjects.length} 个项目` }}</span>
+      <p v-if="notice" class="inline-note">{{ notice }}</p>
       <button v-if="searchKeyword || activeStatus !== 'all'" class="link-button" type="button" @click="resetFilters">
         清空筛选
       </button>
@@ -136,10 +152,10 @@ const resetFilters = () => {
           </div>
         </article>
 
-        <div v-if="filteredProjects.length === 0" class="project-empty-state">
-          <strong>没有找到匹配项目</strong>
-          <p>可以换一个关键词，或清空筛选后查看全部项目。</p>
-          <button class="editor-tool is-primary" type="button" @click="resetFilters">清空筛选</button>
+        <div v-if="filteredProjects.length === 0" class="project-empty-state" :class="{ 'is-loading': isLoading }">
+          <strong>{{ emptyTitle }}</strong>
+          <p>{{ emptyDescription }}</p>
+          <button v-if="hasActiveFilters" class="editor-tool is-primary" type="button" @click="resetFilters">清空筛选</button>
         </div>
       </section>
 
@@ -158,6 +174,10 @@ const resetFilters = () => {
             <span>{{ activity.status }}</span>
             <strong>{{ activity.title }}</strong>
             <time>{{ activity.time }}</time>
+          </li>
+          <li v-if="activities.length === 0" class="activity-empty">
+            <strong>{{ isLoading ? '正在同步最近编辑记录' : '暂无最近编辑记录' }}</strong>
+            <time>{{ isLoading ? '请稍候' : '创建或编辑项目后会显示在这里' }}</time>
           </li>
         </ol>
       </aside>

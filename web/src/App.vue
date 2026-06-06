@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import yaml from 'js-yaml'
 import { clearAuthSession, getAuthSession } from './api/auth'
@@ -8,8 +8,6 @@ import {
   createProject,
   diagnoseProjectScriptDraft,
   getJob,
-  getStoredScriptDiagnosis,
-  getProjectDetail,
   getProjectReadiness,
   getProjectAnalysis,
   getProjectScript,
@@ -24,14 +22,15 @@ import {
   addProjectScene,
   exportProjectMarkdown,
   exportProjectTxt,
-  exportProjectYaml,
   deleteProject,
   getScriptTemplates,
   updateProject,
   cloneProject,
   previewImport,
   getProjectsDashboard,
-  getScriptsLibrary
+  getScriptsLibrary,
+  importLibrarySource,
+  rerunScriptJob,
 } from './api/workbench'
 import AddSceneDialog from './components/AddSceneDialog.vue'
 import AiAnalysisPage from './components/AiAnalysisPage.vue'
@@ -57,7 +56,6 @@ import {
   analysisScenes,
   analysisWorkflowSteps,
   characterRelations,
-  defaultNovelText,
   dialogueExtracts,
   generationSettingOptions,
   iconPaths,
@@ -65,19 +63,13 @@ import {
   insightItems,
   navItems,
   plotEvents,
-  previewDialogues,
   previewWorkflowSteps,
-  projectActivities,
-  projectCards,
   projectStages,
-  projectStats,
   productHelpDocs,
   schemaHelpContent,
   schemaValidationMock,
   scriptGenerationTemplates as mockTemplates,
   scriptChapters,
-  scriptLibraryItems,
-  scriptLibraryStats,
   scriptPreviewScenes,
   workflowSteps,
   yamlLines,
@@ -87,7 +79,7 @@ import { getRouteById } from './router/routes'
 const route = useRoute()
 const router = useRouter()
 const activePage = ref('import')
-const novelText = ref(defaultNovelText)
+const novelText = ref('')
 const selectedFileName = ref('')
 const importNotice = ref('')
 const analysisProgress = ref(100)
@@ -112,12 +104,47 @@ const displayedCharacterRelations = ref(characterRelations)
 const displayedDialogueExtracts = ref(dialogueExtracts)
 const displayedInsightItems = ref(insightItems)
 const displayedScriptChapters = ref(scriptChapters)
-const displayedProjectCards = ref(projectCards)
-const displayedProjectStats = ref(projectStats)
-const displayedProjectActivities = ref(projectActivities)
-const displayedLibraryItems = ref(scriptLibraryItems)
-const displayedLibraryStats = ref(scriptLibraryStats)
+const displayedProjectCards = ref([])
+const displayedProjectStats = ref([
+  { label: '全部项目', value: '0', note: '等待读取真实项目', tone: 'violet' },
+  { label: '编辑中', value: '0', note: '等待读取真实项目', tone: 'blue' },
+  { label: '已生成剧本', value: '0', note: '等待读取真实项目', tone: 'mint' },
+  { label: '待解析', value: '0', note: '等待读取真实项目', tone: 'orange' },
+])
+const displayedProjectActivities = ref([])
+const displayedLibraryItems = ref([])
+const displayedLibraryStats = ref([
+  { label: '全部剧本', value: '0', note: '等待读取真实剧本库', tone: 'violet' },
+  { label: '编辑中', value: '0', note: '等待读取真实剧本库', tone: 'blue' },
+  { label: '已完成', value: '0', note: '等待读取真实剧本库', tone: 'mint' },
+  { label: '素材库', value: '0', note: '等待读取真实剧本库', tone: 'orange' },
+])
 const displayedTemplates = ref(mockTemplates)
+const selectedSceneId = ref(null)
+const projectListNotice = ref('')
+const libraryNotice = ref('')
+const isProjectsLoading = ref(false)
+const isLibraryLoading = ref(false)
+const hasProjectsLoaded = ref(false)
+const hasLibraryLoaded = ref(false)
+const isScriptGenerating = ref(false)
+const currentProjectTitle = ref('未创建项目')
+const currentProjectProgress = ref(0)
+const currentProjectStages = ref(projectStages)
+let isExplicitProjectOpen = false
+
+const CURRENT_PROJECT_STORAGE_KEY = 'gravityMatrixCurrentProjectId'
+
+const setCurrentProjectId = (projectId) => {
+  currentProjectId.value = projectId || null
+
+  if (projectId) {
+    localStorage.setItem(CURRENT_PROJECT_STORAGE_KEY, String(projectId))
+    return
+  }
+
+  localStorage.removeItem(CURRENT_PROJECT_STORAGE_KEY)
+}
 
 const fetchTemplates = async () => {
   try {
@@ -299,7 +326,7 @@ const applyProjectsResult = (result) => {
   const editingCount = projects.filter((project) => project.status === 'script_edited').length
   const analysisPendingCount = projects.filter((project) => !project.has_analysis).length
 
-  displayedProjectCards.value = projects.length ? projects.map(mapProjectCard) : projectCards
+  displayedProjectCards.value = projects.map(mapProjectCard)
   displayedProjectStats.value = [
     { label: '全部项目', value: String(result.total ?? projects.length), note: '来自后端项目列表', tone: 'violet' },
     { label: '编辑中', value: String(editingCount), note: '已保存剧本草稿', tone: 'blue' },
@@ -350,30 +377,95 @@ const applyLibraryResult = (items) => {
   const editingCount = items.filter((item) => item.status === '编辑中').length
   const completedCount = items.filter((item) => item.status === '已完成').length
   const exportedCount = items.filter((item) => item.status === '已导出').length
+  const sourceCount = items.filter((item) => item.source_type === 'source_novel').length
 
-  displayedLibraryItems.value = items.length ? items : scriptLibraryItems
+  displayedLibraryItems.value = items
   displayedLibraryStats.value = [
-    { label: '全部剧本', value: String(items.length), note: '来自后端已生成项目', tone: 'violet' },
+    { label: '全部条目', value: String(items.length), note: '来自后端剧本与素材库', tone: 'violet' },
     { label: '编辑中', value: String(editingCount), note: '已保存 YAML 草稿', tone: 'blue' },
     { label: '已完成', value: String(completedCount), note: '可进入完整预览', tone: 'mint' },
-    { label: '已导出', value: String(exportedCount), note: '后端暂未返回导出历史', tone: 'orange' },
+    { label: '素材库', value: String(sourceCount || exportedCount), note: sourceCount ? '可导入工作台' : '后端暂未返回导出历史', tone: 'orange' },
   ]
+}
+
+const getScriptBody = (yamlText) => {
+  if (!yamlText) return null
+
+  const parsed = yaml.load(yamlText)
+  return parsed?.script || parsed
+}
+
+const buildScriptScenes = (yamlText) => {
+  let script
+
+  try {
+    script = getScriptBody(yamlText)
+  } catch (error) {
+    console.error('YAML parsing error', error)
+    return []
+  }
+
+  if (!script?.chapters?.length) return []
+
+  const locationById = new Map((script.locations || []).map((location) => [location.id, location]))
+  const characterById = new Map((script.characters || []).map((character) => [character.id, character]))
+  const scenes = []
+
+  script.chapters.forEach((chapter, chapterIndex) => {
+    ;(chapter.scenes || []).forEach((scene, sceneIndex) => {
+      const location = locationById.get(scene.location_id)
+      const characters = (scene.characters || [])
+        .map((characterId) => characterById.get(characterId)?.name || characterId)
+        .filter(Boolean)
+      const dialogues = (scene.dialogue || scene.dialogues || []).map((dialogue) => ({
+        speaker: dialogue.speaker_name || dialogue.speaker || characterById.get(dialogue.speaker_id)?.name || '人物',
+        note: dialogue.emotion || dialogue.note || '',
+        line: dialogue.line || '',
+      }))
+      const stageDirections = scene.stage_directions || []
+      const action = [
+        scene.synopsis || scene.action,
+        ...stageDirections,
+      ].filter(Boolean).join('\n')
+
+      scenes.push({
+        id: scene.id || `${chapter.id || chapterIndex + 1}-${sceneIndex + 1}`,
+        title: `场景 ${chapterIndex + 1}-${sceneIndex + 1} ${scene.title || scene.label || location?.name || '未命名场景'}`,
+        meta: `${scene.interior || '场景'} / ${location?.name || scene.location || scene.location_id || '未知地点'} / ${scene.time || '未知时间'}`,
+        characters: characters.length ? characters : dialogues.map((dialogue) => dialogue.speaker),
+        action: action || '后端未返回场景动作说明。',
+        dialogues,
+      })
+    })
+  })
+
+  return scenes
 }
 
 const applyWorkbenchScript = (workbench) => {
   if (workbench?.script?.yaml) {
     generatedScriptYaml.value = workbench.script.yaml
+  } else if (currentProjectId.value) {
+    generatedScriptYaml.value = ''
   }
 
   if (workbench?.script?.structure?.length) {
     displayedScriptChapters.value = workbench.script.structure.map((chapter) => ({
+      id: chapter.id,
       title: chapter.title || chapter.label,
       open: chapter.open,
       scenes: chapter.scenes.map((scene) => ({
+        id: scene.id,
         label: scene.label || scene.title,
-        active: scene.active,
+        active: selectedSceneId.value ? scene.id === selectedSceneId.value : scene.active,
       })),
     }))
+
+    if (!selectedSceneId.value) {
+      selectedSceneId.value = workbench.script.structure[0]?.scenes?.[0]?.id || null
+    }
+  } else if (currentProjectId.value) {
+    displayedScriptChapters.value = []
   }
 
   if (workbench?.script?.diagnosis) {
@@ -381,38 +473,92 @@ const applyWorkbenchScript = (workbench) => {
   }
 }
 
+const applyWorkbenchProgress = (workbench) => {
+  const project = workbench?.project || {}
+  currentProjectTitle.value = project.title ? `《${project.title}》改编项目` : '项目工作台'
+  currentProjectProgress.value = workbench?.progress?.percent ?? currentProjectProgress.value
+
+  if (workbench?.progress?.steps?.length) {
+    currentProjectStages.value = workbench.progress.steps.map((step) => ({
+      label: step.label,
+      note: step.description || '',
+      status: step.status === 'completed' ? 'done' : step.status === 'current' ? 'active' : 'pending',
+    }))
+    return
+  }
+
+  if (project.has_script) {
+    currentProjectStages.value = buildProjectStages('script')
+  } else if (project.has_analysis) {
+    currentProjectStages.value = buildProjectStages('analysis')
+  } else {
+    currentProjectStages.value = buildProjectStages('import')
+  }
+}
+
 const fetchProjects = async () => {
+  if (isProjectsLoading.value) return
+  isProjectsLoading.value = true
+  projectListNotice.value = ''
   try {
     const dashboard = await getProjectsDashboard()
     if (dashboard) {
-      displayedProjectStats.value = dashboard.stats || projectStats
-      displayedProjectCards.value = dashboard.cards || projectCards
-      displayedProjectActivities.value = dashboard.activities || projectActivities
+      displayedProjectStats.value = dashboard.stats || [
+        { label: '全部项目', value: '0', note: '后端暂无项目', tone: 'violet' },
+        { label: '编辑中', value: '0', note: '暂无编辑中项目', tone: 'blue' },
+        { label: '已生成剧本', value: '0', note: '暂无已生成剧本', tone: 'mint' },
+        { label: '待解析', value: '0', note: '暂无待解析项目', tone: 'orange' },
+      ]
+      displayedProjectCards.value = dashboard.project_cards || dashboard.cards || []
+      displayedProjectActivities.value = dashboard.activities || []
     }
+    hasProjectsLoaded.value = true
   } catch (error) {
-    console.warn('Backend dashboard not available, falling back to project list.', error)
-    try {
-      applyProjectsResult(await listProjects())
-    } catch (listError) {
-      console.warn('Backend project list not available, falling back to mock data.', listError)
-      displayedProjectStats.value = projectStats
-      displayedProjectCards.value = projectCards
-      displayedProjectActivities.value = projectActivities
+    projectListNotice.value = `项目列表加载失败：${getApiErrorMessage(error)}`
+    if (!hasProjectsLoaded.value) {
+      displayedProjectStats.value = [
+        { label: '全部项目', value: '0', note: '后端暂不可用', tone: 'violet' },
+        { label: '编辑中', value: '0', note: '后端暂不可用', tone: 'blue' },
+        { label: '已生成剧本', value: '0', note: '后端暂不可用', tone: 'mint' },
+        { label: '待解析', value: '0', note: '后端暂不可用', tone: 'orange' },
+      ]
+      displayedProjectCards.value = []
+      displayedProjectActivities.value = []
     }
+  } finally {
+    isProjectsLoading.value = false
   }
 }
 
 const fetchScriptLibrary = async () => {
+  if (isLibraryLoading.value) return
+  isLibraryLoading.value = true
+  libraryNotice.value = ''
   try {
     const library = await getScriptsLibrary()
     if (library) {
-      displayedLibraryStats.value = library.stats || scriptLibraryStats
-      displayedLibraryItems.value = library.items || scriptLibraryItems
+      displayedLibraryStats.value = library.stats || [
+        { label: '全部条目', value: '0', note: '后端暂无剧本或素材', tone: 'violet' },
+        { label: '编辑中', value: '0', note: '暂无编辑中剧本', tone: 'blue' },
+        { label: '已完成', value: '0', note: '暂无已完成剧本', tone: 'mint' },
+        { label: '素材库', value: '0', note: '暂无可导入素材', tone: 'orange' },
+      ]
+      displayedLibraryItems.value = library.items || []
     }
+    hasLibraryLoaded.value = true
   } catch (error) {
-    console.warn('Backend library not available, falling back to mock data.', error)
-    displayedLibraryStats.value = scriptLibraryStats
-    displayedLibraryItems.value = scriptLibraryItems
+    libraryNotice.value = `剧本库加载失败：${getApiErrorMessage(error)}`
+    if (!hasLibraryLoaded.value) {
+      displayedLibraryStats.value = [
+        { label: '全部条目', value: '0', note: '后端暂不可用', tone: 'violet' },
+        { label: '编辑中', value: '0', note: '后端暂不可用', tone: 'blue' },
+        { label: '已完成', value: '0', note: '后端暂不可用', tone: 'mint' },
+        { label: '素材库', value: '0', note: '后端暂不可用', tone: 'orange' },
+      ]
+      displayedLibraryItems.value = []
+    }
+  } finally {
+    isLibraryLoading.value = false
   }
 }
 
@@ -430,6 +576,47 @@ watch(
   { immediate: true },
 )
 
+watch(
+  () => activeRoute.value.id,
+  (routeId) => {
+    if (routeId === 'workbench') {
+      if (isExplicitProjectOpen) {
+        isExplicitProjectOpen = false
+        return
+      }
+      enterWorkbenchHome()
+    }
+  },
+)
+
+onMounted(() => {
+  if (isWorkbenchRoute.value) {
+    enterWorkbenchHome()
+  }
+})
+
+const resetWorkbenchFlow = () => {
+  setCurrentProjectId(null)
+  generatedScriptYaml.value = ''
+  generatedSettings.value = null
+  selectedSceneId.value = null
+  editorNotice.value = ''
+  previewNotice.value = ''
+  analysisNotice.value = ''
+  analysisProgress.value = 0
+  currentProjectTitle.value = '未创建项目'
+  currentProjectProgress.value = 0
+  currentProjectStages.value = buildProjectStages('import')
+  displayedScriptChapters.value = []
+  schemaValidation.value = schemaValidationMock
+}
+
+const enterWorkbenchHome = () => {
+  resetWorkbenchFlow()
+  activePage.value = 'import'
+  importNotice.value = '工作台已回到导入准备区；从“我的项目”或“剧本库”打开项目时才会进入已生成剧本。'
+}
+
 const detectedChapters = ref([])
 const isNovelValid = ref(false)
 const chapterCount = ref(0)
@@ -437,22 +624,22 @@ const chapterCount = ref(0)
 const detectChaptersLocally = (text) => {
   const matches = [
     ...text.matchAll(
-      /^\s*((?:第\s*[\d一二三四五六七八九十百千万零〇两]+\s*[章节回幕]|Chapter\s*\d+)[^\n]*)/gim,
+      /(^|\n)\s*((?:第\s*[\d一二三四五六七八九十百千万零〇两]+\s*[章节回幕]|Chapter\s*\d+)[^\n]*)/gi,
     ),
   ]
 
   return matches.map((match, index) => {
-    const titleStart = match.index || 0
+    const titleStart = (match.index || 0) + match[1].length
     const nextStart = matches[index + 1]
-      ? matches[index + 1].index || 0
+      ? (matches[index + 1].index || 0) + matches[index + 1][1].length
       : text.length
     const chapterText = text.slice(titleStart, nextStart).trim()
-    const body = chapterText.replace(match[1], '').trim()
+    const body = chapterText.replace(match[2], '').trim()
     const excerpt = body.replace(/\s+/g, ' ').slice(0, 46)
 
     return {
       number: index + 1,
-      title: match[1].trim(),
+      title: match[2].trim(),
       content: body || chapterText,
       excerpt: excerpt ? `${excerpt}...` : '等待补充正文',
     }
@@ -460,24 +647,37 @@ const detectChaptersLocally = (text) => {
 }
 
 let previewTimeout = null
+let previewRequestId = 0
 watch(novelText, (newText) => {
   if (previewTimeout) clearTimeout(previewTimeout)
   if (!newText || !newText.trim()) {
+    previewRequestId += 1
     detectedChapters.value = []
     chapterCount.value = 0
     isNovelValid.value = false
     return
   }
 
-  previewTimeout = setTimeout(async () => {
-    const localChapters = detectChaptersLocally(newText)
+  const localChapters = detectChaptersLocally(newText)
+  detectedChapters.value = localChapters
+  chapterCount.value = localChapters.length
+  isNovelValid.value = localChapters.length >= 3
+  currentProjectProgress.value = isNovelValid.value ? 20 : 10
+  currentProjectStages.value = buildProjectStages('import')
+  const requestId = ++previewRequestId
 
+  previewTimeout = setTimeout(async () => {
     try {
       const result = await previewImport({
         title: selectedFileName.value ? selectedFileName.value.replace(/\.[^.]+$/, '') : '未命名小说',
         author: '创作者',
         text: newText,
       })
+
+      if (requestId !== previewRequestId) {
+        return
+      }
+
       detectedChapters.value = (result.chapters || []).map((chapter, index) => ({
         ...chapter,
         content: chapter.content || localChapters[index]?.content || '',
@@ -485,7 +685,14 @@ watch(novelText, (newText) => {
       }))
       chapterCount.value = result.chapter_count || detectedChapters.value.length
       isNovelValid.value = result.can_create_project || false
+      applyPreprocessResult(result.preprocess)
+      currentProjectTitle.value = result.title ? `《${result.title}》本地整理` : '未创建项目'
+      currentProjectProgress.value = isNovelValid.value ? 25 : 10
+      currentProjectStages.value = buildProjectStages('import')
     } catch (error) {
+      if (requestId !== previewRequestId) {
+        return
+      }
       console.warn('后端解析章节失败，请检查网络或后端服务', error)
       detectedChapters.value = localChapters
       chapterCount.value = localChapters.length
@@ -497,6 +704,10 @@ watch(novelText, (newText) => {
 const generatedYamlLines = computed(() => {
   if (generatedScriptYaml.value) {
     return yamlTextToLines(generatedScriptYaml.value)
+  }
+
+  if (currentProjectId.value) {
+    return yamlTextToLines('# 剧本 YAML 尚未生成。\n# 请等待后端任务完成，完成后这里会显示真实 YAML。')
   }
 
   if (!generatedSettings.value) {
@@ -517,63 +728,27 @@ const generatedYamlLines = computed(() => {
     ...yamlLines.slice(6),
   ]
 })
-const generatedYamlText = computed({
-  get: () =>
-    generatedScriptYaml.value || generatedYamlLines.value.map((line) => line.map((token) => token.text).join('')).join('\n'),
-  set: (value) => {
-    generatedScriptYaml.value = value
-  },
-})
-const displayedPreviewScenes = computed(() => {
-  if (!generatedYamlText.value) return scriptPreviewScenes
-
-  try {
-    const parsed = yaml.load(generatedYamlText.value)
-    const script = parsed?.script || parsed
-    const chapters = script?.chapters || []
-    if (!script || !chapters.length) return scriptPreviewScenes
-
-    const characterNameById = Object.fromEntries(
-      (script.characters || []).map((character) => [character.id, character.name || character.id]),
-    )
-    const locationNameById = Object.fromEntries(
-      (script.locations || []).map((location) => [location.id, location.name || location.id]),
-    )
-    const scenes = []
-    chapters.forEach((chapter, cIdx) => {
-      if (!chapter.scenes) return
-      chapter.scenes.forEach((scene, sIdx) => {
-        const sceneDialogues = scene.dialogue || scene.dialogues || []
-        const dialogues = sceneDialogues.map((dialogue) => ({
-          speaker: dialogue.speaker_name || characterNameById[dialogue.speaker_id] || dialogue.speaker || '角色',
-          note: dialogue.emotion ? `（${dialogue.emotion}）` : dialogue.note || '',
-          line: dialogue.line || '',
-        }))
-        const characters = (scene.characters || [])
-          .map((characterId) => characterNameById[characterId] || characterId)
-          .filter(Boolean)
-        const dialogueSpeakers = dialogues.map((dialogue) => dialogue.speaker).filter(Boolean)
-        const locationName = locationNameById[scene.location_id] || scene.location || scene.location_id || '未知地点'
-
-        scenes.push({
-          title: `场景 ${cIdx + 1}-${sIdx + 1} ${scene.title || scene.label || locationName || '未知场景'}`,
-          meta: `${locationName} / ${scene.time || '未知时间'}`,
-          characters: [...new Set([...characters, ...dialogueSpeakers])],
-          action: scene.synopsis || scene.action || scene.stage_directions?.[0] || '无动作描写',
-          dialogues,
-        })
-      })
-    })
-    return scenes.length ? scenes : scriptPreviewScenes
-  } catch (e) {
-    console.error('YAML parsing error', e)
-    return scriptPreviewScenes
-  }
-})
-const activePreviewScene = computed(() => displayedPreviewScenes.value[0] || scriptPreviewScenes[0])
-const activePreviewDialogues = computed(() =>
-  activePreviewScene.value?.dialogues?.length ? activePreviewScene.value.dialogues : previewDialogues,
+const generatedYamlText = computed(() =>
+  generatedScriptYaml.value || (!currentProjectId.value
+    ? generatedYamlLines.value.map((line) => line.map((token) => token.text).join('')).join('\n')
+    : ''),
 )
+const displayedPreviewScenes = computed(() => {
+  if (!generatedScriptYaml.value) {
+    return currentProjectId.value ? [] : scriptPreviewScenes
+  }
+
+  const scenes = buildScriptScenes(generatedScriptYaml.value)
+  return scenes.length ? scenes : (currentProjectId.value ? [] : scriptPreviewScenes)
+})
+
+const selectedPreviewScene = computed(() => {
+  if (!displayedPreviewScenes.value.length) {
+    return null
+  }
+
+  return displayedPreviewScenes.value.find((scene) => scene.id === selectedSceneId.value) || displayedPreviewScenes.value[0]
+})
 
 const scriptTextPreview = computed(() =>
   displayedPreviewScenes.value
@@ -595,9 +770,13 @@ const markdownPreview = computed(() =>
     .join('\n\n'),
 )
 
-const waitForJob = async (jobId, onProgress) => {
-  for (let attempt = 0; attempt < 120; attempt += 1) {
+const waitForJob = async (jobId, onProgress, { timeoutMs = 180000, intervalMs = 1000 } = {}) => {
+  const startedAt = Date.now()
+  let lastJob = null
+
+  while (Date.now() - startedAt < timeoutMs) {
     const job = await getJob(jobId)
+    lastJob = job
 
     if (onProgress) {
       onProgress(job)
@@ -615,11 +794,13 @@ const waitForJob = async (jobId, onProgress) => {
     }
 
     await new Promise((resolve) => {
-      window.setTimeout(resolve, 1000)
+      window.setTimeout(resolve, intervalMs)
     })
   }
 
-  throw new Error('任务仍在处理中，请稍后在当前页面重试。')
+  throw new Error(lastJob?.current_step
+    ? `任务仍在处理中：${lastJob.current_step}（${lastJob.progress ?? 0}%）。请稍后重试或刷新工作台查看结果。`
+    : '任务仍在处理中，请稍后重试或刷新工作台查看结果。')
 }
 
 const applyAnalysisResult = (analysis) => {
@@ -695,14 +876,67 @@ const applyAnalysisResult = (analysis) => {
   displayedDialogueExtracts.value = dialogueExtracts
 }
 
+const applyPreprocessResult = (preprocess) => {
+  if (!preprocess) return
+
+  applyAnalysisResult({
+    characters: preprocess.characters || [],
+    locations: preprocess.locations || [],
+    chapter_summaries: preprocess.chapter_summaries || [],
+    conflicts: preprocess.conflicts || [],
+    themes: preprocess.themes || [],
+  })
+
+  const notes = preprocess.preparation_notes || []
+  if (notes.length) {
+    displayedInsightItems.value = notes.slice(0, 4).map((note, index) => ({
+      label: `整理 ${index + 1}`,
+      value: note,
+      tone: ['blue', 'mint', 'orange', 'violet'][index % 4],
+    }))
+  }
+}
+
+const buildProjectStages = (stage) => {
+  const order = ['import', 'analysis', 'script', 'preview']
+  const labels = {
+    import: '本地整理',
+    analysis: 'AI 解析',
+    script: '剧本生成',
+    preview: '校验导出',
+  }
+  const notes = {
+    import: '章节结构',
+    analysis: '人物/剧情',
+    script: 'YAML 草稿',
+    preview: '成品检查',
+  }
+  const currentIndex = order.indexOf(stage)
+
+  return order.map((key, index) => ({
+    label: labels[key],
+    note: notes[key],
+    status: currentIndex > index ? 'done' : currentIndex === index ? 'active' : 'pending',
+  }))
+}
+
 const goToPage = (pageId) => {
   const targetRoute = getRouteById(pageId)
 
   router.push(targetRoute.path)
 
   if (pageId === 'workbench') {
-    activePage.value = 'import'
+    enterWorkbenchHome()
   }
+}
+
+const openCurrentProject = () => {
+  if (currentProjectId.value) {
+    activePage.value = generatedScriptYaml.value ? 'script' : 'analysis'
+    return
+  }
+
+  enterWorkbenchHome()
 }
 
 const handleAuthenticated = () => {
@@ -733,8 +967,11 @@ const handleDeleteProject = async (project) => {
 }
 
 const openProject = async (project) => {
+  isExplicitProjectOpen = true
   router.push('/workbench')
-  currentProjectId.value = project?.id || project?.raw?.id || null
+  setCurrentProjectId(project?.id || project?.raw?.id || null)
+  currentProjectTitle.value = project?.raw?.title || project?.title || '项目工作台'
+  currentProjectProgress.value = Number(project?.progress || 0)
 
   if (!currentProjectId.value) {
     if (project?.scenes === 0 || project?.progress < 50) {
@@ -753,23 +990,13 @@ const openProject = async (project) => {
 
   try {
     const workbench = await getProjectWorkbench(currentProjectId.value)
-    const detail = await getProjectDetail(currentProjectId.value)
-    detectedChapters.value = (detail.chapters || []).map((chapter) => ({
-      number: chapter.number,
-      title: chapter.title,
-      content: chapter.content,
-      excerpt: `${chapter.content.replace(/\s+/g, ' ').slice(0, 46)}...`,
-    }))
-    chapterCount.value = detectedChapters.value.length
-    novelText.value = detectedChapters.value
-      .map((chapter) => `${chapter.title}\n\n${chapter.content}`)
-      .join('\n\n')
 
     if (workbench.analysis?.raw) {
       applyAnalysisResult(workbench.analysis.raw)
     }
 
     applyWorkbenchScript(workbench)
+    applyWorkbenchProgress(workbench)
 
     if (workbench.project.has_script) {
       activePage.value = 'script'
@@ -803,24 +1030,33 @@ const defaultGenerationSettings = computed(() => {
   if (templateId === 'short-drama') scriptType = '短剧'
   if (templateId === 'stage-play') scriptType = '话剧'
   if (templateId === 'storyboard') scriptType = '分镜剧本'
+  if (templateId === 'audio-drama') scriptType = '广播剧'
 
   return {
+    templateId,
     scriptType,
     adaptationStyle: generationSettingOptions.adaptationStyles[0],
     contentOptions: generationSettingOptions.contentOptions.slice(0, 2),
   }
 })
 
+const getScriptProjectId = (script) => script?.projectId || script?.project_id || script?.raw?.id || null
+
 const editLibraryScript = async (script) => {
+  if (script?.source_type === 'source_novel') {
+    await importSourceNovel(script)
+    return
+  }
+
+  isExplicitProjectOpen = true
   router.push('/workbench')
-  currentProjectId.value = script?.projectId || script?.raw?.id || null
+  setCurrentProjectId(getScriptProjectId(script))
 
   if (currentProjectId.value) {
     try {
       const workbench = await getProjectWorkbench(currentProjectId.value)
       applyWorkbenchScript(workbench)
-      const diagnosis = await getStoredScriptDiagnosis(currentProjectId.value)
-      schemaValidation.value = mapDiagnosisToSchemaValidation(diagnosis)
+      applyWorkbenchProgress(workbench)
     } catch (error) {
       editorNotice.value = getApiErrorMessage(error)
     }
@@ -830,16 +1066,16 @@ const editLibraryScript = async (script) => {
 }
 
 const previewLibraryScript = async (script) => {
+  isExplicitProjectOpen = true
   router.push('/workbench')
-  currentProjectId.value = script?.projectId || script?.raw?.id || null
+  setCurrentProjectId(getScriptProjectId(script))
   previewNotice.value = ''
 
   if (currentProjectId.value) {
     try {
       const workbench = await getProjectWorkbench(currentProjectId.value)
       applyWorkbenchScript(workbench)
-      const diagnosis = await getStoredScriptDiagnosis(currentProjectId.value)
-      schemaValidation.value = mapDiagnosisToSchemaValidation(diagnosis)
+      applyWorkbenchProgress(workbench)
     } catch (error) {
       previewNotice.value = getApiErrorMessage(error)
     }
@@ -849,27 +1085,39 @@ const previewLibraryScript = async (script) => {
 }
 
 const exportLibraryScript = async (script, format) => {
-  const projectId = script?.projectId || script?.raw?.id
+  const projectId = getScriptProjectId(script)
   if (!projectId) return
 
   try {
     let blob
-    if (format === 'Markdown') {
+    if (format === 'YAML') {
+      const scriptData = await getProjectScript(projectId)
+      blob = new Blob([scriptData.yaml], { type: 'text/yaml;charset=utf-8' })
+    } else if (format === 'Markdown') {
       blob = await exportProjectMarkdown(projectId)
-    } else if (format === 'YAML') {
-      blob = await exportProjectYaml(projectId)
+    } else if (format === 'PDF') {
+      await previewLibraryScript(script)
+      window.print()
+      return
     } else {
       blob = await exportProjectTxt(projectId)
     }
-    const extension = format === 'Markdown' ? 'md' : format.toLowerCase()
-    downloadBlob(blob, `${script.title}.${extension}`)
+
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${script.title}.${format === 'Markdown' ? 'md' : format === 'YAML' ? 'yaml' : 'txt'}`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   } catch (error) {
     alert('导出失败: ' + getApiErrorMessage(error))
   }
 }
 
 const deleteLibraryScript = async (script) => {
-  const projectId = script?.projectId || script?.raw?.id
+  const projectId = getScriptProjectId(script)
   if (!projectId) return
 
   if (!confirm(`确定要删除剧本《${script.title}》吗？此操作无法恢复。`)) return
@@ -883,7 +1131,7 @@ const deleteLibraryScript = async (script) => {
 }
 
 const renameLibraryScript = async (script) => {
-  const projectId = script?.projectId || script?.raw?.id
+  const projectId = getScriptProjectId(script)
   if (!projectId) return
 
   const newName = prompt('请输入新的剧本名称：', script.title)
@@ -898,7 +1146,7 @@ const renameLibraryScript = async (script) => {
 }
 
 const cloneLibraryScript = async (script) => {
-  const projectId = script?.projectId || script?.raw?.id
+  const projectId = getScriptProjectId(script)
   if (!projectId) return
 
   try {
@@ -918,6 +1166,8 @@ const goToAnalysis = async () => {
   analysisProgress.value = 10
   importNotice.value = '正在创建小说改编项目...'
   let hasEnteredAnalysis = false
+  generatedScriptYaml.value = ''
+  selectedSceneId.value = null
 
   try {
     const project = await createProject({
@@ -929,7 +1179,10 @@ const goToAnalysis = async () => {
       })),
     })
 
-    currentProjectId.value = project.id
+    setCurrentProjectId(project.id)
+    currentProjectTitle.value = `《${project.title}》改编项目`
+    currentProjectProgress.value = 35
+    currentProjectStages.value = buildProjectStages('analysis')
     analysisProgress.value = 25
     importNotice.value = '项目已创建，正在启动 AI 解析任务...'
 
@@ -943,11 +1196,15 @@ const goToAnalysis = async () => {
     const analysis = await getProjectAnalysis(project.id)
     applyAnalysisResult(analysis)
     analysisProgress.value = 100
+    currentProjectProgress.value = 60
+    currentProjectStages.value = buildProjectStages('analysis')
     analysisNotice.value = 'AI 解析完成，结果已从后端同步。'
   } catch (error) {
     importNotice.value = getApiErrorMessage(error)
     analysisNotice.value = getApiErrorMessage(error)
-    if (!hasEnteredAnalysis) {
+    if (hasEnteredAnalysis || currentProjectId.value) {
+      activePage.value = 'analysis'
+    } else {
       activePage.value = 'import'
     }
   } finally {
@@ -970,10 +1227,9 @@ const rerunAnalysis = async () => {
 
   try {
     const job = await rerunAnalysisJob(currentProjectId.value)
-    const jobId = job.id || job.job_id
-    analysisNotice.value = job.current_step || job.message || '重新解析任务已启动...'
+    analysisNotice.value = job.current_step || '重新解析任务已启动...'
     analysisProgress.value = job.progress || 30
-    await waitForJob(jobId)
+    await waitForJob(job.id)
     const analysis = await getProjectAnalysis(currentProjectId.value)
     applyAnalysisResult(analysis)
     analysisProgress.value = 100
@@ -988,44 +1244,66 @@ const openGenerationSettings = () => {
 }
 
 const confirmGenerationSettings = async (settings) => {
-  generatedSettings.value = settings
+  if (isScriptGenerating.value) return
+
+  const normalizedSettings = {
+    ...settings,
+    templateId: settings.templateId || selectedTemplateId.value,
+  }
+
+  generatedSettings.value = normalizedSettings
   isGenerationSettingsOpen.value = false
   editorNotice.value = '正在启动剧本生成任务...'
   schemaValidation.value = schemaValidationMock
   activePage.value = 'script'
+  currentProjectStages.value = buildProjectStages('script')
+  currentProjectProgress.value = Math.max(currentProjectProgress.value, 70)
+  generatedScriptYaml.value = ''
+  selectedSceneId.value = null
+  isScriptGenerating.value = true
 
   if (!currentProjectId.value) {
     editorNotice.value = '当前为静态演示剧本，请先从小说导入流程创建项目后再调用后端生成。'
+    isScriptGenerating.value = false
     return
   }
 
   try {
-    const readiness = await getProjectReadiness(currentProjectId.value)
-    if (!readiness.can_generate_script) {
-      editorNotice.value = '当前项目还不满足生成剧本条件，请先完成 AI 解析。'
-      return
-    }
-    await updateGenerationSettings(currentProjectId.value, settings)
-    const job = await startScriptJob(currentProjectId.value)
+    await updateGenerationSettings(currentProjectId.value, normalizedSettings)
+    const job = await rerunScriptJob(currentProjectId.value)
     editorNotice.value = job.current_step || '剧本生成任务已启动。'
 
     await waitForJob(job.id, (currentJob) => {
       editorNotice.value = `${currentJob.current_step}（${currentJob.progress}%）`
-    })
+    }, { timeoutMs: 300000, intervalMs: 1200 })
 
     const script = await getProjectScript(currentProjectId.value)
     generatedScriptYaml.value = script.yaml
 
     const workbench = await getProjectWorkbench(currentProjectId.value)
     applyWorkbenchScript(workbench)
+    applyWorkbenchProgress(workbench)
     editorNotice.value = '剧本 YAML 已从后端生成并同步到编辑区。'
   } catch (error) {
     editorNotice.value = getApiErrorMessage(error)
+  } finally {
+    isScriptGenerating.value = false
   }
 }
 
 const openAddScene = () => {
   isAddSceneOpen.value = true
+}
+
+const selectScriptScene = (sceneId) => {
+  selectedSceneId.value = sceneId
+  displayedScriptChapters.value = displayedScriptChapters.value.map((chapter) => ({
+    ...chapter,
+    scenes: chapter.scenes.map((scene) => ({
+      ...scene,
+      active: scene.id === sceneId,
+    })),
+  }))
 }
 
 const confirmAddScene = async (sceneDraft) => {
@@ -1090,40 +1368,15 @@ const copyYaml = async () => {
   }
 }
 
-const updateYamlText = (value) => {
-  generatedYamlText.value = value
-}
-
-const saveYaml = async () => {
-  if (!currentProjectId.value) {
-    editorNotice.value = '当前为本地 YAML 草稿，修改已保留在页面中。'
-    return
-  }
-
-  try {
-    editorNotice.value = '正在保存手动修改的 YAML...'
-    await saveProjectScript(currentProjectId.value, generatedYamlText.value)
-    editorNotice.value = '手动修改已保存到后端，预览已同步当前 YAML。'
-  } catch (error) {
-    editorNotice.value = `保存 YAML 失败：${getApiErrorMessage(error)}`
-  }
-}
-
-const downloadYaml = async () => {
-  if (currentProjectId.value) {
-    try {
-      editorNotice.value = '正在向服务端请求导出 YAML...'
-      const blob = await exportProjectYaml(currentProjectId.value)
-      downloadBlob(blob, `project-${currentProjectId.value}-script.yaml`)
-      editorNotice.value = '服务端 YAML 文件已开始下载。'
-      return
-    } catch (error) {
-      editorNotice.value = '服务端 YAML 导出失败，已改用当前编辑内容下载：' + getApiErrorMessage(error)
-    }
-  }
-
+const downloadYaml = () => {
   const blob = new Blob([generatedYamlText.value], { type: 'text/yaml;charset=utf-8' })
-  downloadBlob(blob, 'generated-script.yaml')
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = 'generated-script.yaml'
+  link.click()
+  URL.revokeObjectURL(url)
   editorNotice.value = 'YAML 文件已开始下载。'
 }
 
@@ -1133,7 +1386,40 @@ const goToSchemaHelp = () => {
 
 const goToPreview = () => {
   previewNotice.value = ''
+  currentProjectStages.value = buildProjectStages('preview')
+  currentProjectProgress.value = Math.max(currentProjectProgress.value, 90)
   activePage.value = 'preview'
+}
+
+const importSourceNovel = async (script) => {
+  const sourceId = script?.source_id
+  if (!sourceId) return
+
+  try {
+    libraryNotice.value = `正在导入素材 ${script.sourceNovel}...`
+    const project = await importLibrarySource(sourceId)
+    isExplicitProjectOpen = true
+    router.push('/workbench')
+    setCurrentProjectId(project.id)
+    currentProjectTitle.value = `《${project.title}》改编项目`
+    currentProjectProgress.value = 35
+    currentProjectStages.value = buildProjectStages('analysis')
+    activePage.value = 'analysis'
+    analysisProgress.value = 10
+    analysisNotice.value = '素材已导入，正在启动 AI 解析...'
+
+    const job = await startAnalysisJob(project.id)
+    analysisNotice.value = job.current_step || 'AI 解析任务已启动。'
+    analysisProgress.value = job.progress ?? 30
+    await waitForJob(job.id)
+
+    const analysis = await getProjectAnalysis(project.id)
+    applyAnalysisResult(analysis)
+    analysisProgress.value = 100
+    analysisNotice.value = '素材小说已导入并完成 AI 解析。'
+  } catch (error) {
+    libraryNotice.value = `素材导入失败：${getApiErrorMessage(error)}`
+  }
 }
 
 const goBackToEditor = () => {
@@ -1142,10 +1428,6 @@ const goBackToEditor = () => {
 
 const downloadTextFile = (content, filename, type) => {
   const blob = new Blob([content], { type })
-  downloadBlob(blob, filename)
-}
-
-const downloadBlob = (blob, filename) => {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
 
@@ -1155,19 +1437,7 @@ const downloadBlob = (blob, filename) => {
   URL.revokeObjectURL(url)
 }
 
-const exportPreviewYaml = async () => {
-  if (currentProjectId.value) {
-    try {
-      previewNotice.value = '正在向服务端请求导出 YAML...'
-      const blob = await exportProjectYaml(currentProjectId.value)
-      downloadBlob(blob, `project-${currentProjectId.value}-script.yaml`)
-      previewNotice.value = '服务端 YAML 文件已开始下载。'
-      return
-    } catch (error) {
-      previewNotice.value = '服务端 YAML 导出失败，已改用当前预览内容下载：' + getApiErrorMessage(error)
-    }
-  }
-
+const exportPreviewYaml = () => {
   downloadTextFile(generatedYamlText.value, 'generated-script.yaml', 'text/yaml;charset=utf-8')
   previewNotice.value = 'YAML 文件已开始下载。'
 }
@@ -1177,7 +1447,12 @@ const exportPreviewMarkdown = async () => {
     try {
       previewNotice.value = '正在向服务端请求导出 Markdown...'
       const blob = await exportProjectMarkdown(currentProjectId.value)
-      downloadBlob(blob, `project-${currentProjectId.value}-script.md`)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `project-${currentProjectId.value}-script.md`
+      link.click()
+      URL.revokeObjectURL(url)
       previewNotice.value = '服务端 Markdown 文件下载完成。'
     } catch (error) {
       previewNotice.value = '下载失败：' + getApiErrorMessage(error)
@@ -1199,7 +1474,12 @@ const exportPreviewTxt = async () => {
     try {
       previewNotice.value = '正在向服务端请求导出 TXT...'
       const blob = await exportProjectTxt(currentProjectId.value)
-      downloadBlob(blob, `project-${currentProjectId.value}-script.txt`)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `project-${currentProjectId.value}-script.txt`
+      link.click()
+      URL.revokeObjectURL(url)
       previewNotice.value = '服务端 TXT 文件下载完成。'
     } catch (error) {
       previewNotice.value = '下载失败：' + getApiErrorMessage(error)
@@ -1229,29 +1509,44 @@ const clearRecycleBin = () => {
   recycleBinItems.value = []
 }
 
-const restoreFromRecycleBin = (scriptId) => {
-  alert('后端暂未实现恢复项目接口，仅作前端演示。')
-  recycleBinItems.value = recycleBinItems.value.filter(item => item.id !== scriptId)
-  localStorage.setItem('gravityMatrixRecycleBin', JSON.stringify(recycleBinItems.value))
+const restoreFromRecycleBin = () => {
+  previewNotice.value = '当前后端删除是永久删除，回收站只保留本地删除记录，暂不支持恢复。'
 }
 
 
 const handleFileUpload = async (event) => {
-  const file = event.target.files?.[0]
+  const files = Array.from(event.target.files || [])
 
-  if (!file) {
+  if (!files.length) {
     return
   }
 
-  selectedFileName.value = file.name
+  selectedFileName.value = files.length === 1 ? files[0].name : `${files.length} 个文件`
+  const sortedFiles = files.sort((first, second) => first.name.localeCompare(second.name, 'zh-CN', { numeric: true }))
+  const txtFiles = sortedFiles.filter((file) => file.name.toLowerCase().endsWith('.txt'))
+  const unsupportedFiles = sortedFiles.filter((file) => !file.name.toLowerCase().endsWith('.txt'))
 
-  if (file.name.toLowerCase().endsWith('.txt')) {
-    novelText.value = await file.text()
-    importNotice.value = `${file.name} 已载入，章节列表已重新识别。`
+  if (txtFiles.length) {
+    const texts = await Promise.all(txtFiles.map((file) => file.text()))
+    const chapterTitlePattern = /^\s*(?:第[\d一二三四五六七八九十百千万零〇两]+[章节回卷幕部集]|Chapter\s+\d+|CHAPTER\s+[IVXLCDM\d]+)/im
+    novelText.value = texts.map((text, index) => {
+      if (chapterTitlePattern.test(text)) {
+        return text.trim()
+      }
+
+      const filename = txtFiles[index].name.replace(/\.[^.]+$/, '')
+      return `第${index + 1}章 ${filename}\n\n${text.trim()}`
+    }).join('\n\n')
+    importNotice.value = txtFiles.length === 1
+      ? `${txtFiles[0].name} 已载入，章节列表已重新识别。`
+      : `${txtFiles.length} 个 txt 文件已按文件名顺序合并载入；无章节标题的文件已自动补全章节标题。`
+    if (unsupportedFiles.length) {
+      importNotice.value += ` ${unsupportedFiles.length} 个非 txt 文件未解析正文。`
+    }
     return
   }
 
-  importNotice.value = `${file.name} 已接收。当前静态原型暂不解析 docx 正文，请粘贴文本后继续。`
+  importNotice.value = `${sortedFiles.map((file) => file.name).join('、')} 已接收。当前暂不解析 docx 正文，请粘贴文本后继续。`
 }
 </script>
 
@@ -1259,7 +1554,9 @@ const handleFileUpload = async (event) => {
   <AuthPage v-if="isAuthRoute" :icon-paths="iconPaths" @authenticated="handleAuthenticated" />
 
   <div v-else class="app-layout">
-    <AppSidebar :icon-paths="iconPaths" :nav-items="activeNavItems" @select="goToPage" @open-recycle-bin="openRecycleBin" />
+    <AppSidebar :icon-paths="iconPaths" :nav-items="activeNavItems" :project-progress="currentProjectProgress"
+      :project-title="currentProjectTitle" @select="goToPage" @open-current-project="openCurrentProject"
+      @open-recycle-bin="openRecycleBin" />
 
     <main class="main-wrapper" aria-label="工作区">
       <div class="page-content">
@@ -1267,14 +1564,16 @@ const handleFileUpload = async (event) => {
           @open-profile="openProfileCenter" />
         <section class="workspace-body" aria-label="工作台内容">
         <ProjectsPage v-if="activeRoute.id === 'projects'" :activities="displayedProjectActivities"
-          :icon-paths="iconPaths" :projects="displayedProjectCards" :stats="displayedProjectStats"
-          @open-project="openProject" @delete-project="handleDeleteProject" />
+          :icon-paths="iconPaths" :is-loaded="hasProjectsLoaded" :is-loading="isProjectsLoading"
+          :projects="displayedProjectCards" :stats="displayedProjectStats"
+          :notice="projectListNotice" @open-project="openProject" @delete-project="handleDeleteProject" />
 
         <TemplateCenterPage v-else-if="activeRoute.id === 'templates'" :icon-paths="iconPaths"
           :selected-template-id="selectedTemplateId" :templates="displayedTemplates"
           @select-template="selectGenerationTemplate" />
 
         <ScriptLibraryPage v-else-if="activeRoute.id === 'library'" :icon-paths="iconPaths"
+          :is-loaded="hasLibraryLoaded" :is-loading="isLibraryLoading" :notice="libraryNotice"
           :scripts="displayedLibraryItems" :stats="displayedLibraryStats" @edit-script="editLibraryScript"
           @preview-script="previewLibraryScript" @export-script="exportLibraryScript" @delete-script="deleteLibraryScript"
           @rename-script="renameLibraryScript" @clone-script="cloneLibraryScript" />
@@ -1310,14 +1609,14 @@ const handleFileUpload = async (event) => {
           <div v-else class="content-grid">
             <SupportColumn
               :analysis-metrics="displayedAnalysisMetrics" :icon-paths="iconPaths" :insight-items="displayedInsightItems"
-              :project-stages="projectStages" />
-            <ScriptWorkspace :icon-paths="iconPaths" :preview-dialogues="activePreviewDialogues"
-              :preview-scene="activePreviewScene"
+              :project-progress="currentProjectProgress" :project-stages="currentProjectStages"
+              :project-title="currentProjectTitle" @show-analysis="goBackToAnalysis" @show-projects="goToPage('projects')" />
+            <ScriptWorkspace :icon-paths="iconPaths" :preview-scene="selectedPreviewScene"
               :schema-validation="schemaValidation" :script-chapters="displayedScriptChapters"
-              :status-notice="editorNotice" :yaml-lines="generatedYamlLines" :yaml-text="generatedYamlText" @add-scene="openAddScene"
+              :is-generating="isScriptGenerating" :status-notice="editorNotice" :yaml-lines="generatedYamlLines" @add-scene="openAddScene"
               @copy-yaml="copyYaml" @download-yaml="downloadYaml" @open-preview="goToPreview"
-              @open-schema="goToSchemaHelp" @previous="goBackToAnalysis" @save-yaml="saveYaml"
-              @update:yaml-text="updateYamlText" @validate-yaml="validateYaml" />
+              @open-schema="goToSchemaHelp" @previous="goBackToAnalysis" @select-scene="selectScriptScene"
+              @validate-yaml="validateYaml" />
           </div>
 
           <GenerationSettingsDialog v-model="isGenerationSettingsOpen" :initial-settings="generatedSettings || defaultGenerationSettings"
@@ -1345,7 +1644,9 @@ const handleFileUpload = async (event) => {
             <div v-if="recycleBinItems.length === 0" class="library-empty-state" style="padding: 40px 0;">
               <strong>回收站是空的</strong>
             </div>
-            <table v-else style="width: 100%; border-collapse: collapse; text-align: left;">
+            <div v-else>
+              <p class="inline-note">当前后端删除为永久删除，回收站仅记录本地删除历史，暂不支持恢复。</p>
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
               <thead>
                 <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-secondary);">
                   <th style="padding: 12px 8px; font-weight: 500;">剧本名称</th>
@@ -1361,11 +1662,12 @@ const handleFileUpload = async (event) => {
                   </td>
                   <td style="padding: 16px 8px; color: var(--text-secondary);">{{ item.deletedAt }}</td>
                   <td style="padding: 16px 8px; text-align: right;">
-                    <button class="link-button" type="button" @click="restoreFromRecycleBin(item.id)">恢复</button>
+                    <button class="link-button" type="button" disabled @click="restoreFromRecycleBin">暂不支持恢复</button>
                   </td>
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
 
           <footer class="dialog-actions" style="justify-content: space-between;">

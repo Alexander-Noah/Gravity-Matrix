@@ -4,10 +4,7 @@
     <option name="autoReloadType" value="ALL" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="f217d95d-4d98-41e5-b563-7e337f9319ef" name="更改" comment="前端项目初始化">
-      <change beforePath="$PROJECT_DIR$/backend/app/services/llm.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/services/llm.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/tests/test_llm.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/tests/test_llm.py" afterDir="false" />
-    </list>
+    <list default="true" id="f217d95d-4d98-41e5-b563-7e337f9319ef" name="更改" comment="前端项目初始化" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
