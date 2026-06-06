@@ -429,22 +429,22 @@ const chapterCount = ref(0)
 const detectChaptersLocally = (text) => {
   const matches = [
     ...text.matchAll(
-      /(^|\n)\s*((?:第\s*[\d一二三四五六七八九十百千万零〇两]+\s*[章节回幕]|Chapter\s*\d+)[^\n]*)/gi,
+      /^\s*((?:第\s*[\d一二三四五六七八九十百千万零〇两]+\s*[章节回幕]|Chapter\s*\d+)[^\n]*)/gim,
     ),
   ]
 
   return matches.map((match, index) => {
-    const titleStart = (match.index || 0) + match[1].length
+    const titleStart = match.index || 0
     const nextStart = matches[index + 1]
-      ? (matches[index + 1].index || 0) + matches[index + 1][1].length
+      ? matches[index + 1].index || 0
       : text.length
     const chapterText = text.slice(titleStart, nextStart).trim()
-    const body = chapterText.replace(match[2], '').trim()
+    const body = chapterText.replace(match[1], '').trim()
     const excerpt = body.replace(/\s+/g, ' ').slice(0, 46)
 
     return {
       number: index + 1,
-      title: match[2].trim(),
+      title: match[1].trim(),
       content: body || chapterText,
       excerpt: excerpt ? `${excerpt}...` : '等待补充正文',
     }

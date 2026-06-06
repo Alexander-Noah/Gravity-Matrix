@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 const props = defineProps({
   description: { type: String, default: '从小说到剧本，只需几步' },
@@ -9,6 +9,7 @@ const props = defineProps({
 
 const emit = defineEmits(['logout', 'open-profile'])
 const isProfileMenuOpen = ref(false)
+const profileMenuRef = ref(null)
 const showWorkflowBadge = computed(() => props.title.includes('工作台'))
 
 const toggleProfileMenu = () => {
@@ -24,6 +25,20 @@ const logout = () => {
   isProfileMenuOpen.value = false
   emit('logout')
 }
+
+const closeProfileMenuOnOutsideClick = (event) => {
+  if (!profileMenuRef.value?.contains(event.target)) {
+    isProfileMenuOpen.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', closeProfileMenuOnOutsideClick)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', closeProfileMenuOnOutsideClick)
+})
 </script>
 
 <template>
@@ -50,7 +65,7 @@ const logout = () => {
         <span aria-hidden="true"></span>
       </button>
 
-      <div class="profile-menu-wrap">
+      <div ref="profileMenuRef" class="profile-menu-wrap">
         <button
           class="profile-button"
           type="button"
