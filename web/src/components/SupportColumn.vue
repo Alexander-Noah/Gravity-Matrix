@@ -12,36 +12,24 @@ defineEmits(['show-analysis', 'show-projects'])
 </script>
 
 <template>
-  <div class="support-column">
-    <section class="work-card progress-card" aria-labelledby="project-progress-title">
-      <div class="work-card-header">
-        <div class="card-title">
-          <svg class="item-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path v-for="path in iconPaths.folder" :key="path" :d="path" />
-          </svg>
-          <h2 id="project-progress-title">项目进度</h2>
-        </div>
-        <button class="card-link" type="button" @click="$emit('show-projects')">
-          <span>查看全部</span>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
-          </svg>
-        </button>
-      </div>
-
-      <div class="project-summary">
+  <aside class="support-column" aria-label="项目与分析侧栏">
+    <section class="workbench-side-panel progress-card" aria-labelledby="project-progress-title">
+      <div class="side-panel-title">
         <div>
-          <h3>{{ projectTitle }}</h3>
+          <span>项目进度</span>
+          <h2 id="project-progress-title">{{ projectTitle }}</h2>
         </div>
-        <div class="progress-meter">
-          <div class="progress-track" role="progressbar" aria-label="项目完成进度" :aria-valuenow="projectProgress" aria-valuemin="0" aria-valuemax="100">
-            <span :style="{ width: `${projectProgress}%` }"></span>
-          </div>
-          <strong>{{ projectProgress }}%</strong>
-        </div>
+        <button class="side-link" type="button" @click="$emit('show-projects')">全部</button>
       </div>
 
-      <ul class="stage-list">
+      <div class="progress-readout">
+        <div class="progress-track" role="progressbar" aria-label="项目完成进度" :aria-valuenow="projectProgress" aria-valuemin="0" aria-valuemax="100">
+          <span :style="{ width: `${projectProgress}%` }"></span>
+        </div>
+        <strong>{{ projectProgress }}%</strong>
+      </div>
+
+      <ol class="stage-list">
         <li v-for="stage in projectStages" :key="stage.label" :class="`is-${stage.status}`">
           <span class="stage-marker">
             <svg v-if="stage.status === 'done'" viewBox="0 0 24 24" aria-hidden="true">
@@ -49,25 +37,18 @@ defineEmits(['show-analysis', 'show-projects'])
             </svg>
           </span>
           <span>{{ stage.label }}</span>
-          <strong v-if="stage.note">{{ stage.note }}</strong>
+          <strong>{{ stage.note || (stage.status === 'active' ? '进行中' : stage.status === 'done' ? '完成' : '待开始') }}</strong>
         </li>
-      </ul>
+      </ol>
     </section>
 
-    <section class="work-card analysis-card" aria-labelledby="analysis-title">
-      <div class="work-card-header">
-        <div class="card-title">
-          <svg class="item-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path v-for="path in iconPaths.spark" :key="path" :d="path" />
-          </svg>
-          <h2 id="analysis-title">AI 解析结果概览</h2>
+    <section class="workbench-side-panel analysis-card" aria-labelledby="analysis-title">
+      <div class="side-panel-title">
+        <div>
+          <span>AI 解析结果</span>
+          <h2 id="analysis-title">结构概览</h2>
         </div>
-        <button class="card-link" type="button" @click="$emit('show-analysis')">
-          <span>查看详情</span>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
-          </svg>
-        </button>
+        <button class="side-link" type="button" @click="$emit('show-analysis')">详情</button>
       </div>
 
       <div class="metric-grid">
@@ -82,15 +63,12 @@ defineEmits(['show-analysis', 'show-projects'])
         </article>
       </div>
 
-      <div class="insight-block">
-        <h3>智能分析</h3>
-        <dl>
-          <div v-for="item in insightItems" :key="item.label || item.title">
-            <dt>{{ item.label || item.title }}：</dt>
-            <dd>{{ item.value || item.description }}</dd>
-          </div>
-        </dl>
-      </div>
+      <dl class="insight-list">
+        <div v-for="item in insightItems" :key="item.label || item.title">
+          <dt>{{ item.label || item.title }}</dt>
+          <dd>{{ item.value || item.description }}</dd>
+        </div>
+      </dl>
     </section>
-  </div>
+  </aside>
 </template>

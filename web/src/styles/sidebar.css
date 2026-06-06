@@ -2,17 +2,16 @@
   position: sticky;
   top: 0;
   display: flex;
-  flex: 0 0 252px;
+  flex: 0 0 248px;
   flex-direction: column;
-  width: 252px;
+  width: 248px;
   height: 100vh;
   min-height: 100vh;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 22px 16px;
-  background: oklch(98.7% 0.004 235);
+  padding: 20px 18px;
   border-right: 1px solid var(--border);
-  box-shadow: none;
+  background: oklch(98.2% 0.008 275);
   flex-shrink: 0;
 }
 
@@ -20,22 +19,22 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 52px;
-  margin-bottom: 26px;
-  padding: 0 4px 16px;
+  min-height: 60px;
+  margin-bottom: 30px;
+  padding: 0 0 18px;
   border-bottom: 1px solid var(--border);
 }
 
 .brand-mark {
   display: grid;
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   flex: 0 0 auto;
   place-items: center;
-  border-radius: 9px;
+  border-radius: 50%;
   color: var(--surface);
-  background: linear-gradient(145deg, var(--primary-strong), oklch(44% 0.12 220));
-  box-shadow: 0 8px 18px oklch(38% 0.105 236 / 0.18);
+  background: linear-gradient(145deg, oklch(62% 0.2 285), oklch(55% 0.17 245));
+  box-shadow: 0 12px 26px oklch(50% 0.16 275 / 0.22);
 }
 
 .brand-title {
@@ -43,21 +42,21 @@
   align-items: center;
   color: var(--text);
   font-size: 16px;
-  font-weight: 800;
+  font-weight: 820;
   line-height: 1.2;
   letter-spacing: 0;
 }
 
 .brand p {
-  margin: 4px 0 0;
-  color: var(--text-muted);
+  margin: 5px 0 0;
+  color: var(--text-soft);
   font-size: 12px;
   line-height: 1.3;
 }
 
 .primary-nav {
   display: grid;
-  gap: 4px;
+  gap: 10px;
 }
 
 .nav-item {
@@ -65,46 +64,46 @@
   align-items: center;
   gap: 14px;
   width: 100%;
-  min-height: 42px;
-  padding: 0 11px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid transparent;
   border-radius: 8px;
-  color: var(--text-muted);
+  color: var(--text);
   background: transparent;
   font-size: 14px;
-  font-weight: 720;
+  font-weight: 760;
   text-align: left;
   transition:
     background-color 160ms ease,
-    color 160ms ease,
-    transform 160ms ease;
+    border-color 160ms ease,
+    color 160ms ease;
 }
 
 .nav-item:hover {
   color: var(--primary-strong);
-  background: var(--surface-muted);
-  transform: none;
+  background: var(--surface-raised);
 }
 
 .nav-item.is-active {
-  color: var(--surface);
-  background: var(--primary-strong);
-  box-shadow: 0 8px 18px oklch(38% 0.105 236 / 0.14);
+  color: var(--primary);
+  border-color: oklch(82% 0.06 285);
+  background: oklch(94% 0.028 285);
 }
 
 .nav-item.is-active .item-icon {
-  color: var(--surface);
+  color: var(--primary);
 }
 
 .sidebar-spacer {
   flex: 1 1 auto;
-  min-height: 44px;
+  min-height: 42px;
 }
 
 .sidebar-panel {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-raised);
-  box-shadow: 0 1px 2px oklch(28% 0.025 250 / 0.04);
+  box-shadow: 0 16px 34px oklch(32% 0.03 275 / 0.06);
 }
 
 .project-panel {
@@ -130,16 +129,16 @@
   margin: 0;
   color: var(--text);
   font-size: 14px;
-  font-weight: 760;
+  font-weight: 780;
   line-height: 1.35;
 }
 
 .icon-button {
   display: inline-grid;
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   place-items: center;
-  border-radius: 8px;
+  border-radius: 7px;
   color: var(--text-soft);
   background: transparent;
   transition:
@@ -162,9 +161,9 @@
 .project-row {
   gap: 10px;
   margin-bottom: 14px;
-  padding: 10px;
+  padding: 12px;
   border-radius: 8px;
-  background: var(--surface-muted);
+  background: oklch(97% 0.01 275);
 }
 
 .project-icon {
@@ -178,7 +177,7 @@
   overflow: hidden;
   color: var(--text);
   font-size: 13px;
-  font-weight: 720;
+  font-weight: 760;
   line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -192,6 +191,20 @@
   line-height: 1.35;
 }
 
+.sidebar-project-meter {
+  width: 126px;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: oklch(91% 0.014 275);
+}
+
+.sidebar-project-meter span {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+}
+
 .utility-row {
   gap: 10px;
   width: 100%;
@@ -201,7 +214,7 @@
   color: var(--text);
   background: transparent;
   font-size: 13px;
-  font-weight: 680;
+  font-weight: 700;
   text-align: left;
 }
 
@@ -233,7 +246,7 @@
   width: 18px;
   height: 18px;
   flex: 0 0 auto;
-  color: oklch(60% 0.1 265);
+  color: oklch(60% 0.1 285);
 }
 
 .action-list span {

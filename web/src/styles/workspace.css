@@ -3,15 +3,13 @@
   height: 100svh;
   min-width: 0;
   overflow: hidden;
-  background:
-    linear-gradient(180deg, oklch(98.5% 0.004 235), var(--bg) 280px),
-    var(--bg);
+  background: var(--bg);
 }
 
 .main-wrapper {
   display: flex;
-  flex-direction: column;
   flex: 1 1 auto;
+  flex-direction: column;
   min-width: 0;
   height: 100svh;
   overflow: hidden;
@@ -23,11 +21,14 @@
 
 .workspace-body {
   flex: 1 1 auto;
-  min-height: 0;
   min-width: 0;
+  min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 24px 36px 36px;
+  padding: 0 34px 32px;
+  background:
+    linear-gradient(90deg, oklch(95.5% 0.018 285 / 0.86), transparent 76px),
+    linear-gradient(180deg, oklch(98.5% 0.006 275), var(--bg) 360px);
   scrollbar-gutter: stable;
 }
 
@@ -36,16 +37,16 @@
   top: 0;
   z-index: 20;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 28px;
   width: 100%;
   min-width: 0;
+  min-height: 100px;
   margin: 0;
-  padding: 20px 36px 16px;
+  padding: 20px 34px 18px;
   border-bottom: 1px solid var(--border);
-  background: oklch(99.4% 0.002 235 / 0.9);
-  box-shadow: 0 1px 0 oklch(100% 0 0 / 0.8);
+  background: oklch(99.2% 0.004 275 / 0.94);
   backdrop-filter: blur(18px);
 }
 
@@ -53,24 +54,24 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
 }
 
 .title-block h1 {
   margin: 0;
   color: var(--text);
-  font-size: 23px;
-  font-weight: 800;
-  line-height: 1.2;
+  font-size: 24px;
+  font-weight: 820;
+  line-height: 1.18;
 }
 
 .header-badge {
   display: inline-flex;
   align-items: center;
-  min-height: 26px;
-  padding: 0 9px;
-  border: 1px solid oklch(81% 0.032 236);
-  border-radius: 6px;
+  min-height: 24px;
+  padding: 0 10px;
+  border: 1px solid oklch(84% 0.055 285);
+  border-radius: 999px;
   color: var(--primary-strong);
   background: var(--primary-faint);
   font-size: 12px;
@@ -79,8 +80,8 @@
 }
 
 .title-block p {
-  margin: 7px 0 0;
-  max-width: 68ch;
+  margin: 8px 0 0;
+  max-width: 72ch;
   color: var(--text-muted);
   font-size: 13px;
   line-height: 1.45;
@@ -89,7 +90,7 @@
 .top-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex: 0 0 auto;
 }
 
@@ -103,13 +104,12 @@
   border-radius: 8px;
   color: var(--text);
   background: var(--surface-raised);
-  box-shadow: none;
+  box-shadow: 0 1px 2px oklch(28% 0.025 270 / 0.04);
   cursor: pointer;
   transition:
     border-color 160ms ease,
     background-color 160ms ease,
-    color 160ms ease,
-    transform 160ms ease;
+    color 160ms ease;
 }
 
 .guide-button:hover,
@@ -118,7 +118,6 @@
   color: var(--primary-strong);
   border-color: var(--border-strong);
   background: var(--primary-faint);
-  transform: none;
 }
 
 .guide-button {
@@ -126,7 +125,7 @@
   height: 42px;
   padding: 0 16px;
   font-size: 13px;
-  font-weight: 720;
+  font-weight: 760;
 }
 
 .guide-button svg,
@@ -160,7 +159,7 @@
   background: transparent;
   box-shadow: none;
   font-size: 13px;
-  font-weight: 720;
+  font-weight: 740;
 }
 
 .profile-menu-wrap {
@@ -172,10 +171,10 @@
   width: 34px;
   height: 34px;
   place-items: center;
-  border: 1px solid oklch(84% 0.025 76);
+  border: 1px solid oklch(82% 0.035 72);
   border-radius: 50%;
-  color: oklch(38% 0.055 60);
-  background: oklch(88% 0.035 74);
+  color: oklch(39% 0.06 60);
+  background: oklch(86% 0.05 72);
   font-size: 13px;
   font-weight: 800;
 }
@@ -195,21 +194,21 @@
   min-width: 138px;
   padding: 6px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--surface);
   box-shadow: var(--shadow-panel);
 }
 
 .profile-menu button {
   min-height: 36px;
+  padding: 0 10px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 7px;
   color: var(--text-muted);
   background: transparent;
   cursor: pointer;
   font: 740 13px/1 var(--font-sans);
   text-align: left;
-  padding: 0 10px;
 }
 
 .profile-menu button:hover {
@@ -221,20 +220,21 @@
   position: sticky;
   top: 0;
   z-index: 8;
-  max-width: 1680px;
-  margin: 0 auto 24px;
-  padding: 0 0 8px;
-  background: linear-gradient(180deg, var(--bg), oklch(96.8% 0.006 235 / 0.92) 78%, transparent);
+  max-width: none;
+  margin: 0 0 18px;
+  padding: 0;
+  background: oklch(98.5% 0.006 275 / 0.94);
 }
 
 .workflow-stepper {
-  max-width: 1680px;
-  margin: 0 auto;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-soft);
+  max-width: none;
+  margin: 0;
   overflow: hidden;
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+  background: var(--surface-raised);
+  box-shadow: 0 8px 26px oklch(35% 0.03 270 / 0.06);
 }
 
 .workflow-stepper ol {
@@ -250,17 +250,14 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  min-height: 68px;
-  padding: 0 16px;
+  min-height: 72px;
+  padding: 0 18px;
   color: var(--text-muted);
-  transition:
-    background-color 160ms ease,
-    transform 160ms ease;
+  transition: background-color 160ms ease;
 }
 
 .workflow-step:hover {
   background: var(--surface-muted);
-  transform: none;
 }
 
 .workflow-step + .workflow-step {
@@ -273,13 +270,13 @@
   right: 18px;
   bottom: 0;
   left: 18px;
-  height: 2px;
+  height: 3px;
   border-radius: 999px 999px 0 0;
   background: var(--primary);
 }
 
 .workflow-step.is-current {
-  background: var(--primary-faint);
+  background: oklch(97.5% 0.018 285);
 }
 
 .step-marker,
@@ -295,27 +292,26 @@
   height: 38px;
   flex: 0 0 auto;
   place-items: center;
-  border-radius: 9px;
-  color: var(--text-muted);
-  background: var(--surface-soft);
+  border-radius: 50%;
+  color: var(--text-soft);
+  background: oklch(92.5% 0.012 275);
   font-size: 17px;
-  font-weight: 800;
+  font-weight: 820;
 }
 
 .workflow-step.is-done .step-marker {
-  color: oklch(43% 0.12 165);
+  color: oklch(42% 0.1 165);
   background: var(--success-soft);
 }
 
 .workflow-step.is-current .step-marker {
   color: var(--surface);
   background: var(--primary);
-  box-shadow: none;
 }
 
 .step-marker svg {
-  width: 22px;
-  height: 22px;
+  width: 21px;
+  height: 21px;
 }
 
 .step-copy {
@@ -325,10 +321,12 @@
 }
 
 .step-copy strong {
+  overflow: hidden;
   color: var(--text);
   font-size: 15px;
-  font-weight: 780;
+  font-weight: 800;
   line-height: 1.2;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -341,18 +339,6 @@
   white-space: nowrap;
 }
 
-.workflow-step.is-current .step-copy strong {
-  color: var(--text);
-}
-
-.workflow-step.is-current .step-copy span {
-  color: var(--text-muted);
-}
-
-.workflow-step.is-upcoming .step-copy strong {
-  color: var(--text);
-}
-
 .step-arrow {
   width: 18px;
   height: 18px;
@@ -362,8 +348,9 @@
 
 .content-grid {
   display: grid;
-  grid-template-columns: minmax(250px, 300px) minmax(0, 1fr);
+  grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
   gap: 20px;
-  max-width: 1680px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
 }

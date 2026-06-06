@@ -14,141 +14,125 @@ defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-sc
 </script>
 
 <template>
-  <div class="main-column">
-    <section class="script-panel" aria-labelledby="script-title">
-      <div class="script-panel-header">
-        <div>
-          <h2 id="script-title">生成的剧本（YAML）</h2>
-          <span v-if="saveStatus" :class="{ 'is-error': saveStatus === '保存失败' }">{{ saveStatus }}</span>
-        </div>
-        <div class="editor-actions" aria-label="剧本操作">
-          <div class="editor-action-group">
-            <span>流程</span>
-            <button class="editor-tool" type="button" :disabled="isGenerating" @click="$emit('previous')">
-              <svg class="reverse-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
-              </svg>
-              <span>AI解析</span>
-            </button>
-            <button class="editor-tool is-primary" type="button" :disabled="isGenerating" @click="$emit('open-preview')">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path v-for="path in iconPaths.eye" :key="path" :d="path" />
-              </svg>
-              <span>完整预览</span>
-            </button>
-          </div>
-          <div class="editor-action-group">
-            <span>结构</span>
-            <button class="editor-tool" type="button" @click="$emit('open-schema')">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path v-for="path in iconPaths.help" :key="path" :d="path" />
-              </svg>
-              <span>Schema</span>
-            </button>
-            <button class="editor-tool is-safe" type="button" :disabled="isGenerating" @click="$emit('validate-yaml')">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path v-for="path in iconPaths.shield" :key="path" :d="path" />
-              </svg>
-              <span>校验</span>
-            </button>
-          </div>
-          <div class="editor-action-group">
-            <span>导出</span>
-            <button class="editor-tool" type="button" :disabled="isGenerating" @click="$emit('copy-yaml')">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path v-for="path in iconPaths.copy" :key="path" :d="path" />
-              </svg>
-              <span>复制</span>
-            </button>
-            <button class="editor-tool" type="button" :disabled="isGenerating" @click="$emit('download-yaml')">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path v-for="path in iconPaths.download" :key="path" :d="path" />
-              </svg>
-              <span>下载</span>
-            </button>
-          </div>
-        </div>
+  <section class="script-console" aria-labelledby="script-title">
+    <header class="console-toolbar">
+      <div class="console-title">
+        <span>YAML 草稿</span>
+        <h2 id="script-title">生成的剧本</h2>
+        <p v-if="saveStatus" :class="{ 'is-error': saveStatus === '保存失败' }">{{ saveStatus }}</p>
       </div>
 
-      <div class="script-editor-layout">
-        <aside class="structure-pane" aria-label="剧本结构">
-          <div class="structure-heading">
-            <h3>剧本结构</h3>
-          </div>
+      <div class="console-actions" aria-label="剧本操作">
+        <button class="toolbar-button" type="button" :disabled="isGenerating" @click="$emit('previous')">
+          <svg class="reverse-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
+          </svg>
+          <span>上一步</span>
+        </button>
+        <button class="toolbar-button" type="button" @click="$emit('open-schema')">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path v-for="path in iconPaths.help" :key="path" :d="path" />
+          </svg>
+          <span>Schema</span>
+        </button>
+        <button class="toolbar-button is-success" type="button" :disabled="isGenerating" @click="$emit('validate-yaml')">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path v-for="path in iconPaths.shield" :key="path" :d="path" />
+          </svg>
+          <span>校验格式</span>
+        </button>
+        <button class="toolbar-button" type="button" :disabled="isGenerating" @click="$emit('copy-yaml')">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path v-for="path in iconPaths.copy" :key="path" :d="path" />
+          </svg>
+          <span>复制 YAML</span>
+        </button>
+        <button class="toolbar-button" type="button" :disabled="isGenerating" @click="$emit('download-yaml')">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path v-for="path in iconPaths.download" :key="path" :d="path" />
+          </svg>
+          <span>下载 YAML</span>
+        </button>
+        <button class="toolbar-button is-primary" type="button" :disabled="isGenerating" @click="$emit('open-preview')">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path v-for="path in iconPaths.eye" :key="path" :d="path" />
+          </svg>
+          <span>完整预览</span>
+        </button>
+      </div>
+    </header>
 
-          <ul class="chapter-tree">
-            <li v-for="chapter in scriptChapters" :key="chapter.title" :class="{ 'is-open': chapter.open }">
-              <button class="chapter-row" type="button">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path v-for="path in iconPaths.chevron" :key="path" :d="path" />
-                </svg>
-                <span>{{ chapter.title }}</span>
-              </button>
-              <ul v-if="chapter.scenes.length" class="scene-list">
-                <li v-for="scene in chapter.scenes" :key="scene.id || scene.label">
-                  <button class="scene-row" :class="{ 'is-active': scene.active }" type="button" @click="$emit('select-scene', scene.id)">
-                    {{ scene.label }}
-                  </button>
-                </li>
-              </ul>
-            </li>
-          </ul>
-
-          <button class="add-scene-button" type="button" :disabled="isGenerating" @click="$emit('add-scene')">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path v-for="path in iconPaths.plus" :key="path" :d="path" />
-            </svg>
-            <span>添加场景</span>
-          </button>
-        </aside>
-
-        <div class="code-pane" aria-label="YAML 剧本文档">
-          <pre><code><span v-for="(line, index) in yamlLines" :key="index" class="code-line"><span class="line-number">{{ index + 1 }}</span><span class="line-content"><template v-for="(token, tokenIndex) in line" :key="`${index}-${tokenIndex}`"><span :class="`yaml-${token.tone}`">{{ token.text }}</span></template></span></span></code></pre>
+    <div class="console-grid">
+      <aside class="outline-pane" aria-label="剧本结构">
+        <div class="pane-heading">
+          <span>结构导航</span>
+          <strong>{{ scriptChapters.length }} 章</strong>
         </div>
 
-        <aside class="schema-panel" aria-labelledby="schema-title">
-          <div class="schema-panel-header">
-            <div>
-              <span>Schema 校验</span>
-              <h3 id="schema-title">结构检查结果</h3>
-            </div>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path v-for="path in iconPaths.shield" :key="path" :d="path" />
-            </svg>
-          </div>
+        <ol class="chapter-tree">
+          <li v-for="chapter in scriptChapters" :key="chapter.title" :class="{ 'is-open': chapter.open }">
+            <button class="chapter-row" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path v-for="path in iconPaths.chevron" :key="path" :d="path" />
+              </svg>
+              <span>{{ chapter.title }}</span>
+            </button>
 
-          <dl class="schema-check-list">
-            <div>
-              <dt>YAML 格式</dt>
-              <dd :class="{ 'is-valid': schemaValidation.yamlValid }">
-                {{ schemaValidation.yamlValid ? '正确' : '需要修正' }}
-              </dd>
-            </div>
-            <div>
-              <dt>必填字段</dt>
-              <dd :class="{ 'is-valid': schemaValidation.requiredFieldsValid }">
-                {{ schemaValidation.requiredFieldsValid ? '完整' : '缺失' }}
-              </dd>
-            </div>
-            <div>
-              <dt>章节数量</dt>
-              <dd>{{ schemaValidation.chapterCount }}</dd>
-            </div>
-            <div>
-              <dt>场景数量</dt>
-              <dd>{{ schemaValidation.sceneCount }}</dd>
-            </div>
-          </dl>
+            <ol v-if="chapter.scenes.length" class="scene-list">
+              <li v-for="scene in chapter.scenes" :key="scene.id || scene.label">
+                <button class="scene-row" :class="{ 'is-active': scene.active }" type="button" @click="$emit('select-scene', scene.id)">
+                  {{ scene.label }}
+                </button>
+              </li>
+            </ol>
+          </li>
+        </ol>
 
-          <p class="schema-message">{{ schemaValidation.message }}</p>
-          <p class="schema-time">{{ schemaValidation.checkedAt }}</p>
-          <p v-if="statusNotice" class="inline-note schema-status">{{ statusNotice }}</p>
-        </aside>
+        <button class="add-scene-button" type="button" :disabled="isGenerating" @click="$emit('add-scene')">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path v-for="path in iconPaths.plus" :key="path" :d="path" />
+          </svg>
+          <span>添加场景</span>
+        </button>
+      </aside>
+
+      <div class="yaml-editor" aria-label="YAML 剧本文档">
+        <pre><code><span v-for="(line, index) in yamlLines" :key="index" class="code-line"><span class="line-number">{{ index + 1 }}</span><span class="line-content"><template v-for="(token, tokenIndex) in line" :key="`${index}-${tokenIndex}`"><span :class="`yaml-${token.tone}`">{{ token.text }}</span></template></span></span></code></pre>
       </div>
-    </section>
 
-    <section class="preview-panel" aria-labelledby="preview-title">
-      <div class="preview-header">
+      <aside class="validation-pane" aria-labelledby="schema-title">
+        <div class="pane-heading">
+          <span>校验结果</span>
+          <strong id="schema-title">{{ schemaValidation.yamlValid && schemaValidation.requiredFieldsValid ? '通过' : '待修正' }}</strong>
+        </div>
+
+        <dl class="validation-list">
+          <div>
+            <dt>YAML 格式</dt>
+            <dd :class="{ 'is-valid': schemaValidation.yamlValid }">{{ schemaValidation.yamlValid ? '正确' : '需要修正' }}</dd>
+          </div>
+          <div>
+            <dt>必填字段</dt>
+            <dd :class="{ 'is-valid': schemaValidation.requiredFieldsValid }">{{ schemaValidation.requiredFieldsValid ? '完整' : '缺失' }}</dd>
+          </div>
+          <div>
+            <dt>章节数量</dt>
+            <dd>{{ schemaValidation.chapterCount }}</dd>
+          </div>
+          <div>
+            <dt>场景数量</dt>
+            <dd>{{ schemaValidation.sceneCount }}</dd>
+          </div>
+        </dl>
+
+        <p class="validation-message">{{ schemaValidation.message }}</p>
+        <time class="validation-time">{{ schemaValidation.checkedAt }}</time>
+        <p v-if="statusNotice" class="validation-notice">{{ statusNotice }}</p>
+      </aside>
+    </div>
+
+    <section class="script-preview-strip" aria-labelledby="preview-title">
+      <header class="preview-strip-header">
         <h2 id="preview-title">剧本预览</h2>
         <button class="preview-toggle" type="button" :disabled="isGenerating" @click="$emit('open-preview')">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -156,39 +140,37 @@ defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-sc
           </svg>
           <span>切换视图</span>
         </button>
-      </div>
+      </header>
 
-      <div class="preview-body">
-        <article v-if="previewScene" class="scene-preview">
+      <div class="preview-strip-body">
+        <article class="scene-preview">
           <div class="scene-meta">
-            <h3>{{ previewScene.title }}</h3>
-            <p>{{ previewScene.meta }}</p>
+            <h3>{{ previewScene?.title || '等待生成真实剧本' }}</h3>
+            <p>{{ previewScene?.meta || '后端任务完成后会显示场景预览' }}</p>
           </div>
-          <p class="scene-action">{{ previewScene.action }}</p>
-        </article>
-        <article v-else class="scene-preview">
-          <div class="scene-meta">
-            <h3>等待生成真实剧本</h3>
-            <p>后端任务完成后会显示场景预览</p>
-          </div>
-          <p class="scene-action">当前项目还没有可预览的 YAML 场景，请先完成剧本生成。</p>
+          <p class="scene-action">{{ previewScene?.action || '当前项目还没有可预览的 YAML 场景，请先完成剧本生成。' }}</p>
         </article>
 
-        <div v-if="previewScene?.dialogues?.length" class="dialogue-preview">
-          <article v-for="dialogue in previewScene.dialogues" :key="`${dialogue.speaker}-${dialogue.line}`" class="dialogue-line">
+        <div class="dialogue-preview">
+          <article v-for="dialogue in previewScene?.dialogues || []" :key="`${dialogue.speaker}-${dialogue.line}`" class="dialogue-line">
             <h3>{{ dialogue.speaker }}</h3>
-            <span>{{ dialogue.note }}</span>
+            <span>{{ dialogue.note || 'determined' }}</span>
             <p>{{ dialogue.line }}</p>
+          </article>
+          <article v-if="!previewScene?.dialogues?.length" class="dialogue-line">
+            <h3>对白</h3>
+            <span>等待 YAML</span>
+            <p>生成完成后，这里会显示人物对白与情绪提示。</p>
           </article>
         </div>
 
-        <div v-if="previewScene" class="scene-facts" aria-label="场景要素">
-          <span v-for="character in previewScene.characters" :key="character">{{ character }}</span>
-        </div>
-        <div v-else class="scene-facts" aria-label="场景要素">
-          <span>等待 YAML</span>
+        <div class="subway-visual" aria-label="场景画面预览">
+          <div class="station-wall" aria-hidden="true"></div>
+          <div class="train" aria-hidden="true"><span></span><span></span></div>
+          <div class="platform" aria-hidden="true"></div>
+          <div class="visual-people" aria-hidden="true"><span></span><span></span><span></span></div>
         </div>
       </div>
     </section>
-  </div>
+  </section>
 </template>
