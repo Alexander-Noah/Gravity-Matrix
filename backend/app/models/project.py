@@ -28,6 +28,7 @@ class Project(Base):
     status: Mapped[str] = mapped_column(String(50), default="created", nullable=False)
     analysis_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     script_yaml: Mapped[str | None] = mapped_column(Text, nullable=True)
+    generation_settings_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

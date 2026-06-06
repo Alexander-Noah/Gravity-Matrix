@@ -111,7 +111,7 @@ const submitAuth = async () => {
         <div class="auth-product-preview" aria-label="产品流程预览">
           <div class="auth-preview-head">
             <span>工作流预览</span>
-            <small>当前项目：星辰之下</small>
+            <small>当前项目：等待导入小说</small>
           </div>
           <ol class="auth-flow-list">
             <li>

@@ -41,6 +41,15 @@ class ImportPreviewIssue(BaseModel):
     message: str
 
 
+class ImportPreprocessResult(BaseModel):
+    characters: list[dict[str, Any]] = Field(default_factory=list)
+    locations: list[dict[str, Any]] = Field(default_factory=list)
+    chapter_summaries: list[dict[str, Any]] = Field(default_factory=list)
+    themes: list[str] = Field(default_factory=list)
+    conflicts: list[str] = Field(default_factory=list)
+    preparation_notes: list[str] = Field(default_factory=list)
+
+
 class ImportPreviewResponse(BaseModel):
     title: str
     author: str | None
@@ -49,6 +58,7 @@ class ImportPreviewResponse(BaseModel):
     can_create_project: bool
     issues: list[ImportPreviewIssue]
     chapters: list[ImportPreviewChapter]
+    preprocess: ImportPreprocessResult
 
 
 class ChapterRead(BaseModel):
@@ -113,7 +123,9 @@ class ProjectsDashboardRead(BaseModel):
 
 class ScriptLibraryItem(BaseModel):
     id: str
-    project_id: int
+    project_id: int | None = None
+    source_id: str | None = None
+    source_type: str = "project"
     title: str
     sourceNovel: str
     type: str
@@ -124,6 +136,7 @@ class ScriptLibraryItem(BaseModel):
     status: str
     updatedAt: str
     tags: list[str]
+    summary: str | None = None
 
 
 class ScriptLibraryRead(BaseModel):
@@ -171,12 +184,15 @@ class TemplateRead(BaseModel):
     id: str
     name: str
     scenario: str
+    target_format: str
+    backend_rules: list[str] = Field(default_factory=list)
     features: list[str]
     fields: list[str]
     yamlExample: list[str]
 
 
 class GenerationSettingsRequest(BaseModel):
+    templateId: str | None = Field(default=None, max_length=80)
     scriptType: str | None = None
     adaptationStyle: str | None = None
     contentOptions: list[str] = Field(default_factory=list)

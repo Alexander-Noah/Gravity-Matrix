@@ -3,8 +3,12 @@ defineProps({
   analysisMetrics: { type: Array, required: true },
   iconPaths: { type: Object, required: true },
   insightItems: { type: Array, required: true },
+  projectProgress: { type: Number, default: 0 },
   projectStages: { type: Array, required: true },
+  projectTitle: { type: String, default: '未创建项目' },
 })
+
+defineEmits(['show-analysis', 'show-projects'])
 </script>
 
 <template>
@@ -17,7 +21,7 @@ defineProps({
           </svg>
           <h2 id="project-progress-title">项目进度</h2>
         </div>
-        <button class="card-link" type="button">
+        <button class="card-link" type="button" @click="$emit('show-projects')">
           <span>查看全部</span>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
@@ -27,18 +31,13 @@ defineProps({
 
       <div class="project-summary">
         <div>
-          <h3>《星辰之下》改编项目</h3>
-          <button class="title-edit" type="button" aria-label="编辑项目名称">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path v-for="path in iconPaths.edit" :key="path" :d="path" />
-            </svg>
-          </button>
+          <h3>{{ projectTitle }}</h3>
         </div>
         <div class="progress-meter">
-          <div class="progress-track" role="progressbar" aria-label="项目完成进度" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100">
-            <span></span>
+          <div class="progress-track" role="progressbar" aria-label="项目完成进度" :aria-valuenow="projectProgress" aria-valuemin="0" aria-valuemax="100">
+            <span :style="{ width: `${projectProgress}%` }"></span>
           </div>
-          <strong>75%</strong>
+          <strong>{{ projectProgress }}%</strong>
         </div>
       </div>
 
@@ -63,7 +62,7 @@ defineProps({
           </svg>
           <h2 id="analysis-title">AI 解析结果概览</h2>
         </div>
-        <button class="card-link" type="button">
+        <button class="card-link" type="button" @click="$emit('show-analysis')">
           <span>查看详情</span>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
@@ -86,9 +85,9 @@ defineProps({
       <div class="insight-block">
         <h3>智能分析</h3>
         <dl>
-          <div v-for="item in insightItems" :key="item.label">
-            <dt>{{ item.label }}：</dt>
-            <dd>{{ item.value }}</dd>
+          <div v-for="item in insightItems" :key="item.label || item.title">
+            <dt>{{ item.label || item.title }}：</dt>
+            <dd>{{ item.value || item.description }}</dd>
           </div>
         </dl>
       </div>

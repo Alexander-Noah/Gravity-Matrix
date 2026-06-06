@@ -32,9 +32,11 @@ def analyze_project(project: Project) -> LLMResult:
 
 def generate_screenplay(project: Project, analysis: dict | None = None) -> LLMResult:
     analysis = _normalize_analysis(analysis or analyze_project(project).content)
+    generation_settings = _project_generation_settings(project)
     if _has_llm_config():
-        result = _call_deepseek(_screenplay_prompt(project, analysis))
+        result = _call_deepseek(_screenplay_prompt(project, analysis, generation_settings))
         if isinstance(result, dict) and _is_valid_screenplay(result):
+            _apply_generation_metadata(result, generation_settings)
             return LLMResult(provider=settings.llm_provider, content=result)
         return _demo_generate_screenplay(project, analysis, "invalid_screenplay_response")
 
@@ -79,6 +81,8 @@ def _demo_generate_screenplay(
     fallback_reason: str | None = None,
 ) -> LLMResult:
     analysis = _normalize_analysis(analysis or _demo_analyze_project(project).content)
+    generation_settings = _project_generation_settings(project)
+    template = _template_profile(generation_settings.get("templateId"))
     characters = analysis.get("characters") or _demo_characters(project)
     locations = analysis.get("locations") or [
         {"id": "loc_001", "name": "主要场景", "description": "由小说内容概括出的主要空间。"}
@@ -97,7 +101,10 @@ def _demo_generate_screenplay(
                     "original_novel": project.title,
                     "author": project.author,
                     "language": "zh-CN",
-                    "target_format": "screenplay",
+                    "target_format": template["target_format"],
+                    "template_id": template["id"],
+                    "script_type": generation_settings.get("scriptType") or template["script_type"],
+                    "adaptation_style": generation_settings.get("adaptationStyle"),
                     "total_chapters": len(project.chapters),
                 },
                 "characters": characters,
@@ -107,6 +114,7 @@ def _demo_generate_screenplay(
                     "themes": analysis.get("themes", ["成长"]),
                     "conflicts": analysis.get("conflicts", ["角色目标与现实阻碍之间的冲突"]),
                     "omissions": ["当前版本保留章节主线，细节对白可由作者继续编辑打磨。"],
+                    "template_rules": template["rules"],
                 },
             }
         },
@@ -167,7 +175,8 @@ def _analysis_prompt(project: Project) -> str:
     )
 
 
-def _screenplay_prompt(project: Project, analysis: dict) -> str:
+def _screenplay_prompt(project: Project, analysis: dict, generation_settings: dict[str, Any]) -> str:
+    template = _template_profile(generation_settings.get("templateId"))
     return "\n".join(
         [
             "请把小说改编为结构化剧本 JSON。",
@@ -177,9 +186,15 @@ def _screenplay_prompt(project: Project, analysis: dict) -> str:
             "每章只生成 1 到 2 个核心场景，不要把每个自然段都拆成场景。",
             "每个场景保留 2 到 4 句关键对白，优先覆盖核心冲突和人物选择。",
             "如果原文很长，请压缩支线细节，输出可编辑的剧本初稿，而不是全文逐段改写。",
+            f"当前生成模板：{template['name']}（target_format={template['target_format']}）。",
+            f"剧本类型：{generation_settings.get('scriptType') or template['script_type']}。",
+            f"改编风格：{generation_settings.get('adaptationStyle') or '默认平衡'}。",
+            f"内容选项：{'、'.join(generation_settings.get('contentOptions') or []) or '默认'}。",
+            "模板生成规则：",
+            *[f"- {rule}" for rule in template["rules"]],
             "不要输出 YAML，不要输出 Markdown。",
             "JSON 模板如下：",
-            _screenplay_json_template(project),
+            _screenplay_json_template(project, generation_settings),
             "",
             f"小说标题：{project.title}",
             f"作者：{project.author or '未知'}",
@@ -190,7 +205,8 @@ def _screenplay_prompt(project: Project, analysis: dict) -> str:
     )
 
 
-def _screenplay_json_template(project: Project) -> str:
+def _screenplay_json_template(project: Project, generation_settings: dict[str, Any] | None = None) -> str:
+    template_profile = _template_profile((generation_settings or {}).get("templateId"))
     template = {
         "script": {
             "schema_version": "1.0",
@@ -199,7 +215,10 @@ def _screenplay_json_template(project: Project) -> str:
                 "original_novel": project.title,
                 "author": project.author,
                 "language": "zh-CN",
-                "target_format": "screenplay",
+                "target_format": template_profile["target_format"],
+                "template_id": template_profile["id"],
+                "script_type": (generation_settings or {}).get("scriptType") or template_profile["script_type"],
+                "adaptation_style": (generation_settings or {}).get("adaptationStyle"),
                 "total_chapters": len(project.chapters),
             },
             "characters": [
@@ -254,6 +273,71 @@ def _screenplay_json_template(project: Project) -> str:
         }
     }
     return json.dumps(template, ensure_ascii=False)
+
+
+def _project_generation_settings(project: Project) -> dict[str, Any]:
+    raw = getattr(project, "generation_settings_json", None)
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _template_profile(template_id: str | None) -> dict[str, Any]:
+    profiles = {
+        "tv-drama": {
+            "id": "tv-drama",
+            "name": "影视剧剧本模板",
+            "target_format": "screenplay",
+            "script_type": "影视剧",
+            "rules": ["按章节组织场景", "突出人物动作和对白", "每场保留可拍摄的地点、时间和调度"],
+        },
+        "short-drama": {
+            "id": "short-drama",
+            "name": "短剧剧本模板",
+            "target_format": "short_drama",
+            "script_type": "短剧",
+            "rules": ["开场三秒给出冲突", "每章场景要有反转或钩子", "对白更短更直接"],
+        },
+        "stage-play": {
+            "id": "stage-play",
+            "name": "话剧剧本模板",
+            "target_format": "stage_play",
+            "script_type": "话剧",
+            "rules": ["强化舞台调度和入退场", "减少不可舞台化的镜头描写", "对白承载更多心理变化"],
+        },
+        "storyboard": {
+            "id": "storyboard",
+            "name": "分镜剧本模板",
+            "target_format": "storyboard",
+            "script_type": "分镜剧本",
+            "rules": ["场景标题尽量镜头化", "stage_directions 写景别、运动和画面重点", "对白服务镜头节奏"],
+        },
+        "audio-drama": {
+            "id": "audio-drama",
+            "name": "广播剧剧本模板",
+            "target_format": "audio_drama",
+            "script_type": "广播剧",
+            "rules": ["用声音和环境音建立空间", "stage_directions 强调音效", "对白需要清晰区分人物身份"],
+        },
+    }
+    return profiles.get(template_id or "tv-drama", profiles["tv-drama"])
+
+
+def _apply_generation_metadata(result: dict[str, Any], generation_settings: dict[str, Any]) -> None:
+    template = _template_profile(generation_settings.get("templateId"))
+    script = result.get("script")
+    if not isinstance(script, dict):
+        return
+    metadata = script.setdefault("metadata", {})
+    if isinstance(metadata, dict):
+        metadata["target_format"] = template["target_format"]
+        metadata["template_id"] = template["id"]
+        metadata["script_type"] = generation_settings.get("scriptType") or template["script_type"]
+        metadata["adaptation_style"] = generation_settings.get("adaptationStyle")
 
 
 def _chapters_for_prompt(project: Project, per_chapter_limit: int = 1200) -> str:

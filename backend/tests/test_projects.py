@@ -87,6 +87,9 @@ def test_import_preview_detects_chapters_and_readiness() -> None:
     assert payload["chapters"][0]["title"] == "第1章 初入桃园"
     assert payload["chapters"][0]["content"]
     assert payload["chapters"][0]["char_count"] > 0
+    assert payload["preprocess"]["chapter_summaries"][0]["title"] == "第1章 初入桃园"
+    assert payload["preprocess"]["preparation_notes"]
+    assert "local_preprocess" in payload["preprocess"]["chapter_summaries"][0]["source"]
 
 
 def test_import_preview_reports_missing_chapters() -> None:
@@ -99,6 +102,7 @@ def test_import_preview_reports_missing_chapters() -> None:
     assert payload["chapter_count"] == 0
     assert payload["can_create_project"] is False
     assert payload["issues"][0]["code"] == "not_enough_chapters"
+    assert payload["preprocess"]["chapter_summaries"][0]["title"] == "全文"
 
 
 def test_list_projects_returns_empty_page() -> None:
@@ -131,7 +135,10 @@ def test_scripts_library_returns_empty_frontend_shape() -> None:
     payload = response.json()
     assert payload["stats"][0]["label"] == "全部剧本"
     assert payload["stats"][0]["value"] == "0"
-    assert payload["items"] == []
+    assert payload["stats"][2]["label"] == "本地素材"
+    assert int(payload["stats"][2]["value"]) >= 1
+    assert payload["items"][0]["source_type"] == "source_novel"
+    assert payload["items"][0]["source_id"]
 
 
 def test_templates_endpoint_matches_latest_web_shape() -> None:
@@ -331,7 +338,8 @@ def test_frontend_extension_endpoints_support_latest_web_calls() -> None:
     settings_response = client.post(
         f"/api/v1/projects/{project_id}/generation-settings",
         json={
-            "scriptType": "影视剧",
+            "templateId": "short-drama",
+            "scriptType": "短剧",
             "adaptationStyle": "忠于原文",
             "contentOptions": ["动作描写", "情绪提示"],
         },
@@ -355,6 +363,9 @@ def test_frontend_extension_endpoints_support_latest_web_calls() -> None:
 
     script_response = client.post(f"/api/v1/projects/{project_id}/script-jobs")
     assert script_response.status_code == 202
+    script_yaml = client.get(f"/api/v1/projects/{project_id}/script").json()["yaml"]
+    assert "target_format: short_drama" in script_yaml
+    assert "template_id: short-drama" in script_yaml
 
     markdown_response = client.get(f"/api/v1/projects/{project_id}/script/export/markdown")
     txt_response = client.get(f"/api/v1/projects/{project_id}/script/export/txt")
@@ -664,10 +675,26 @@ def test_dashboard_and_library_reflect_generated_script() -> None:
     assert library_response.status_code == 200
     library = library_response.json()
     assert library["stats"][0]["value"] == "1"
+    assert int(library["stats"][2]["value"]) >= 1
     assert library["items"][0]["project_id"] == project_id
     assert library["items"][0]["schemaStatus"] == "校验通过"
     assert library["items"][0]["scenes"] == 3
     assert library["items"][0]["dialogues"] >= 6
+
+
+def test_import_source_novel_from_local_library() -> None:
+    client = TestClient(app)
+
+    library_response = client.get("/api/v1/scripts/library")
+    assert library_response.status_code == 200
+    source = next(item for item in library_response.json()["items"] if item["source_type"] == "source_novel")
+
+    import_response = client.post(f"/api/v1/scripts/library/sources/{source['source_id']}/import")
+
+    assert import_response.status_code == 201
+    payload = import_response.json()
+    assert payload["chapter_count"] >= 3
+    assert payload["title"] in source["title"]
 
 
 def test_get_workbench_returns_404_for_missing_project() -> None:

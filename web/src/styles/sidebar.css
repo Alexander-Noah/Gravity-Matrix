@@ -2,62 +2,62 @@
   position: sticky;
   top: 0;
   display: flex;
-  flex: 0 0 248px;
+  flex: 0 0 252px;
   flex-direction: column;
-  width: 248px;
+  width: 252px;
   height: 100vh;
   min-height: 100vh;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 24px 18px;
-  background: linear-gradient(180deg, oklch(99% 0.006 275 / 0.96), oklch(97% 0.012 272 / 0.96));
+  padding: 22px 16px;
+  background: oklch(98.7% 0.004 235);
   border-right: 1px solid var(--border);
-  box-shadow: 10px 0 28px oklch(52% 0.08 275 / 0.035);
+  box-shadow: none;
   flex-shrink: 0;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 14px;
-  min-height: 48px;
-  margin-bottom: 30px;
-  padding: 0 4px 18px;
+  gap: 12px;
+  min-height: 52px;
+  margin-bottom: 26px;
+  padding: 0 4px 16px;
   border-bottom: 1px solid var(--border);
 }
 
 .brand-mark {
   display: grid;
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
   flex: 0 0 auto;
   place-items: center;
-  border-radius: 50%;
-  color: oklch(99% 0.004 275);
-  background: linear-gradient(145deg, oklch(70% 0.17 230), var(--primary));
-  box-shadow: 0 12px 28px oklch(56% 0.2 285 / 0.28);
+  border-radius: 9px;
+  color: var(--surface);
+  background: linear-gradient(145deg, var(--primary-strong), oklch(44% 0.12 220));
+  box-shadow: 0 8px 18px oklch(38% 0.105 236 / 0.18);
 }
 
 .brand-title {
   display: flex;
   align-items: center;
   color: var(--text);
-  font-size: 17px;
-  font-weight: 760;
+  font-size: 16px;
+  font-weight: 800;
   line-height: 1.2;
   letter-spacing: 0;
 }
 
 .brand p {
   margin: 4px 0 0;
-  color: var(--text-soft);
+  color: var(--text-muted);
   font-size: 12px;
   line-height: 1.3;
 }
 
 .primary-nav {
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .nav-item {
@@ -65,13 +65,13 @@
   align-items: center;
   gap: 14px;
   width: 100%;
-  min-height: 44px;
-  padding: 0 12px;
+  min-height: 42px;
+  padding: 0 11px;
   border-radius: 8px;
-  color: var(--text);
+  color: var(--text-muted);
   background: transparent;
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 720;
   text-align: left;
   transition:
     background-color 160ms ease,
@@ -81,18 +81,18 @@
 
 .nav-item:hover {
   color: var(--primary-strong);
-  background: var(--primary-faint);
-  transform: translateY(-1px);
+  background: var(--surface-muted);
+  transform: none;
 }
 
 .nav-item.is-active {
-  color: var(--primary-strong);
-  background: var(--primary-soft);
-  box-shadow: inset 0 0 0 1px oklch(84% 0.06 285);
+  color: var(--surface);
+  background: var(--primary-strong);
+  box-shadow: 0 8px 18px oklch(38% 0.105 236 / 0.14);
 }
 
 .nav-item.is-active .item-icon {
-  color: var(--primary);
+  color: var(--surface);
 }
 
 .sidebar-spacer {
@@ -103,20 +103,18 @@
 .sidebar-panel {
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--surface);
-  box-shadow: 0 8px 20px oklch(36% 0.06 275 / 0.045);
+  background: var(--surface-raised);
+  box-shadow: 0 1px 2px oklch(28% 0.025 250 / 0.04);
 }
 
 .project-panel {
-  padding: 18px;
+  padding: 16px;
 }
 
 .actions-panel {
   margin-top: 22px;
   padding: 20px 18px 18px;
-  background:
-    linear-gradient(155deg, oklch(99% 0.004 275), oklch(97% 0.016 282)),
-    var(--surface);
+  background: var(--surface);
 }
 
 .panel-heading {
@@ -163,7 +161,10 @@
 
 .project-row {
   gap: 10px;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--surface-muted);
 }
 
 .project-icon {
@@ -194,10 +195,10 @@
 .utility-row {
   gap: 10px;
   width: 100%;
-  min-height: 38px;
+  min-height: 40px;
   padding: 0 10px;
   border-radius: 8px;
-  color: var(--text-muted);
+  color: var(--text);
   background: transparent;
   font-size: 13px;
   font-weight: 680;
@@ -267,4 +268,10 @@
 
 .link-button:hover {
   color: var(--primary);
+}
+
+.item-icon {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 auto;
 }

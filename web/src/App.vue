@@ -29,6 +29,7 @@ import {
   previewImport,
   getProjectsDashboard,
   getScriptsLibrary,
+  importLibrarySource,
   rerunScriptJob,
 } from './api/workbench'
 import AddSceneDialog from './components/AddSceneDialog.vue'
@@ -55,7 +56,6 @@ import {
   analysisScenes,
   analysisWorkflowSteps,
   characterRelations,
-  defaultNovelText,
   dialogueExtracts,
   generationSettingOptions,
   iconPaths,
@@ -64,17 +64,12 @@ import {
   navItems,
   plotEvents,
   previewWorkflowSteps,
-  projectActivities,
-  projectCards,
   projectStages,
-  projectStats,
   productHelpDocs,
   schemaHelpContent,
   schemaValidationMock,
   scriptGenerationTemplates as mockTemplates,
   scriptChapters,
-  scriptLibraryItems,
-  scriptLibraryStats,
   scriptPreviewScenes,
   workflowSteps,
   yamlLines,
@@ -84,7 +79,7 @@ import { getRouteById } from './router/routes'
 const route = useRoute()
 const router = useRouter()
 const activePage = ref('import')
-const novelText = ref(defaultNovelText)
+const novelText = ref('')
 const selectedFileName = ref('')
 const importNotice = ref('')
 const analysisProgress = ref(100)
@@ -109,16 +104,34 @@ const displayedCharacterRelations = ref(characterRelations)
 const displayedDialogueExtracts = ref(dialogueExtracts)
 const displayedInsightItems = ref(insightItems)
 const displayedScriptChapters = ref(scriptChapters)
-const displayedProjectCards = ref(projectCards)
-const displayedProjectStats = ref(projectStats)
-const displayedProjectActivities = ref(projectActivities)
-const displayedLibraryItems = ref(scriptLibraryItems)
-const displayedLibraryStats = ref(scriptLibraryStats)
+const displayedProjectCards = ref([])
+const displayedProjectStats = ref([
+  { label: '全部项目', value: '0', note: '等待读取真实项目', tone: 'violet' },
+  { label: '编辑中', value: '0', note: '等待读取真实项目', tone: 'blue' },
+  { label: '已生成剧本', value: '0', note: '等待读取真实项目', tone: 'mint' },
+  { label: '待解析', value: '0', note: '等待读取真实项目', tone: 'orange' },
+])
+const displayedProjectActivities = ref([])
+const displayedLibraryItems = ref([])
+const displayedLibraryStats = ref([
+  { label: '全部剧本', value: '0', note: '等待读取真实剧本库', tone: 'violet' },
+  { label: '编辑中', value: '0', note: '等待读取真实剧本库', tone: 'blue' },
+  { label: '已完成', value: '0', note: '等待读取真实剧本库', tone: 'mint' },
+  { label: '素材库', value: '0', note: '等待读取真实剧本库', tone: 'orange' },
+])
 const displayedTemplates = ref(mockTemplates)
 const selectedSceneId = ref(null)
 const projectListNotice = ref('')
 const libraryNotice = ref('')
+const isProjectsLoading = ref(false)
+const isLibraryLoading = ref(false)
+const hasProjectsLoaded = ref(false)
+const hasLibraryLoaded = ref(false)
 const isScriptGenerating = ref(false)
+const currentProjectTitle = ref('未创建项目')
+const currentProjectProgress = ref(0)
+const currentProjectStages = ref(projectStages)
+let isExplicitProjectOpen = false
 
 const CURRENT_PROJECT_STORAGE_KEY = 'gravityMatrixCurrentProjectId'
 
@@ -313,7 +326,7 @@ const applyProjectsResult = (result) => {
   const editingCount = projects.filter((project) => project.status === 'script_edited').length
   const analysisPendingCount = projects.filter((project) => !project.has_analysis).length
 
-  displayedProjectCards.value = projects.length ? projects.map(mapProjectCard) : projectCards
+  displayedProjectCards.value = projects.map(mapProjectCard)
   displayedProjectStats.value = [
     { label: '全部项目', value: String(result.total ?? projects.length), note: '来自后端项目列表', tone: 'violet' },
     { label: '编辑中', value: String(editingCount), note: '已保存剧本草稿', tone: 'blue' },
@@ -364,13 +377,14 @@ const applyLibraryResult = (items) => {
   const editingCount = items.filter((item) => item.status === '编辑中').length
   const completedCount = items.filter((item) => item.status === '已完成').length
   const exportedCount = items.filter((item) => item.status === '已导出').length
+  const sourceCount = items.filter((item) => item.source_type === 'source_novel').length
 
-  displayedLibraryItems.value = items.length ? items : scriptLibraryItems
+  displayedLibraryItems.value = items
   displayedLibraryStats.value = [
-    { label: '全部剧本', value: String(items.length), note: '来自后端已生成项目', tone: 'violet' },
+    { label: '全部条目', value: String(items.length), note: '来自后端剧本与素材库', tone: 'violet' },
     { label: '编辑中', value: String(editingCount), note: '已保存 YAML 草稿', tone: 'blue' },
     { label: '已完成', value: String(completedCount), note: '可进入完整预览', tone: 'mint' },
-    { label: '已导出', value: String(exportedCount), note: '后端暂未返回导出历史', tone: 'orange' },
+    { label: '素材库', value: String(sourceCount || exportedCount), note: sourceCount ? '可导入工作台' : '后端暂未返回导出历史', tone: 'orange' },
   ]
 }
 
@@ -459,45 +473,92 @@ const applyWorkbenchScript = (workbench) => {
   }
 }
 
+const applyWorkbenchProgress = (workbench) => {
+  const project = workbench?.project || {}
+  currentProjectTitle.value = project.title ? `《${project.title}》改编项目` : '项目工作台'
+  currentProjectProgress.value = workbench?.progress?.percent ?? currentProjectProgress.value
+
+  if (workbench?.progress?.steps?.length) {
+    currentProjectStages.value = workbench.progress.steps.map((step) => ({
+      label: step.label,
+      note: step.description || '',
+      status: step.status === 'completed' ? 'done' : step.status === 'current' ? 'active' : 'pending',
+    }))
+    return
+  }
+
+  if (project.has_script) {
+    currentProjectStages.value = buildProjectStages('script')
+  } else if (project.has_analysis) {
+    currentProjectStages.value = buildProjectStages('analysis')
+  } else {
+    currentProjectStages.value = buildProjectStages('import')
+  }
+}
+
 const fetchProjects = async () => {
+  if (isProjectsLoading.value) return
+  isProjectsLoading.value = true
   projectListNotice.value = ''
   try {
     const dashboard = await getProjectsDashboard()
     if (dashboard) {
-      displayedProjectStats.value = dashboard.stats || projectStats
+      displayedProjectStats.value = dashboard.stats || [
+        { label: '全部项目', value: '0', note: '后端暂无项目', tone: 'violet' },
+        { label: '编辑中', value: '0', note: '暂无编辑中项目', tone: 'blue' },
+        { label: '已生成剧本', value: '0', note: '暂无已生成剧本', tone: 'mint' },
+        { label: '待解析', value: '0', note: '暂无待解析项目', tone: 'orange' },
+      ]
       displayedProjectCards.value = dashboard.project_cards || dashboard.cards || []
-      displayedProjectActivities.value = dashboard.activities || projectActivities
+      displayedProjectActivities.value = dashboard.activities || []
     }
+    hasProjectsLoaded.value = true
   } catch (error) {
     projectListNotice.value = `项目列表加载失败：${getApiErrorMessage(error)}`
-    displayedProjectStats.value = [
-      { label: '进行中项目', value: '0', note: '后端暂不可用', tone: 'violet' },
-      { label: '已生成剧本', value: '0', note: '后端暂不可用', tone: 'blue' },
-      { label: '待校验 YAML', value: '0', note: '后端暂不可用', tone: 'orange' },
-      { label: '已导出文件', value: '0', note: '后端暂不可用', tone: 'mint' },
-    ]
-    displayedProjectCards.value = []
-    displayedProjectActivities.value = []
+    if (!hasProjectsLoaded.value) {
+      displayedProjectStats.value = [
+        { label: '全部项目', value: '0', note: '后端暂不可用', tone: 'violet' },
+        { label: '编辑中', value: '0', note: '后端暂不可用', tone: 'blue' },
+        { label: '已生成剧本', value: '0', note: '后端暂不可用', tone: 'mint' },
+        { label: '待解析', value: '0', note: '后端暂不可用', tone: 'orange' },
+      ]
+      displayedProjectCards.value = []
+      displayedProjectActivities.value = []
+    }
+  } finally {
+    isProjectsLoading.value = false
   }
 }
 
 const fetchScriptLibrary = async () => {
+  if (isLibraryLoading.value) return
+  isLibraryLoading.value = true
   libraryNotice.value = ''
   try {
     const library = await getScriptsLibrary()
     if (library) {
-      displayedLibraryStats.value = library.stats || scriptLibraryStats
+      displayedLibraryStats.value = library.stats || [
+        { label: '全部条目', value: '0', note: '后端暂无剧本或素材', tone: 'violet' },
+        { label: '编辑中', value: '0', note: '暂无编辑中剧本', tone: 'blue' },
+        { label: '已完成', value: '0', note: '暂无已完成剧本', tone: 'mint' },
+        { label: '素材库', value: '0', note: '暂无可导入素材', tone: 'orange' },
+      ]
       displayedLibraryItems.value = library.items || []
     }
+    hasLibraryLoaded.value = true
   } catch (error) {
     libraryNotice.value = `剧本库加载失败：${getApiErrorMessage(error)}`
-    displayedLibraryStats.value = [
-      { label: '全部剧本', value: '0', note: '后端暂不可用', tone: 'violet' },
-      { label: '编辑中', value: '0', note: '后端暂不可用', tone: 'blue' },
-      { label: '已完成', value: '0', note: '后端暂不可用', tone: 'mint' },
-      { label: '校验异常', value: '0', note: '后端暂不可用', tone: 'orange' },
-    ]
-    displayedLibraryItems.value = []
+    if (!hasLibraryLoaded.value) {
+      displayedLibraryStats.value = [
+        { label: '全部条目', value: '0', note: '后端暂不可用', tone: 'violet' },
+        { label: '编辑中', value: '0', note: '后端暂不可用', tone: 'blue' },
+        { label: '已完成', value: '0', note: '后端暂不可用', tone: 'mint' },
+        { label: '素材库', value: '0', note: '后端暂不可用', tone: 'orange' },
+      ]
+      displayedLibraryItems.value = []
+    }
+  } finally {
+    isLibraryLoading.value = false
   }
 }
 
@@ -519,14 +580,42 @@ watch(
   () => activeRoute.value.id,
   (routeId) => {
     if (routeId === 'workbench') {
-      restoreWorkbenchProject()
+      if (isExplicitProjectOpen) {
+        isExplicitProjectOpen = false
+        return
+      }
+      enterWorkbenchHome()
     }
   },
 )
 
 onMounted(() => {
-  restoreWorkbenchProject()
+  if (isWorkbenchRoute.value) {
+    enterWorkbenchHome()
+  }
 })
+
+const resetWorkbenchFlow = () => {
+  setCurrentProjectId(null)
+  generatedScriptYaml.value = ''
+  generatedSettings.value = null
+  selectedSceneId.value = null
+  editorNotice.value = ''
+  previewNotice.value = ''
+  analysisNotice.value = ''
+  analysisProgress.value = 0
+  currentProjectTitle.value = '未创建项目'
+  currentProjectProgress.value = 0
+  currentProjectStages.value = buildProjectStages('import')
+  displayedScriptChapters.value = []
+  schemaValidation.value = schemaValidationMock
+}
+
+const enterWorkbenchHome = () => {
+  resetWorkbenchFlow()
+  activePage.value = 'import'
+  importNotice.value = '工作台已回到导入准备区；从“我的项目”或“剧本库”打开项目时才会进入已生成剧本。'
+}
 
 const detectedChapters = ref([])
 const isNovelValid = ref(false)
@@ -558,24 +647,37 @@ const detectChaptersLocally = (text) => {
 }
 
 let previewTimeout = null
+let previewRequestId = 0
 watch(novelText, (newText) => {
   if (previewTimeout) clearTimeout(previewTimeout)
   if (!newText || !newText.trim()) {
+    previewRequestId += 1
     detectedChapters.value = []
     chapterCount.value = 0
     isNovelValid.value = false
     return
   }
 
-  previewTimeout = setTimeout(async () => {
-    const localChapters = detectChaptersLocally(newText)
+  const localChapters = detectChaptersLocally(newText)
+  detectedChapters.value = localChapters
+  chapterCount.value = localChapters.length
+  isNovelValid.value = localChapters.length >= 3
+  currentProjectProgress.value = isNovelValid.value ? 20 : 10
+  currentProjectStages.value = buildProjectStages('import')
+  const requestId = ++previewRequestId
 
+  previewTimeout = setTimeout(async () => {
     try {
       const result = await previewImport({
         title: selectedFileName.value ? selectedFileName.value.replace(/\.[^.]+$/, '') : '未命名小说',
         author: '创作者',
         text: newText,
       })
+
+      if (requestId !== previewRequestId) {
+        return
+      }
+
       detectedChapters.value = (result.chapters || []).map((chapter, index) => ({
         ...chapter,
         content: chapter.content || localChapters[index]?.content || '',
@@ -583,7 +685,14 @@ watch(novelText, (newText) => {
       }))
       chapterCount.value = result.chapter_count || detectedChapters.value.length
       isNovelValid.value = result.can_create_project || false
+      applyPreprocessResult(result.preprocess)
+      currentProjectTitle.value = result.title ? `《${result.title}》本地整理` : '未创建项目'
+      currentProjectProgress.value = isNovelValid.value ? 25 : 10
+      currentProjectStages.value = buildProjectStages('import')
     } catch (error) {
+      if (requestId !== previewRequestId) {
+        return
+      }
       console.warn('后端解析章节失败，请检查网络或后端服务', error)
       detectedChapters.value = localChapters
       chapterCount.value = localChapters.length
@@ -767,14 +876,67 @@ const applyAnalysisResult = (analysis) => {
   displayedDialogueExtracts.value = dialogueExtracts
 }
 
+const applyPreprocessResult = (preprocess) => {
+  if (!preprocess) return
+
+  applyAnalysisResult({
+    characters: preprocess.characters || [],
+    locations: preprocess.locations || [],
+    chapter_summaries: preprocess.chapter_summaries || [],
+    conflicts: preprocess.conflicts || [],
+    themes: preprocess.themes || [],
+  })
+
+  const notes = preprocess.preparation_notes || []
+  if (notes.length) {
+    displayedInsightItems.value = notes.slice(0, 4).map((note, index) => ({
+      label: `整理 ${index + 1}`,
+      value: note,
+      tone: ['blue', 'mint', 'orange', 'violet'][index % 4],
+    }))
+  }
+}
+
+const buildProjectStages = (stage) => {
+  const order = ['import', 'analysis', 'script', 'preview']
+  const labels = {
+    import: '本地整理',
+    analysis: 'AI 解析',
+    script: '剧本生成',
+    preview: '校验导出',
+  }
+  const notes = {
+    import: '章节结构',
+    analysis: '人物/剧情',
+    script: 'YAML 草稿',
+    preview: '成品检查',
+  }
+  const currentIndex = order.indexOf(stage)
+
+  return order.map((key, index) => ({
+    label: labels[key],
+    note: notes[key],
+    status: currentIndex > index ? 'done' : currentIndex === index ? 'active' : 'pending',
+  }))
+}
+
 const goToPage = (pageId) => {
   const targetRoute = getRouteById(pageId)
 
   router.push(targetRoute.path)
 
-  if (pageId === 'workbench' && !currentProjectId.value) {
-    activePage.value = 'import'
+  if (pageId === 'workbench') {
+    enterWorkbenchHome()
   }
+}
+
+const openCurrentProject = () => {
+  if (currentProjectId.value) {
+    activePage.value = generatedScriptYaml.value ? 'script' : 'analysis'
+    return
+  }
+
+  enterWorkbenchHome()
 }
 
 const handleAuthenticated = () => {
@@ -805,8 +967,11 @@ const handleDeleteProject = async (project) => {
 }
 
 const openProject = async (project) => {
+  isExplicitProjectOpen = true
   router.push('/workbench')
   setCurrentProjectId(project?.id || project?.raw?.id || null)
+  currentProjectTitle.value = project?.raw?.title || project?.title || '项目工作台'
+  currentProjectProgress.value = Number(project?.progress || 0)
 
   if (!currentProjectId.value) {
     if (project?.scenes === 0 || project?.progress < 50) {
@@ -831,6 +996,7 @@ const openProject = async (project) => {
     }
 
     applyWorkbenchScript(workbench)
+    applyWorkbenchProgress(workbench)
 
     if (workbench.project.has_script) {
       activePage.value = 'script'
@@ -864,8 +1030,10 @@ const defaultGenerationSettings = computed(() => {
   if (templateId === 'short-drama') scriptType = '短剧'
   if (templateId === 'stage-play') scriptType = '话剧'
   if (templateId === 'storyboard') scriptType = '分镜剧本'
+  if (templateId === 'audio-drama') scriptType = '广播剧'
 
   return {
+    templateId,
     scriptType,
     adaptationStyle: generationSettingOptions.adaptationStyles[0],
     contentOptions: generationSettingOptions.contentOptions.slice(0, 2),
@@ -875,6 +1043,12 @@ const defaultGenerationSettings = computed(() => {
 const getScriptProjectId = (script) => script?.projectId || script?.project_id || script?.raw?.id || null
 
 const editLibraryScript = async (script) => {
+  if (script?.source_type === 'source_novel') {
+    await importSourceNovel(script)
+    return
+  }
+
+  isExplicitProjectOpen = true
   router.push('/workbench')
   setCurrentProjectId(getScriptProjectId(script))
 
@@ -882,6 +1056,7 @@ const editLibraryScript = async (script) => {
     try {
       const workbench = await getProjectWorkbench(currentProjectId.value)
       applyWorkbenchScript(workbench)
+      applyWorkbenchProgress(workbench)
     } catch (error) {
       editorNotice.value = getApiErrorMessage(error)
     }
@@ -891,6 +1066,7 @@ const editLibraryScript = async (script) => {
 }
 
 const previewLibraryScript = async (script) => {
+  isExplicitProjectOpen = true
   router.push('/workbench')
   setCurrentProjectId(getScriptProjectId(script))
   previewNotice.value = ''
@@ -899,55 +1075,13 @@ const previewLibraryScript = async (script) => {
     try {
       const workbench = await getProjectWorkbench(currentProjectId.value)
       applyWorkbenchScript(workbench)
+      applyWorkbenchProgress(workbench)
     } catch (error) {
       previewNotice.value = getApiErrorMessage(error)
     }
   }
 
   activePage.value = 'preview'
-}
-
-const restoreWorkbenchProject = async () => {
-  if (!isWorkbenchRoute.value || currentProjectId.value) return
-
-  const storedProjectId = Number(localStorage.getItem(CURRENT_PROJECT_STORAGE_KEY))
-  let projectId = Number.isFinite(storedProjectId) && storedProjectId > 0 ? storedProjectId : null
-
-  try {
-    if (!projectId) {
-      const projects = await listProjects({ limit: 1, offset: 0 })
-      projectId = projects.items?.[0]?.id || null
-    }
-
-    if (!projectId) {
-      activePage.value = 'import'
-      return
-    }
-
-    setCurrentProjectId(projectId)
-    const workbench = await getProjectWorkbench(projectId)
-
-    if (workbench.analysis?.raw) {
-      applyAnalysisResult(workbench.analysis.raw)
-    }
-
-    applyWorkbenchScript(workbench)
-
-    if (workbench.project.has_script) {
-      activePage.value = 'script'
-      editorNotice.value = '已恢复最近生成的真实剧本。'
-    } else if (workbench.project.has_analysis) {
-      activePage.value = 'analysis'
-      analysisNotice.value = '已恢复最近项目的 AI 解析结果。'
-      analysisProgress.value = 100
-    } else {
-      activePage.value = 'import'
-    }
-  } catch (error) {
-    console.warn('恢复工作台项目失败', error)
-    setCurrentProjectId(null)
-    activePage.value = 'import'
-  }
 }
 
 const exportLibraryScript = async (script, format) => {
@@ -1046,6 +1180,9 @@ const goToAnalysis = async () => {
     })
 
     setCurrentProjectId(project.id)
+    currentProjectTitle.value = `《${project.title}》改编项目`
+    currentProjectProgress.value = 35
+    currentProjectStages.value = buildProjectStages('analysis')
     analysisProgress.value = 25
     importNotice.value = '项目已创建，正在启动 AI 解析任务...'
 
@@ -1059,6 +1196,8 @@ const goToAnalysis = async () => {
     const analysis = await getProjectAnalysis(project.id)
     applyAnalysisResult(analysis)
     analysisProgress.value = 100
+    currentProjectProgress.value = 60
+    currentProjectStages.value = buildProjectStages('analysis')
     analysisNotice.value = 'AI 解析完成，结果已从后端同步。'
   } catch (error) {
     importNotice.value = getApiErrorMessage(error)
@@ -1107,11 +1246,18 @@ const openGenerationSettings = () => {
 const confirmGenerationSettings = async (settings) => {
   if (isScriptGenerating.value) return
 
-  generatedSettings.value = settings
+  const normalizedSettings = {
+    ...settings,
+    templateId: settings.templateId || selectedTemplateId.value,
+  }
+
+  generatedSettings.value = normalizedSettings
   isGenerationSettingsOpen.value = false
   editorNotice.value = '正在启动剧本生成任务...'
   schemaValidation.value = schemaValidationMock
   activePage.value = 'script'
+  currentProjectStages.value = buildProjectStages('script')
+  currentProjectProgress.value = Math.max(currentProjectProgress.value, 70)
   generatedScriptYaml.value = ''
   selectedSceneId.value = null
   isScriptGenerating.value = true
@@ -1123,7 +1269,7 @@ const confirmGenerationSettings = async (settings) => {
   }
 
   try {
-    await updateGenerationSettings(currentProjectId.value, settings)
+    await updateGenerationSettings(currentProjectId.value, normalizedSettings)
     const job = await rerunScriptJob(currentProjectId.value)
     editorNotice.value = job.current_step || '剧本生成任务已启动。'
 
@@ -1136,6 +1282,7 @@ const confirmGenerationSettings = async (settings) => {
 
     const workbench = await getProjectWorkbench(currentProjectId.value)
     applyWorkbenchScript(workbench)
+    applyWorkbenchProgress(workbench)
     editorNotice.value = '剧本 YAML 已从后端生成并同步到编辑区。'
   } catch (error) {
     editorNotice.value = getApiErrorMessage(error)
@@ -1239,7 +1386,40 @@ const goToSchemaHelp = () => {
 
 const goToPreview = () => {
   previewNotice.value = ''
+  currentProjectStages.value = buildProjectStages('preview')
+  currentProjectProgress.value = Math.max(currentProjectProgress.value, 90)
   activePage.value = 'preview'
+}
+
+const importSourceNovel = async (script) => {
+  const sourceId = script?.source_id
+  if (!sourceId) return
+
+  try {
+    libraryNotice.value = `正在导入素材 ${script.sourceNovel}...`
+    const project = await importLibrarySource(sourceId)
+    isExplicitProjectOpen = true
+    router.push('/workbench')
+    setCurrentProjectId(project.id)
+    currentProjectTitle.value = `《${project.title}》改编项目`
+    currentProjectProgress.value = 35
+    currentProjectStages.value = buildProjectStages('analysis')
+    activePage.value = 'analysis'
+    analysisProgress.value = 10
+    analysisNotice.value = '素材已导入，正在启动 AI 解析...'
+
+    const job = await startAnalysisJob(project.id)
+    analysisNotice.value = job.current_step || 'AI 解析任务已启动。'
+    analysisProgress.value = job.progress ?? 30
+    await waitForJob(job.id)
+
+    const analysis = await getProjectAnalysis(project.id)
+    applyAnalysisResult(analysis)
+    analysisProgress.value = 100
+    analysisNotice.value = '素材小说已导入并完成 AI 解析。'
+  } catch (error) {
+    libraryNotice.value = `素材导入失败：${getApiErrorMessage(error)}`
+  }
 }
 
 const goBackToEditor = () => {
@@ -1374,7 +1554,9 @@ const handleFileUpload = async (event) => {
   <AuthPage v-if="isAuthRoute" :icon-paths="iconPaths" @authenticated="handleAuthenticated" />
 
   <div v-else class="app-layout">
-    <AppSidebar :icon-paths="iconPaths" :nav-items="activeNavItems" @select="goToPage" @open-recycle-bin="openRecycleBin" />
+    <AppSidebar :icon-paths="iconPaths" :nav-items="activeNavItems" :project-progress="currentProjectProgress"
+      :project-title="currentProjectTitle" @select="goToPage" @open-current-project="openCurrentProject"
+      @open-recycle-bin="openRecycleBin" />
 
     <main class="main-wrapper" aria-label="工作区">
       <div class="page-content">
@@ -1382,7 +1564,8 @@ const handleFileUpload = async (event) => {
           @open-profile="openProfileCenter" />
         <section class="workspace-body" aria-label="工作台内容">
         <ProjectsPage v-if="activeRoute.id === 'projects'" :activities="displayedProjectActivities"
-          :icon-paths="iconPaths" :projects="displayedProjectCards" :stats="displayedProjectStats"
+          :icon-paths="iconPaths" :is-loaded="hasProjectsLoaded" :is-loading="isProjectsLoading"
+          :projects="displayedProjectCards" :stats="displayedProjectStats"
           :notice="projectListNotice" @open-project="openProject" @delete-project="handleDeleteProject" />
 
         <TemplateCenterPage v-else-if="activeRoute.id === 'templates'" :icon-paths="iconPaths"
@@ -1390,7 +1573,8 @@ const handleFileUpload = async (event) => {
           @select-template="selectGenerationTemplate" />
 
         <ScriptLibraryPage v-else-if="activeRoute.id === 'library'" :icon-paths="iconPaths"
-          :notice="libraryNotice" :scripts="displayedLibraryItems" :stats="displayedLibraryStats" @edit-script="editLibraryScript"
+          :is-loaded="hasLibraryLoaded" :is-loading="isLibraryLoading" :notice="libraryNotice"
+          :scripts="displayedLibraryItems" :stats="displayedLibraryStats" @edit-script="editLibraryScript"
           @preview-script="previewLibraryScript" @export-script="exportLibraryScript" @delete-script="deleteLibraryScript"
           @rename-script="renameLibraryScript" @clone-script="cloneLibraryScript" />
 
@@ -1425,7 +1609,8 @@ const handleFileUpload = async (event) => {
           <div v-else class="content-grid">
             <SupportColumn
               :analysis-metrics="displayedAnalysisMetrics" :icon-paths="iconPaths" :insight-items="displayedInsightItems"
-              :project-stages="projectStages" />
+              :project-progress="currentProjectProgress" :project-stages="currentProjectStages"
+              :project-title="currentProjectTitle" @show-analysis="goBackToAnalysis" @show-projects="goToPage('projects')" />
             <ScriptWorkspace :icon-paths="iconPaths" :preview-scene="selectedPreviewScene"
               :schema-validation="schemaValidation" :script-chapters="displayedScriptChapters"
               :is-generating="isScriptGenerating" :status-notice="editorNotice" :yaml-lines="generatedYamlLines" @add-scene="openAddScene"

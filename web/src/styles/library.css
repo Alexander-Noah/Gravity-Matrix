@@ -1,14 +1,14 @@
 .script-library-page {
   display: grid;
-  gap: 18px;
-  max-width: 1280px;
+  gap: 16px;
+  max-width: 1360px;
   margin: 0 auto;
 }
 
 .library-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  gap: 12px;
 }
 
 .library-stat-card,
@@ -16,15 +16,29 @@
 .library-script-card,
 .library-empty-state {
   border: 1px solid var(--border);
-  border-radius: 12px;
-  background: oklch(99% 0.004 275 / 0.94);
+  border-radius: 8px;
+  background: var(--surface-raised);
   box-shadow: var(--shadow-soft);
 }
 
 .library-stat-card {
+  position: relative;
   display: grid;
-  gap: 6px;
+  gap: 7px;
+  min-height: 112px;
   padding: 16px;
+  overflow: hidden;
+}
+
+.library-stat-card::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: var(--primary);
+  opacity: 0.72;
 }
 
 .library-stat-card span,
@@ -36,32 +50,40 @@
 
 .library-stat-card strong {
   color: var(--text);
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 820;
   line-height: 1.1;
 }
 
 .library-stat-card.tone-violet {
-  background: var(--primary-faint);
+  background: var(--surface-raised);
 }
 
 .library-stat-card.tone-blue {
-  background: oklch(96% 0.028 235);
+  background: var(--surface-raised);
 }
 
 .library-stat-card.tone-mint {
-  background: oklch(96% 0.03 165);
+  background: var(--surface-raised);
 }
 
 .library-stat-card.tone-orange {
-  background: oklch(96% 0.032 62);
+  background: var(--surface-raised);
+}
+
+.library-stat-card.tone-mint::after {
+  background: var(--accent);
+}
+
+.library-stat-card.tone-orange::after {
+  background: var(--warning);
 }
 
 .library-toolbar {
   display: grid;
   grid-template-columns: minmax(260px, 1fr) 180px 180px;
   gap: 12px;
-  padding: 14px;
+  padding: 12px;
 }
 
 .library-search,
@@ -70,10 +92,10 @@
   align-items: center;
   gap: 9px;
   min-width: 0;
-  height: 40px;
+  height: 42px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--surface);
+  background: var(--surface-muted);
 }
 
 .library-search {
@@ -132,14 +154,26 @@
 .library-card-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 12px;
 }
 
 .library-script-card {
   position: relative;
   display: grid;
-  gap: 16px;
-  padding: 18px;
+  gap: 14px;
+  padding: 16px;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.library-script-card:has(.library-status span:nth-child(1)) {
+  min-height: 260px;
+}
+
+.library-script-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-panel);
 }
 
 .library-card-head {
@@ -150,11 +184,11 @@
 
 .library-file-icon {
   display: inline-grid;
-  width: 46px;
-  height: 46px;
+  width: 42px;
+  height: 42px;
   flex: 0 0 auto;
   place-items: center;
-  border-radius: 10px;
+  border-radius: 8px;
   color: var(--primary-strong);
   background: var(--primary-faint);
 }
@@ -178,7 +212,7 @@
 .library-card-head h2 {
   margin: 5px 0 0;
   color: var(--text);
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 800;
   line-height: 1.25;
 }
@@ -188,6 +222,11 @@
   color: var(--text-muted);
   font-size: 13px;
   line-height: 1.45;
+}
+
+.library-card-head .library-summary {
+  color: var(--text-soft);
+  line-height: 1.65;
 }
 
 .library-meta-grid {
@@ -253,7 +292,7 @@
 .library-tags span {
   padding: 5px 8px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 6px;
   color: var(--text-muted);
   background: var(--surface);
   font-size: 12px;
@@ -265,6 +304,7 @@
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+  padding-top: 2px;
 }
 
 .library-more {
@@ -280,7 +320,7 @@
   min-width: 160px;
   padding: 6px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--surface);
   box-shadow: var(--shadow-panel);
 }
@@ -319,6 +359,24 @@
   margin: 0;
   color: var(--text-muted);
   font-size: 13px;
+  line-height: 1.6;
+}
+
+.library-empty-state.is-loading {
+  border-style: solid;
+  background: linear-gradient(90deg, var(--surface), var(--surface-muted), var(--surface));
+  background-size: 220% 100%;
+  animation: library-loading-sheen 1.4s ease-in-out infinite;
+}
+
+@keyframes library-loading-sheen {
+  0% {
+    background-position: 100% 0;
+  }
+
+  100% {
+    background-position: -100% 0;
+  }
 }
 
 .library-export-dialog {
@@ -332,7 +390,7 @@
 }
 
 .library-export-grid button {
-  min-height: 46px;
+  min-height: 42px;
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text);
@@ -376,3 +434,4 @@
     left: 0;
   }
 }
+

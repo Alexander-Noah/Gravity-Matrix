@@ -37,7 +37,8 @@ const closePreview = () => {
       <div class="template-selected-panel">
         <span>当前默认模板</span>
         <strong>{{ selectedTemplate?.name || '尚未选择' }}</strong>
-        <small>{{ selectedTemplate?.scenario || '选择一个模板后，生成设置会优先采用对应结构规则。' }}</small>
+        <small>{{ selectedTemplate?.scenario || '选择一个模板后，后端生成设置会保存模板并应用对应结构规则。' }}</small>
+        <code v-if="selectedTemplate?.target_format">target_format: {{ selectedTemplate.target_format }}</code>
       </div>
     </section>
 
@@ -79,10 +80,17 @@ const closePreview = () => {
           </div>
         </div>
 
+        <div class="template-section">
+          <h3>后端生成规则</h3>
+          <ul>
+            <li v-for="rule in template.backend_rules || []" :key="rule">{{ rule }}</li>
+          </ul>
+        </div>
+
         <div class="template-card-actions">
-          <button class="editor-tool" type="button" @click="openPreview(template)">预览结构</button>
+          <button class="editor-tool" type="button" @click="openPreview(template)">预览 Schema</button>
           <button class="editor-tool is-primary" type="button" @click="emit('select-template', template.id)">
-            使用模板
+            设为生成模板
           </button>
         </div>
       </article>
@@ -100,13 +108,17 @@ const closePreview = () => {
           </header>
 
           <div class="dialog-body">
+            <p class="inline-note">
+              选择该模板后，前端会把模板 ID 写入生成设置，后端生成 YAML 时会使用
+              target_format={{ previewTemplate.target_format }} 和对应生成规则。
+            </p>
             <pre class="template-yaml-preview"><code>{{ previewTemplate.yamlExample.join('\n') }}</code></pre>
           </div>
 
           <footer class="dialog-actions">
             <button class="editor-tool" type="button" @click="closePreview">关闭</button>
             <button class="editor-tool is-primary" type="button" @click="emit('select-template', previewTemplate.id); closePreview()">
-              使用此模板
+              设为生成模板
             </button>
           </footer>
         </section>

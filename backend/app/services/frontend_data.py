@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import yaml
@@ -22,6 +23,7 @@ def preview_import_text(title: str | None, author: str | None, text: str) -> dic
     chapters = _detect_chapters(cleaned_text)
     issues = _import_issues(cleaned_text, chapters)
     detected_title = title or _detect_title(cleaned_text) or "未命名小说"
+    preprocess = _preprocess_import_text(chapters, cleaned_text)
 
     return {
         "title": detected_title,
@@ -31,6 +33,7 @@ def preview_import_text(title: str | None, author: str | None, text: str) -> dic
         "can_create_project": not any(issue["severity"] == "error" for issue in issues),
         "issues": issues,
         "chapters": chapters,
+        "preprocess": preprocess,
     }
 
 
@@ -86,37 +89,180 @@ def build_scripts_library(db: Session) -> dict[str, Any]:
         .order_by(Project.updated_at.desc(), Project.id.desc())
         .all()
     )
-    items = [_script_library_item(project) for project in projects]
+    generated_items = [_script_library_item(project) for project in projects]
+    source_items = _novel_source_library_items(limit=24)
+    items = generated_items + source_items
 
     return {
         "stats": [
             {
                 "label": "全部剧本",
-                "value": str(len(items)),
-                "note": "来自已生成剧本的项目",
+                "value": str(len(generated_items)),
+                "note": "已生成可编辑剧本",
                 "tone": "violet",
             },
             {
                 "label": "编辑中",
-                "value": str(sum(1 for item in items if item["status"] == "编辑中")),
+                "value": str(sum(1 for item in generated_items if item["status"] == "编辑中")),
                 "note": "可继续修改 YAML",
                 "tone": "blue",
             },
             {
-                "label": "已完成",
-                "value": str(sum(1 for item in items if item["status"] == "已完成")),
-                "note": "Schema 校验通过",
+                "label": "本地素材",
+                "value": str(len(source_items)),
+                "note": "可导入生成剧本",
                 "tone": "mint",
             },
             {
                 "label": "校验异常",
-                "value": str(sum(1 for item in items if item["status"] == "校验异常")),
+                "value": str(sum(1 for item in generated_items if item["status"] == "校验异常")),
                 "note": "需要修正字段或引用",
                 "tone": "orange",
             },
         ],
         "items": items,
     }
+
+
+def get_novel_source_project_payload(source_id: str) -> dict[str, Any] | None:
+    source_dir = _novel_source_root() / source_id
+    if not source_dir.is_dir():
+        return None
+
+    metadata = _read_source_metadata(source_dir)
+    title = _source_title(source_dir, metadata)
+    author = metadata.get("author") or "本地素材"
+    chapters = _source_chapters(source_dir, metadata)
+    if not chapters:
+        return None
+
+    return {
+        "title": title,
+        "author": author,
+        "chapters": [{"title": chapter["title"], "content": chapter["content"]} for chapter in chapters],
+    }
+
+
+def _novel_source_root() -> Path:
+    return Path(__file__).resolve().parents[2] / "data" / "test_novels_by_book"
+
+
+def _novel_source_library_items(limit: int = 24) -> list[dict[str, Any]]:
+    root = _novel_source_root()
+    if not root.is_dir():
+        return []
+
+    items = []
+    for source_dir in sorted([path for path in root.iterdir() if path.is_dir()])[:limit]:
+        metadata = _read_source_metadata(source_dir)
+        chapters = _source_chapters(source_dir, metadata, include_content=False)
+        title = _source_title(source_dir, metadata)
+        genre = metadata.get("genre") or "小说素材"
+        tone = metadata.get("tone") or "待分析"
+
+        items.append(
+            {
+                "id": f"source-{source_dir.name}",
+                "project_id": None,
+                "source_id": source_dir.name,
+                "source_type": "source_novel",
+                "title": f"《{title}》素材",
+                "sourceNovel": f"《{title}》",
+                "type": genre,
+                "chapters": int(metadata.get("chapter_count") or len(chapters)),
+                "scenes": 0,
+                "dialogues": 0,
+                "schemaStatus": "待生成",
+                "status": "素材",
+                "updatedAt": _relative_time(datetime.fromtimestamp(source_dir.stat().st_mtime)),
+                "tags": [genre, tone, "本地素材", source_dir.name],
+                "summary": _source_summary(source_dir, metadata),
+            }
+        )
+
+    return items
+
+
+def _read_source_metadata(source_dir: Path) -> dict[str, Any]:
+    metadata_path = source_dir / "metadata.json"
+    if not metadata_path.exists():
+        return {}
+    try:
+        data = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _source_title(source_dir: Path, metadata: dict[str, Any]) -> str:
+    title = str(metadata.get("title") or "").strip()
+    if title:
+        return title
+
+    full_text_path = source_dir / "full_text.txt"
+    if full_text_path.exists():
+        try:
+            for line in full_text_path.read_text(encoding="utf-8").splitlines()[:12]:
+                stripped = line.strip()
+                if stripped.startswith("标题："):
+                    return stripped.replace("标题：", "", 1).strip() or source_dir.name
+                if stripped.startswith("第"):
+                    return stripped[:60]
+        except (UnicodeDecodeError, OSError):
+            pass
+
+    return source_dir.name.replace("_", " ").title()
+
+
+def _source_chapters(
+    source_dir: Path,
+    metadata: dict[str, Any],
+    include_content: bool = True,
+) -> list[dict[str, Any]]:
+    chapter_titles = [str(title) for title in metadata.get("chapter_titles", []) if str(title).strip()]
+    chapter_dir = source_dir / "chapters"
+    chapter_files = sorted(chapter_dir.glob("chapter_*.txt")) if chapter_dir.is_dir() else []
+    chapters = []
+
+    for index, path in enumerate(chapter_files, start=1):
+        if path.name == "chapter_demo.txt":
+            continue
+        title = chapter_titles[index - 1] if index <= len(chapter_titles) else f"第{index}章"
+        content = ""
+        if include_content:
+            try:
+                content = path.read_text(encoding="utf-8").strip()
+            except (UnicodeDecodeError, OSError):
+                content = ""
+        chapters.append({"title": title, "content": content})
+
+    if chapters:
+        return chapters
+
+    full_text_path = source_dir / "full_text.txt"
+    if not full_text_path.exists():
+        return []
+    try:
+        text = full_text_path.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
+        return []
+    detected = _detect_chapters(text)
+    return [
+        {
+            "title": chapter["title"],
+            "content": chapter["content"] if include_content else "",
+        }
+        for chapter in detected
+    ]
+
+
+def _source_summary(source_dir: Path, metadata: dict[str, Any]) -> str:
+    characters = metadata.get("main_characters") or []
+    genre = metadata.get("genre") or "小说"
+    tone = metadata.get("tone") or "待分析"
+    if characters:
+        return f"{genre} / {tone}；主要人物：{'、'.join(str(name) for name in characters[:4])}。"
+    return f"{genre} / {tone}；可导入工作台生成剧本。"
 
 
 def _detect_chapters(text: str) -> list[dict[str, Any]]:
@@ -146,6 +292,146 @@ def _detect_chapters(text: str) -> list[dict[str, Any]]:
             }
         )
     return chapters
+
+
+def _preprocess_import_text(chapters: list[dict[str, Any]], text: str) -> dict[str, Any]:
+    """Build a deterministic local outline before the expensive AI analysis step."""
+    source_units = chapters or [
+        {
+            "number": 1,
+            "title": "全文",
+            "content": text,
+            "char_count": len(text),
+            "excerpt": _brief(text, 80),
+        }
+    ]
+    character_names = _extract_character_names(text)
+    location_names = _extract_location_names(text)
+
+    return {
+        "characters": [
+            {
+                "name": name,
+                "role": "人物候选" if index else "主要人物候选",
+                "description": _character_context(name, text),
+                "source": "local_preprocess",
+            }
+            for index, name in enumerate(character_names[:8])
+        ],
+        "locations": [
+            {
+                "name": name,
+                "description": "从小说文本中高频出现的地点或场景词。",
+                "source": "local_preprocess",
+            }
+            for name in location_names[:8]
+        ],
+        "chapter_summaries": [
+            {
+                "chapter_number": unit["number"],
+                "title": unit["title"],
+                "summary": _brief(unit.get("content", ""), 120),
+                "char_count": unit.get("char_count", len(unit.get("content", ""))),
+                "source": "local_preprocess",
+            }
+            for unit in source_units
+        ],
+        "themes": _detect_themes(text),
+        "conflicts": _detect_conflicts(source_units),
+        "preparation_notes": _preparation_notes(source_units, character_names, location_names),
+    }
+
+
+def _extract_character_names(text: str) -> list[str]:
+    candidates: dict[str, int] = {}
+    common_words = {
+        "小说",
+        "章节",
+        "正文",
+        "时候",
+        "天下",
+        "将军",
+        "先生",
+        "夫人",
+        "众人",
+        "百姓",
+        "城中",
+        "门外",
+    }
+    for match in re.finditer(r"[\u4e00-\u9fa5]{2,4}", text):
+        word = match.group(0)
+        if word in common_words:
+            continue
+        if re.search(r"[说道问答曰喊叫笑哭望看想听走来去回入出]", word):
+            continue
+        candidates[word] = candidates.get(word, 0) + 1
+
+    ranked = sorted(candidates.items(), key=lambda item: (-item[1], len(item[0]), item[0]))
+    return [name for name, count in ranked if count >= 2][:12]
+
+
+def _extract_location_names(text: str) -> list[str]:
+    pattern = re.compile(r"([\u4e00-\u9fa5]{1,8}(?:城|府|宫|殿|门|山|河|江|营|寨|村|镇|街|院|房|屋|楼|阁|厅|店|站|场|桥|路|关|州|郡|县))")
+    counts: dict[str, int] = {}
+    for match in pattern.finditer(text):
+        location = match.group(1)
+        counts[location] = counts.get(location, 0) + 1
+    return [name for name, _count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:12]]
+
+
+def _character_context(name: str, text: str) -> str:
+    index = text.find(name)
+    if index < 0:
+        return "本地预处理识别的人物候选，等待 AI 解析补充身份与动机。"
+    start = max(0, index - 24)
+    end = min(len(text), index + len(name) + 48)
+    return _brief(text[start:end], 90)
+
+
+def _detect_themes(text: str) -> list[str]:
+    theme_rules = [
+        ("权谋", ["朝廷", "权", "谋", "帝", "王", "主公"]),
+        ("战争", ["战", "军", "兵", "营", "攻", "守"]),
+        ("成长", ["成长", "试炼", "第一次", "终于", "学会"]),
+        ("情感", ["喜欢", "爱", "恨", "朋友", "亲人", "误会"]),
+        ("悬疑", ["秘密", "真相", "线索", "疑", "夜"]),
+    ]
+    themes = [name for name, keywords in theme_rules if any(keyword in text for keyword in keywords)]
+    return themes[:4] or ["人物动机", "章节冲突"]
+
+
+def _detect_conflicts(chapters: list[dict[str, Any]]) -> list[str]:
+    conflicts = []
+    conflict_keywords = ["战", "争", "怒", "杀", "逃", "拒", "误会", "危", "破", "困", "逼", "敌"]
+    for chapter in chapters[:8]:
+        content = chapter.get("content", "")
+        sentence = _first_sentence_with_keywords(content, conflict_keywords) or _brief(content, 72)
+        if sentence:
+            conflicts.append(f"{chapter['title']}：{sentence}")
+    return conflicts
+
+
+def _first_sentence_with_keywords(text: str, keywords: list[str]) -> str | None:
+    for sentence in re.split(r"[。！？!?]\s*", text):
+        stripped = sentence.strip()
+        if stripped and any(keyword in stripped for keyword in keywords):
+            return _brief(stripped, 90)
+    return None
+
+
+def _preparation_notes(
+    chapters: list[dict[str, Any]],
+    character_names: list[str],
+    location_names: list[str],
+) -> list[str]:
+    notes = [
+        f"已本地整理 {len(chapters)} 个章节，后续 AI 解析将基于该章节结构继续提取人物关系和剧情事件。",
+        f"识别到 {len(character_names)} 个高频人物候选，AI 阶段需要进一步过滤误识别名词。",
+        f"识别到 {len(location_names)} 个地点/场景候选，可用于剧本分场初始化。",
+    ]
+    if chapters and min(chapter.get("char_count", 0) for chapter in chapters) < 20:
+        notes.append("存在正文较短章节，生成剧本前建议检查是否漏传章节内容。")
+    return notes
 
 
 def _import_issues(text: str, chapters: list[dict[str, Any]]) -> list[dict[str, str]]:

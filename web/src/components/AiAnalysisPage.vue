@@ -22,22 +22,44 @@ const isComplete = computed(() => props.progress >= 100)
   <div class="analysis-workspace">
     <section class="work-card analysis-progress-card" aria-labelledby="analysis-progress-title">
       <div>
-        <span class="analysis-eyebrow">AI 解析进度</span>
+        <span class="analysis-eyebrow">本地整理 + AI 解析进度</span>
         <h2 id="analysis-progress-title">{{ isComplete ? '内容结构识别已完成' : '正在识别内容结构' }}</h2>
-        <p>{{ isComplete ? '已从小说原文中提取人物、场景、剧情事件、人物关系和对白候选。' : '请等待后端任务完成，完成后再进入剧本生成。' }}</p>
+        <p>{{ isComplete ? '已结合本地章节整理和 AI 解析提取人物、场景、剧情事件、人物关系和对白候选。' : '请等待后端任务完成，完成后再进入剧本生成。' }}</p>
       </div>
-      <div class="analysis-progress-meter">
-        <div
-          class="progress-track"
-          role="progressbar"
-          aria-label="AI解析进度"
-          :aria-valuenow="progress"
-          aria-valuemin="0"
-          aria-valuemax="100"
-        >
-          <span :style="{ width: `${progress}%` }"></span>
+      <div class="analysis-progress-side">
+        <div class="analysis-progress-meter">
+          <div
+            class="progress-track"
+            role="progressbar"
+            aria-label="AI解析进度"
+            :aria-valuenow="progress"
+            aria-valuemin="0"
+            aria-valuemax="100"
+          >
+            <span :style="{ width: `${progress}%` }"></span>
+          </div>
+          <strong>{{ progress }}%</strong>
         </div>
-        <strong>{{ progress }}%</strong>
+        <div class="analysis-primary-actions" aria-label="解析主操作">
+          <button class="editor-tool" type="button" @click="$emit('previous')">
+            <svg class="reverse-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
+            </svg>
+            <span>返回导入</span>
+          </button>
+          <button class="editor-tool" type="button" @click="$emit('rerun')">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path v-for="path in iconPaths.refresh" :key="path" :d="path" />
+            </svg>
+            <span>重新解析</span>
+          </button>
+          <button class="editor-tool is-primary" type="button" :disabled="!isComplete" @click="$emit('next')">
+            <span>生成剧本</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
+            </svg>
+          </button>
+        </div>
       </div>
     </section>
 
@@ -156,7 +178,7 @@ const isComplete = computed(() => props.progress >= 100)
         <svg class="reverse-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
         </svg>
-        <span>上一步：小说导入</span>
+        <span>返回导入</span>
       </button>
       <div class="analysis-action-group">
         <button class="editor-tool" type="button" @click="$emit('rerun')">
@@ -166,7 +188,7 @@ const isComplete = computed(() => props.progress >= 100)
           <span>重新解析</span>
         </button>
         <button class="editor-tool is-primary" type="button" :disabled="!isComplete" @click="$emit('next')">
-          <span>下一步：生成剧本</span>
+          <span>生成剧本</span>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
           </svg>

@@ -22,45 +22,51 @@ defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-sc
           <span v-if="saveStatus" :class="{ 'is-error': saveStatus === '保存失败' }">{{ saveStatus }}</span>
         </div>
         <div class="editor-actions" aria-label="剧本操作">
-          <button class="editor-tool" type="button" :disabled="isGenerating" @click="$emit('previous')">
-            <svg class="reverse-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
-            </svg>
-            <span>上一步：AI解析</span>
-          </button>
-          <button class="editor-tool" type="button" @click="$emit('open-schema')">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path v-for="path in iconPaths.help" :key="path" :d="path" />
-            </svg>
-            <span>查看 Schema 文档</span>
-          </button>
-          <button class="editor-tool is-safe" type="button" :disabled="isGenerating" @click="$emit('validate-yaml')">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path v-for="path in iconPaths.shield" :key="path" :d="path" />
-            </svg>
-            <span>校验格式</span>
-          </button>
-          <button class="editor-tool" type="button" :disabled="isGenerating" @click="$emit('copy-yaml')">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path v-for="path in iconPaths.copy" :key="path" :d="path" />
-            </svg>
-            <span>复制 YAML</span>
-          </button>
-          <button class="editor-tool" type="button" :disabled="isGenerating" @click="$emit('download-yaml')">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path v-for="path in iconPaths.download" :key="path" :d="path" />
-            </svg>
-            <span>下载 YAML</span>
-          </button>
-          <button class="editor-tool is-primary" type="button" :disabled="isGenerating" @click="$emit('open-preview')">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path v-for="path in iconPaths.eye" :key="path" :d="path" />
-            </svg>
-            <span>打开完整预览</span>
-            <svg class="button-chevron" viewBox="0 0 24 24" aria-hidden="true">
-              <path v-for="path in iconPaths.chevron" :key="path" :d="path" />
-            </svg>
-          </button>
+          <div class="editor-action-group">
+            <span>流程</span>
+            <button class="editor-tool" type="button" :disabled="isGenerating" @click="$emit('previous')">
+              <svg class="reverse-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
+              </svg>
+              <span>AI解析</span>
+            </button>
+            <button class="editor-tool is-primary" type="button" :disabled="isGenerating" @click="$emit('open-preview')">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path v-for="path in iconPaths.eye" :key="path" :d="path" />
+              </svg>
+              <span>完整预览</span>
+            </button>
+          </div>
+          <div class="editor-action-group">
+            <span>结构</span>
+            <button class="editor-tool" type="button" @click="$emit('open-schema')">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path v-for="path in iconPaths.help" :key="path" :d="path" />
+              </svg>
+              <span>Schema</span>
+            </button>
+            <button class="editor-tool is-safe" type="button" :disabled="isGenerating" @click="$emit('validate-yaml')">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path v-for="path in iconPaths.shield" :key="path" :d="path" />
+              </svg>
+              <span>校验</span>
+            </button>
+          </div>
+          <div class="editor-action-group">
+            <span>导出</span>
+            <button class="editor-tool" type="button" :disabled="isGenerating" @click="$emit('copy-yaml')">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path v-for="path in iconPaths.copy" :key="path" :d="path" />
+              </svg>
+              <span>复制</span>
+            </button>
+            <button class="editor-tool" type="button" :disabled="isGenerating" @click="$emit('download-yaml')">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path v-for="path in iconPaths.download" :key="path" :d="path" />
+              </svg>
+              <span>下载</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -68,11 +74,6 @@ defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-sc
         <aside class="structure-pane" aria-label="剧本结构">
           <div class="structure-heading">
             <h3>剧本结构</h3>
-            <button class="icon-button" type="button" aria-label="更多结构操作">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path v-for="path in iconPaths.more" :key="path" :d="path" />
-              </svg>
-            </button>
           </div>
 
           <ul class="chapter-tree">
@@ -102,11 +103,6 @@ defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-sc
         </aside>
 
         <div class="code-pane" aria-label="YAML 剧本文档">
-          <button class="code-more" type="button" aria-label="更多编辑器操作">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path v-for="path in iconPaths.more" :key="path" :d="path" />
-            </svg>
-          </button>
           <pre><code><span v-for="(line, index) in yamlLines" :key="index" class="code-line"><span class="line-number">{{ index + 1 }}</span><span class="line-content"><template v-for="(token, tokenIndex) in line" :key="`${index}-${tokenIndex}`"><span :class="`yaml-${token.tone}`">{{ token.text }}</span></template></span></span></code></pre>
         </div>
 
@@ -154,7 +150,7 @@ defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-sc
     <section class="preview-panel" aria-labelledby="preview-title">
       <div class="preview-header">
         <h2 id="preview-title">剧本预览</h2>
-        <button class="preview-toggle" type="button">
+        <button class="preview-toggle" type="button" :disabled="isGenerating" @click="$emit('open-preview')">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path v-for="path in iconPaths.format" :key="path" :d="path" />
           </svg>
@@ -186,15 +182,11 @@ defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-sc
           </article>
         </div>
 
-        <div class="subway-visual" aria-label="地铁站场景示意图" role="img">
-          <span class="station-light"></span>
-          <span class="train-body"></span>
-          <span class="train-window window-one"></span>
-          <span class="train-window window-two"></span>
-          <span class="platform-line"></span>
-          <span class="commuter commuter-one"></span>
-          <span class="commuter commuter-two"></span>
-          <span class="commuter commuter-three"></span>
+        <div v-if="previewScene" class="scene-facts" aria-label="场景要素">
+          <span v-for="character in previewScene.characters" :key="character">{{ character }}</span>
+        </div>
+        <div v-else class="scene-facts" aria-label="场景要素">
+          <span>等待 YAML</span>
         </div>
       </div>
     </section>

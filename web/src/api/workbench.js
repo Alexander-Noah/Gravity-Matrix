@@ -145,3 +145,8 @@ export const getScriptsLibrary = async () => {
   const response = await http.get('/scripts/library')
   return response.data
 }
+
+export const importLibrarySource = async (sourceId) => {
+  const response = await http.post(`/scripts/library/sources/${sourceId}/import`)
+  return response.data
+}

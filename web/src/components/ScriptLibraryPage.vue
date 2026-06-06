@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 
 const props = defineProps({
   iconPaths: { type: Object, required: true },
+  isLoaded: { type: Boolean, default: false },
+  isLoading: { type: Boolean, default: false },
   notice: { type: String, default: '' },
   scripts: { type: Array, required: true },
   stats: { type: Array, required: true },
@@ -40,6 +42,20 @@ const resetFilters = () => {
   selectedType.value = '全部'
   selectedStatus.value = '全部'
 }
+
+const hasActiveFilters = computed(() =>
+  searchKeyword.value.trim() || selectedType.value !== '全部' || selectedStatus.value !== '全部',
+)
+const emptyTitle = computed(() => {
+  if (props.isLoading && !props.isLoaded) return '正在读取真实剧本库'
+  if (hasActiveFilters.value) return '没有找到匹配条目'
+  return '暂无真实剧本或素材'
+})
+const emptyDescription = computed(() => {
+  if (props.isLoading && !props.isLoaded) return '正在从后端同步剧本、生成结果和本地小说素材，请稍候。'
+  if (hasActiveFilters.value) return '可以换一个关键词，或清空筛选后查看全部剧本。'
+  return '后端当前没有可展示条目。生成剧本后会出现在这里，本地素材库可由后端扫描 test_novels_by_book 提供。'
+})
 
 const openExport = (script) => {
   exportTarget.value = script
@@ -108,7 +124,7 @@ const handleMoreAction = (script, action) => {
     </section>
 
     <div class="library-result-row">
-      <span>当前显示 {{ filteredScripts.length }} 个剧本</span>
+      <span>{{ isLoading ? '正在同步剧本库...' : `当前显示 ${filteredScripts.length} 个条目` }}</span>
       <p v-if="notice" class="inline-note">{{ notice }}</p>
       <p v-if="actionNotice">{{ actionNotice }}</p>
       <button
@@ -133,6 +149,7 @@ const handleMoreAction = (script, action) => {
             <span>{{ script.type }}</span>
             <h2>{{ script.title }}</h2>
             <p>来源小说：{{ script.sourceNovel }}</p>
+            <p v-if="script.summary" class="library-summary">{{ script.summary }}</p>
           </div>
         </div>
 
@@ -166,10 +183,16 @@ const handleMoreAction = (script, action) => {
         </div>
 
         <div class="library-actions">
-          <button class="editor-tool is-primary" type="button" @click="emit('edit-script', script)">继续编辑</button>
-          <button class="editor-tool" type="button" @click="emit('preview-script', script)">预览</button>
-          <button class="editor-tool" type="button" @click="openExport(script)">导出</button>
-          <div class="library-more">
+          <button
+            class="editor-tool is-primary"
+            type="button"
+            @click="emit('edit-script', script)"
+          >
+            {{ script.source_type === 'source_novel' ? '导入工作台' : '继续编辑' }}
+          </button>
+          <button v-if="script.source_type !== 'source_novel'" class="editor-tool" type="button" @click="emit('preview-script', script)">预览</button>
+          <button v-if="script.source_type !== 'source_novel'" class="editor-tool" type="button" @click="openExport(script)">导出</button>
+          <div v-if="script.source_type !== 'source_novel'" class="library-more">
             <button class="editor-tool" type="button" @click="toggleMore(script.id)">更多</button>
             <div v-if="activeMoreId === script.id" class="library-more-menu">
               <button type="button" @click="handleMoreAction(script, '重命名')">重命名</button>
@@ -180,10 +203,10 @@ const handleMoreAction = (script, action) => {
         </div>
       </article>
 
-      <div v-if="filteredScripts.length === 0" class="library-empty-state">
-        <strong>没有找到匹配剧本</strong>
-        <p>可以换一个关键词，或清空筛选后查看全部剧本。</p>
-        <button class="editor-tool is-primary" type="button" @click="resetFilters">清空筛选</button>
+      <div v-if="filteredScripts.length === 0" class="library-empty-state" :class="{ 'is-loading': isLoading }">
+        <strong>{{ emptyTitle }}</strong>
+        <p>{{ emptyDescription }}</p>
+        <button v-if="hasActiveFilters" class="editor-tool is-primary" type="button" @click="resetFilters">清空筛选</button>
       </div>
     </section>
 

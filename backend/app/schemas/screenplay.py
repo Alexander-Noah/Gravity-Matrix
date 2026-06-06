@@ -7,6 +7,9 @@ class ScriptMetadata(BaseModel):
     author: str | None = None
     language: str = "zh-CN"
     target_format: str = "screenplay"
+    template_id: str | None = None
+    script_type: str | None = None
+    adaptation_style: str | None = None
     total_chapters: int = Field(ge=3)
 
 
@@ -55,6 +58,7 @@ class AdaptationNotes(BaseModel):
     themes: list[str] = Field(default_factory=list)
     conflicts: list[str] = Field(default_factory=list)
     omissions: list[str] = Field(default_factory=list)
+    template_rules: list[str] = Field(default_factory=list)
 
 
 class ScriptBody(BaseModel):

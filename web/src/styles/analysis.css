@@ -1,7 +1,7 @@
 .analysis-workspace {
   display: grid;
-  gap: 18px;
-  max-width: 1280px;
+  gap: 16px;
+  max-width: 1360px;
   margin: 0 auto;
 }
 
@@ -50,6 +50,19 @@
   gap: 14px;
 }
 
+.analysis-progress-side {
+  display: grid;
+  gap: 14px;
+  align-content: center;
+}
+
+.analysis-primary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .analysis-progress-meter .progress-track span {
   transition: width 220ms ease;
 }
@@ -69,7 +82,7 @@
 .analysis-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 18px;
+  gap: 16px;
 }
 
 .entity-list,
@@ -88,7 +101,7 @@
   padding: 13px 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--surface);
+  background: var(--surface-raised);
 }
 
 .entity-list strong,
@@ -186,7 +199,7 @@
   gap: 7px;
   padding: 15px;
   border-radius: 8px;
-  background: var(--surface-muted);
+  background: var(--surface-raised);
 }
 
 .dialogue-extract-grid span,
@@ -211,10 +224,20 @@
 }
 
 .analysis-actions {
+  position: sticky;
+  right: 0;
+  bottom: 18px;
+  z-index: 5;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: oklch(99.4% 0.002 235 / 0.94);
+  box-shadow: var(--shadow-panel);
+  backdrop-filter: blur(10px);
 }
 
 .analysis-action-group {

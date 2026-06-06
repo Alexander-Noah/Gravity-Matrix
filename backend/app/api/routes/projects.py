@@ -33,7 +33,12 @@ from app.schemas.project import (
     ScriptValidateResponse,
     TemplateRead,
 )
-from app.services.frontend_data import build_projects_dashboard, build_scripts_library, preview_import_text
+from app.services.frontend_data import (
+    build_projects_dashboard,
+    build_scripts_library,
+    get_novel_source_project_payload,
+    preview_import_text,
+)
 from app.services.jobs import cancel_active_jobs, create_job, get_active_job, run_analysis_job, run_script_generation_job
 from app.services.script_diagnosis import diagnose_screenplay_yaml
 from app.services.screenplay_yaml import validate_screenplay_yaml
@@ -50,6 +55,8 @@ def list_templates() -> list[TemplateRead]:
             id="tv-drama",
             name="影视剧剧本模板",
             scenario="适合长篇小说改编为电视剧、网剧或电影分场剧本。",
+            target_format="screenplay",
+            backend_rules=["按章节组织场景", "突出人物动作和对白", "每场保留可拍摄的地点、时间和调度"],
             features=["按章节拆分场景", "保留人物动机与动作描写", "适配标准场景标题"],
             fields=["script", "metadata", "characters", "locations", "chapters", "scenes", "dialogue"],
             yamlExample=[
@@ -73,6 +80,8 @@ def list_templates() -> list[TemplateRead]:
             id="short-drama",
             name="短剧剧本模板",
             scenario="适合高节奏短剧、竖屏剧和强钩子内容生成。",
+            target_format="short_drama",
+            backend_rules=["开场三秒给出冲突", "每章场景要有反转或钩子", "对白更短更直接"],
             features=["强化开场冲突", "突出反转节点", "每集保留结尾钩子"],
             fields=["script", "metadata", "chapters", "scenes", "synopsis", "dialogue"],
             yamlExample=[
@@ -90,6 +99,8 @@ def list_templates() -> list[TemplateRead]:
             id="stage-play",
             name="话剧剧本模板",
             scenario="适合将小说改编为舞台表演文本和排练稿。",
+            target_format="stage_play",
+            backend_rules=["强化舞台调度和入退场", "减少不可舞台化的镜头描写", "对白承载更多心理变化"],
             features=["强调舞台调度", "保留幕与场结构", "补充人物入场退场"],
             fields=["script", "chapters", "scenes", "stage_directions", "dialogue"],
             yamlExample=[
@@ -108,6 +119,8 @@ def list_templates() -> list[TemplateRead]:
             id="storyboard",
             name="分镜剧本模板",
             scenario="适合短视频、广告片、动画和导演分镜草案。",
+            target_format="storyboard",
+            backend_rules=["场景标题尽量镜头化", "stage_directions 写景别、运动和画面重点", "对白服务镜头节奏"],
             features=["拆分镜号", "补充景别与机位", "保留镜头意图"],
             fields=["script", "chapters", "scenes", "stage_directions", "dialogue"],
             yamlExample=[
@@ -120,6 +133,29 @@ def list_templates() -> list[TemplateRead]:
                 "        - title: 镜头 1",
                 "          stage_directions:",
                 "            - 全景展示地点与人物关系。",
+            ],
+        ),
+        TemplateRead(
+            id="audio-drama",
+            name="广播剧剧本模板",
+            scenario="适合有声剧、广播剧和多人配音脚本。",
+            target_format="audio_drama",
+            backend_rules=["用声音和环境音建立空间", "stage_directions 强调音效", "对白需要清晰区分人物身份"],
+            features=["补充环境音", "强化对白辨识度", "减少视觉依赖"],
+            fields=["script", "metadata", "chapters", "scenes", "stage_directions", "dialogue"],
+            yamlExample=[
+                "script:",
+                "  metadata:",
+                "    target_format: audio_drama",
+                "  chapters:",
+                "    - title: 第一集",
+                "      scenes:",
+                "        - title: 夜雨来信",
+                "          stage_directions:",
+                "            - SFX: 雨声渐强，纸张展开。",
+                "          dialogue:",
+                "            - speaker_name: 人物名",
+                "              line: 这封信，终于到了。",
             ],
         ),
     ]
@@ -199,6 +235,31 @@ def get_scripts_library(db: Session = Depends(get_db)) -> ScriptLibraryRead:
     return ScriptLibraryRead.model_validate(build_scripts_library(db))
 
 
+@router.post("/scripts/library/sources/{source_id}/import", response_model=ProjectRead, status_code=201)
+def import_source_novel(source_id: str, db: Session = Depends(get_db)) -> ProjectRead:
+    payload = get_novel_source_project_payload(source_id)
+    if payload is None:
+        raise HTTPException(status_code=404, detail="素材小说不存在或无法读取。")
+
+    project = Project(title=payload["title"], author=payload["author"])
+    db.add(project)
+    db.flush()
+
+    for index, chapter_payload in enumerate(payload["chapters"], start=1):
+        db.add(
+            Chapter(
+                project_id=project.id,
+                number=index,
+                title=chapter_payload["title"],
+                content=chapter_payload["content"],
+            )
+        )
+
+    db.commit()
+    db.refresh(project)
+    return _project_to_read(project)
+
+
 @router.get("/projects/{project_id}", response_model=ProjectDetail)
 def get_project(project_id: int, db: Session = Depends(get_db)) -> ProjectDetail:
     project = _require_project(db, project_id)
@@ -235,6 +296,7 @@ def clone_project(project_id: int, db: Session = Depends(get_db)) -> ProjectRead
         status=source.status,
         analysis_json=source.analysis_json,
         script_yaml=source.script_yaml,
+        generation_settings_json=source.generation_settings_json,
     )
     db.add(cloned)
     db.flush()
@@ -353,7 +415,9 @@ def update_generation_settings(
     payload: GenerationSettingsRequest,
     db: Session = Depends(get_db),
 ) -> GenerationSettingsResponse:
-    _require_project(db, project_id)
+    project = _require_project(db, project_id)
+    project.generation_settings_json = json.dumps(payload.model_dump(), ensure_ascii=False)
+    db.commit()
     return GenerationSettingsResponse(project_id=project_id, accepted=True, settings=payload)
 
 

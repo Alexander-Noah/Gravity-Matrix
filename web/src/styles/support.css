@@ -13,10 +13,10 @@
 
 .work-card {
   border: 1px solid var(--border);
-  border-radius: 10px;
-  background: oklch(99% 0.004 275 / 0.94);
-  box-shadow: 0 14px 34px oklch(36% 0.06 275 / 0.07);
-  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: none;
 }
 
 .progress-card {
@@ -48,8 +48,8 @@
   width: 30px;
   height: 30px;
   padding: 6px;
-  border-radius: 8px;
-  color: var(--primary);
+  border-radius: 7px;
+  color: var(--primary-strong);
   background: var(--primary-faint);
 }
 
@@ -277,16 +277,16 @@
 }
 
 .metric-tile.tone-violet {
-  background: oklch(96% 0.025 300);
+  background: var(--surface-muted);
 }
 
 .metric-tile.tone-violet .metric-icon {
-  color: var(--primary);
-  background: oklch(91% 0.055 300);
+  color: var(--primary-strong);
+  background: oklch(91% 0.02 238);
 }
 
 .metric-tile.tone-blue {
-  background: oklch(96% 0.024 240);
+  background: var(--primary-faint);
 }
 
 .metric-tile.tone-blue .metric-icon {
@@ -295,7 +295,7 @@
 }
 
 .metric-tile.tone-mint {
-  background: oklch(96% 0.024 165);
+  background: var(--accent-soft);
 }
 
 .metric-tile.tone-mint .metric-icon {
@@ -304,7 +304,7 @@
 }
 
 .metric-tile.tone-orange {
-  background: oklch(96% 0.026 55);
+  background: var(--warning-soft);
 }
 
 .metric-tile.tone-orange .metric-icon {
