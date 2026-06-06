@@ -88,7 +88,10 @@
 - **Docx 等文件上传**：当前无后端接口，前端只应允许上传 TXT 或直接粘贴，随后转字符串喂给 `POST /import/preview`。
 
 ### 4.3 基础模板数据获取
-- `GET /templates`：获取可用剧本模板（当前前端退化为本地默认变量）。
+- `GET /templates`：获取可用剧本模板，支持 `q` 关键词和 `target_format` 格式筛选。
+- `GET /templates/{template_id}`：获取单个模板详情和 YAML 示例。
+- `GET /templates/default`：获取当前默认生成模板。
+- `PUT /templates/default`：保存当前默认生成模板，请求体为 `{ "templateId": "short-drama" }`。
 
 ### 4.4 项目管理二次操作
 - `DELETE /projects/{id}`：将项目移动到回收站，常规列表、详情、工作台和生成接口不再返回该项目。

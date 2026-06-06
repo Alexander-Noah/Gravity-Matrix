@@ -101,6 +101,10 @@ pytest
 - `GET /api/v1/projects/recycle-bin`：获取回收站项目列表。
 - `POST /api/v1/projects/{project_id}/restore`：从回收站恢复项目。
 - `DELETE /api/v1/projects/recycle-bin`：清空回收站并永久删除项目。
+- `GET /api/v1/templates`：获取剧本生成模板，支持关键词和目标格式筛选。
+- `GET /api/v1/templates/{template_id}`：获取单个模板详情。
+- `GET /api/v1/templates/default`：获取当前默认模板。
+- `PUT /api/v1/templates/default`：保存当前默认模板。
 - `GET /api/v1/projects/{project_id}/readiness`：获取项目下一步操作和可用能力。
 - `POST /api/v1/projects/{project_id}/analysis-jobs`：启动 AI 解析任务。
 - `GET /api/v1/projects/{project_id}/analysis`：获取 AI 解析结果。

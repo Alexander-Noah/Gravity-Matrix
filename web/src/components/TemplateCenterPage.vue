@@ -7,13 +7,60 @@ const props = defineProps({
   templates: { type: Array, required: true },
 })
 
-const emit = defineEmits(['select-template'])
+const emit = defineEmits(['select-template', 'use-template'])
 
 const previewTemplate = ref(null)
+const searchKeyword = ref('')
+const selectedFormat = ref('全部')
 
 const selectedTemplate = computed(() =>
   props.templates.find((template) => template.id === props.selectedTemplateId),
 )
+
+const templateFormats = computed(() => {
+  const formats = props.templates.map((template) => template.target_format || template.id).filter(Boolean)
+  return ['全部', ...Array.from(new Set(formats))]
+})
+
+const filteredTemplates = computed(() => {
+  const keyword = searchKeyword.value.trim().toLowerCase()
+  return props.templates.filter((template) => {
+    const format = template.target_format || template.id
+    const matchesFormat = selectedFormat.value === '全部' || format === selectedFormat.value
+    if (!matchesFormat) return false
+
+    if (!keyword) return true
+    const haystack = [
+      template.name,
+      template.scenario,
+      template.target_format,
+      ...(template.features || []),
+      ...(template.fields || []),
+      ...(template.backend_rules || []),
+    ].join(' ').toLowerCase()
+    return haystack.includes(keyword)
+  })
+})
+
+const selectedTemplateSummary = computed(() => {
+  if (!selectedTemplate.value) {
+    return {
+      name: '尚未选择',
+      description: '选择一个模板后，后端生成设置会保存模板并应用对应结构规则。',
+      format: '未设置',
+      featureCount: 0,
+      fieldCount: 0,
+    }
+  }
+
+  return {
+    name: selectedTemplate.value.name,
+    description: selectedTemplate.value.scenario,
+    format: selectedTemplate.value.target_format || selectedTemplate.value.id,
+    featureCount: selectedTemplate.value.features?.length || 0,
+    fieldCount: selectedTemplate.value.fields?.length || 0,
+  }
+})
 
 const openPreview = (template) => {
   previewTemplate.value = template
@@ -21,6 +68,11 @@ const openPreview = (template) => {
 
 const closePreview = () => {
   previewTemplate.value = null
+}
+
+const resetFilters = () => {
+  searchKeyword.value = ''
+  selectedFormat.value = '全部'
 }
 </script>
 
@@ -36,15 +88,40 @@ const closePreview = () => {
       </div>
       <div class="template-selected-panel">
         <span>当前默认模板</span>
-        <strong>{{ selectedTemplate?.name || '尚未选择' }}</strong>
-        <small>{{ selectedTemplate?.scenario || '选择一个模板后，后端生成设置会保存模板并应用对应结构规则。' }}</small>
-        <code v-if="selectedTemplate?.target_format">target_format: {{ selectedTemplate.target_format }}</code>
+        <strong>{{ selectedTemplateSummary.name }}</strong>
+        <small>{{ selectedTemplateSummary.description }}</small>
+        <div class="template-selected-meta">
+          <code>target_format: {{ selectedTemplateSummary.format }}</code>
+          <span>{{ selectedTemplateSummary.featureCount }} 个生成特点</span>
+          <span>{{ selectedTemplateSummary.fieldCount }} 个字段</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="template-toolbar" aria-label="模板筛选">
+      <label class="template-search">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path v-for="path in iconPaths.eye" :key="path" :d="path" />
+        </svg>
+        <input v-model="searchKeyword" type="search" placeholder="搜索模板名称、字段、规则或适用场景" />
+      </label>
+
+      <div class="template-format-tabs" role="tablist" aria-label="模板格式">
+        <button
+          v-for="format in templateFormats"
+          :key="format"
+          type="button"
+          :class="{ 'is-active': selectedFormat === format }"
+          @click="selectedFormat = format"
+        >
+          {{ format }}
+        </button>
       </div>
     </section>
 
     <section class="template-grid" aria-label="剧本生成模板列表">
       <article
-        v-for="template in templates"
+        v-for="template in filteredTemplates"
         :key="template.id"
         class="template-card"
         :class="{ 'is-selected': selectedTemplateId === template.id }"
@@ -64,6 +141,11 @@ const closePreview = () => {
         <div class="template-section">
           <h3>适用场景</h3>
           <p>{{ template.scenario }}</p>
+        </div>
+
+        <div class="template-format-row">
+          <code>target_format: {{ template.target_format || template.id }}</code>
+          <span>{{ template.fields?.length || 0 }} fields</span>
         </div>
 
         <div class="template-section">
@@ -89,11 +171,20 @@ const closePreview = () => {
 
         <div class="template-card-actions">
           <button class="editor-tool" type="button" @click="openPreview(template)">预览 Schema</button>
-          <button class="editor-tool is-primary" type="button" @click="emit('select-template', template.id)">
-            设为生成模板
+          <button class="editor-tool" type="button" @click="emit('select-template', template.id)">
+            设为默认
+          </button>
+          <button class="editor-tool is-primary" type="button" @click="emit('use-template', template.id)">
+            使用并返回工作台
           </button>
         </div>
       </article>
+
+      <div v-if="filteredTemplates.length === 0" class="template-empty-state">
+        <strong>没有匹配的模板</strong>
+        <p>换一个关键词或清空格式筛选后再试。</p>
+        <button class="editor-tool is-primary" type="button" @click="resetFilters">清空筛选</button>
+      </div>
     </section>
 
     <Teleport to="body">
@@ -117,8 +208,11 @@ const closePreview = () => {
 
           <footer class="dialog-actions">
             <button class="editor-tool" type="button" @click="closePreview">关闭</button>
-            <button class="editor-tool is-primary" type="button" @click="emit('select-template', previewTemplate.id); closePreview()">
-              设为生成模板
+            <button class="editor-tool" type="button" @click="emit('select-template', previewTemplate.id); closePreview()">
+              设为默认
+            </button>
+            <button class="editor-tool is-primary" type="button" @click="emit('use-template', previewTemplate.id); closePreview()">
+              使用并返回工作台
             </button>
           </footer>
         </section>

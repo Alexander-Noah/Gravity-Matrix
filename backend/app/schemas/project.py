@@ -204,6 +204,15 @@ class TemplateRead(BaseModel):
     yamlExample: list[str]
 
 
+class TemplateDefaultRequest(BaseModel):
+    templateId: str = Field(min_length=1, max_length=80)
+
+
+class TemplateDefaultResponse(BaseModel):
+    templateId: str
+    template: TemplateRead
+
+
 class GenerationSettingsRequest(BaseModel):
     templateId: str | None = Field(default=None, max_length=80)
     scriptType: str | None = None

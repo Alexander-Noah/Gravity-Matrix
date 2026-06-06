@@ -155,6 +155,31 @@ def test_templates_endpoint_matches_latest_web_shape() -> None:
     assert templates[0]["yamlExample"]
 
 
+def test_template_center_backend_supports_filter_detail_and_default_template() -> None:
+    client = TestClient(app)
+
+    filtered_response = client.get("/api/v1/templates", params={"q": "短剧", "target_format": "short_drama"})
+    assert filtered_response.status_code == 200
+    assert [template["id"] for template in filtered_response.json()] == ["short-drama"]
+
+    detail_response = client.get("/api/v1/templates/short-drama")
+    assert detail_response.status_code == 200
+    assert detail_response.json()["target_format"] == "short_drama"
+
+    default_response = client.get("/api/v1/templates/default")
+    assert default_response.status_code == 200
+    assert default_response.json()["templateId"] == "tv-drama"
+
+    update_response = client.put("/api/v1/templates/default", json={"templateId": "short-drama"})
+    assert update_response.status_code == 200
+    assert update_response.json()["template"]["id"] == "short-drama"
+    assert client.get("/api/v1/templates/default").json()["templateId"] == "short-drama"
+
+    invalid_response = client.put("/api/v1/templates/default", json={"templateId": "missing-template"})
+    assert invalid_response.status_code == 404
+    assert "模板不存在" in invalid_response.text
+
+
 def test_list_projects_returns_recent_projects_with_pagination() -> None:
     client = TestClient(app)
 
@@ -892,7 +917,7 @@ def test_templates_route_returns_generation_templates() -> None:
 
     assert response.status_code == 200
     templates = response.json()
-    assert {template["id"] for template in templates} >= {"film", "short-drama", "stage-play"}
+    assert {template["id"] for template in templates} >= {"tv-drama", "short-drama", "stage-play"}
     assert templates[0]["yamlExample"]
 
 

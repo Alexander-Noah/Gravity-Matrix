@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.session import get_db
-from app.models.project import Chapter, Job, JobType, Project
+from app.models.project import AppSetting, Chapter, Job, JobType, Project
 from app.schemas.project import (
     AnalysisRead,
     GenerationSettingsRequest,
@@ -35,6 +35,8 @@ from app.schemas.project import (
     ScriptRead,
     ScriptValidateRequest,
     ScriptValidateResponse,
+    TemplateDefaultRequest,
+    TemplateDefaultResponse,
     TemplateRead,
 )
 from app.services.frontend_data import (
@@ -51,11 +53,11 @@ import yaml
 
 router = APIRouter(tags=["projects"])
 
+DEFAULT_TEMPLATE_KEY = "default_template_id"
+FALLBACK_TEMPLATE_ID = "tv-drama"
 
-@router.get("/templates", response_model=list[TemplateRead])
-def list_templates() -> list[TemplateRead]:
-    return [
-        TemplateRead(
+SCRIPT_TEMPLATES = [
+    TemplateRead(
             id="tv-drama",
             name="影视剧剧本模板",
             scenario="适合长篇小说改编为电视剧、网剧或电影分场剧本。",
@@ -80,7 +82,7 @@ def list_templates() -> list[TemplateRead]:
                 "              line: 对白内容",
             ],
         ),
-        TemplateRead(
+    TemplateRead(
             id="short-drama",
             name="短剧剧本模板",
             scenario="适合高节奏短剧、竖屏剧和强钩子内容生成。",
@@ -99,7 +101,7 @@ def list_templates() -> list[TemplateRead]:
                 "          synopsis: 主角被迫当众证明自己",
             ],
         ),
-        TemplateRead(
+    TemplateRead(
             id="stage-play",
             name="话剧剧本模板",
             scenario="适合将小说改编为舞台表演文本和排练稿。",
@@ -119,7 +121,7 @@ def list_templates() -> list[TemplateRead]:
                 "            - 灯光渐亮，人物入场。",
             ],
         ),
-        TemplateRead(
+    TemplateRead(
             id="storyboard",
             name="分镜剧本模板",
             scenario="适合短视频、广告片、动画和导演分镜草案。",
@@ -139,7 +141,7 @@ def list_templates() -> list[TemplateRead]:
                 "            - 全景展示地点与人物关系。",
             ],
         ),
-        TemplateRead(
+    TemplateRead(
             id="audio-drama",
             name="广播剧剧本模板",
             scenario="适合有声剧、广播剧和多人配音脚本。",
@@ -162,7 +164,65 @@ def list_templates() -> list[TemplateRead]:
                 "              line: 这封信，终于到了。",
             ],
         ),
-    ]
+]
+
+
+@router.get("/templates", response_model=list[TemplateRead])
+def list_templates(
+    q: str | None = Query(default=None, max_length=80),
+    target_format: str | None = Query(default=None, max_length=80),
+) -> list[TemplateRead]:
+    templates = SCRIPT_TEMPLATES
+    if target_format:
+        templates = [template for template in templates if template.target_format == target_format]
+
+    keyword = q.strip().lower() if q else ""
+    if keyword:
+        templates = [
+            template
+            for template in templates
+            if keyword
+            in " ".join(
+                [
+                    template.id,
+                    template.name,
+                    template.scenario,
+                    template.target_format,
+                    *template.backend_rules,
+                    *template.features,
+                    *template.fields,
+                ]
+            ).lower()
+        ]
+
+    return templates
+
+
+@router.get("/templates/default", response_model=TemplateDefaultResponse)
+def get_default_template(db: Session = Depends(get_db)) -> TemplateDefaultResponse:
+    template_id = _get_default_template_id(db)
+    template = _require_template(template_id)
+    return TemplateDefaultResponse(templateId=template.id, template=template)
+
+
+@router.put("/templates/default", response_model=TemplateDefaultResponse)
+def update_default_template(
+    payload: TemplateDefaultRequest,
+    db: Session = Depends(get_db),
+) -> TemplateDefaultResponse:
+    template = _require_template(payload.templateId)
+    setting = db.get(AppSetting, DEFAULT_TEMPLATE_KEY)
+    if setting is None:
+        db.add(AppSetting(key=DEFAULT_TEMPLATE_KEY, value=template.id))
+    else:
+        setting.value = template.id
+    db.commit()
+    return TemplateDefaultResponse(templateId=template.id, template=template)
+
+
+@router.get("/templates/{template_id}", response_model=TemplateRead)
+def get_template(template_id: str) -> TemplateRead:
+    return _require_template(template_id)
 
 
 @router.post("/import/preview", response_model=ImportPreviewResponse)
@@ -457,6 +517,8 @@ def update_generation_settings(
     db: Session = Depends(get_db),
 ) -> GenerationSettingsResponse:
     project = _require_project(db, project_id)
+    if payload.templateId is not None:
+        _require_template(payload.templateId)
     project.generation_settings_json = json.dumps(payload.model_dump(), ensure_ascii=False)
     db.commit()
     return GenerationSettingsResponse(project_id=project_id, accepted=True, settings=payload)
@@ -608,6 +670,24 @@ def _project_to_read(project: Project) -> ProjectRead:
         created_at=project.created_at,
         updated_at=project.updated_at,
     )
+
+
+def _require_template(template_id: str) -> TemplateRead:
+    template = next((item for item in SCRIPT_TEMPLATES if item.id == template_id), None)
+    if template is None:
+        raise HTTPException(status_code=404, detail="模板不存在。")
+    return template
+
+
+def _get_default_template_id(db: Session) -> str:
+    setting = db.get(AppSetting, DEFAULT_TEMPLATE_KEY)
+    if setting is None:
+        return FALLBACK_TEMPLATE_ID
+
+    if any(template.id == setting.value for template in SCRIPT_TEMPLATES):
+        return setting.value
+
+    return FALLBACK_TEMPLATE_ID
 
 
 def _project_to_recycle_read(project: Project) -> RecycleBinProjectRead:

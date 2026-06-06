@@ -127,14 +127,14 @@ export const projectActivities = [
 
 export const scriptGenerationTemplates = [
   {
-    id: 'film',
+    id: 'tv-drama',
     name: '影视剧剧本模板',
     scenario: '适合长篇小说改编为电视剧、网剧或电影分场剧本。',
     features: ['按章节拆分场景', '保留人物动机与动作描写', '适配标准场景标题'],
     fields: ['script', 'characters', 'chapters', 'scenes', 'dialogues'],
     yamlExample: [
       'script:',
-      '  template: film_drama',
+      '  template: tv_drama',
       '  format: 影视剧',
       '  logline: 主线故事一句话概述',
       'characters:',

@@ -23,12 +23,14 @@ import {
   exportProjectTxt,
   deleteProject,
   getScriptTemplates,
+  getDefaultTemplate,
   updateProject,
   cloneProject,
   previewImport,
   getScriptsLibrary,
   importLibrarySource,
   rerunScriptJob,
+  updateDefaultTemplate,
 } from './api/workbench'
 import AddSceneDialog from './components/AddSceneDialog.vue'
 import AiAnalysisPage from './components/AiAnalysisPage.vue'
@@ -158,8 +160,15 @@ const setCurrentProjectId = (projectId) => {
 
 const fetchTemplates = async () => {
   try {
-    const templates = await getScriptTemplates()
+    const [templates, defaultTemplate] = await Promise.all([
+      getScriptTemplates(),
+      getDefaultTemplate(),
+    ])
     displayedTemplates.value = templates?.length ? templates : mockTemplates
+    if (defaultTemplate?.templateId) {
+      selectedTemplateId.value = defaultTemplate.templateId
+      localStorage.setItem('gravityMatrixSelectedTemplate', defaultTemplate.templateId)
+    }
   } catch (error) {
     console.warn('获取模板失败，使用本地默认模板', error)
   }
@@ -908,13 +917,19 @@ const openProject = async (project) => {
   }
 }
 
-const selectGenerationTemplate = (templateId) => {
+const selectGenerationTemplate = async (templateId) => {
   selectedTemplateId.value = templateId
   localStorage.setItem('gravityMatrixSelectedTemplate', templateId)
-  // Navigate back to workbench if selected from template center
-  if (activeRoute.value.id === 'templates') {
-    router.push('/workbench')
+  try {
+    await updateDefaultTemplate(templateId)
+  } catch (error) {
+    console.warn('保存默认模板失败，已保留本地选择', error)
   }
+}
+
+const useGenerationTemplate = async (templateId) => {
+  await selectGenerationTemplate(templateId)
+  router.push('/workbench')
 }
 
 const defaultGenerationSettings = computed(() => {
@@ -1457,7 +1472,7 @@ const handleFileUpload = async (event) => {
         <section class="workspace-body" aria-label="工作台内容">
         <TemplateCenterPage v-if="activeRoute.id === 'templates'" :icon-paths="iconPaths"
           :selected-template-id="selectedTemplateId" :templates="displayedTemplates"
-          @select-template="selectGenerationTemplate" />
+          @select-template="selectGenerationTemplate" @use-template="useGenerationTemplate" />
 
         <ScriptLibraryPage v-else-if="activeRoute.id === 'library'" :icon-paths="iconPaths"
           :is-loaded="hasLibraryLoaded" :is-loading="isLibraryLoading" :notice="libraryNotice"

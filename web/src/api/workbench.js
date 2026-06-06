@@ -140,6 +140,16 @@ export const getScriptTemplates = async () => {
   return response.data
 }
 
+export const getDefaultTemplate = async () => {
+  const response = await http.get('/templates/default')
+  return response.data
+}
+
+export const updateDefaultTemplate = async (templateId) => {
+  const response = await http.put('/templates/default', { templateId })
+  return response.data
+}
+
 export const updateProject = async (projectId, data) => {
   const response = await http.patch(`/projects/${projectId}`, data)
   return response.data
