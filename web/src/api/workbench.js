@@ -36,6 +36,12 @@ export const getProjectAnalysis = async (projectId) => {
   return response.data
 }
 
+export const getProjectDetail = async (projectId) => {
+  const response = await http.get(`/projects/${projectId}`)
+
+  return response.data
+}
+
 export const getProjectWorkbench = async (projectId) => {
   const response = await http.get(`/projects/${projectId}/workbench`)
 
@@ -62,6 +68,12 @@ export const validateProjectScript = async (projectId, yaml) => {
 
 export const diagnoseProjectScriptDraft = async (projectId, yaml) => {
   const response = await http.post(`/projects/${projectId}/script/diagnosis`, { yaml })
+
+  return response.data
+}
+
+export const getStoredScriptDiagnosis = async (projectId) => {
+  const response = await http.get(`/projects/${projectId}/script/diagnosis`)
 
   return response.data
 }
@@ -94,6 +106,13 @@ export const addProjectScene = async (projectId, sceneData) => {
 export const exportProjectMarkdown = async (projectId) => {
   const response = await http.get(`/projects/${projectId}/script/export/markdown`, {
     responseType: 'blob'
+  })
+  return response.data
+}
+
+export const exportProjectYaml = async (projectId) => {
+  const response = await http.get(`/projects/${projectId}/script/export`, {
+    responseType: 'blob',
   })
   return response.data
 }

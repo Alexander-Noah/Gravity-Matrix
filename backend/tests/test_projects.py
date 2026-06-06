@@ -118,6 +118,49 @@ def test_list_projects_rejects_invalid_pagination() -> None:
     assert invalid_offset.status_code == 422
 
 
+def test_update_project_renames_project() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    response = client.patch(f"/api/v1/projects/{project_id}", json={"title": "新的项目名"})
+
+    assert response.status_code == 200
+    assert response.json()["title"] == "新的项目名"
+
+
+def test_update_project_rejects_blank_name() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    response = client.patch(f"/api/v1/projects/{project_id}", json={"name": "   "})
+
+    assert response.status_code == 422
+    assert "项目名称不能为空" in response.text
+
+
+def test_delete_project_removes_related_data() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+    analysis_response = client.post(f"/api/v1/projects/{project_id}/analysis-jobs")
+    assert analysis_response.status_code == 202
+
+    response = client.delete(f"/api/v1/projects/{project_id}")
+
+    assert response.status_code == 200
+    assert response.json() == {"success": True, "message": "项目已删除。"}
+    assert client.get(f"/api/v1/projects/{project_id}").status_code == 404
+    assert client.get(f"/api/v1/jobs/{analysis_response.json()['id']}").status_code == 404
+
+
 def test_get_analysis_requires_completed_analysis() -> None:
     client = TestClient(app)
 
@@ -193,6 +236,38 @@ def test_start_analysis_job_reuses_active_job(monkeypatch) -> None:
     assert second_response.json()["status"] == "queued"
 
 
+def test_rerun_analysis_job_creates_new_job(monkeypatch) -> None:
+    client = TestClient(app)
+    monkeypatch.setattr(project_routes, "_run_analysis_job_task", lambda job_id: None)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+    first_response = client.post(f"/api/v1/projects/{project_id}/analysis-jobs")
+
+    response = client.post(f"/api/v1/projects/{project_id}/analysis-jobs/rerun")
+
+    assert response.status_code == 202
+    assert response.json()["id"] == response.json()["job_id"]
+    assert response.json()["job_id"] != first_response.json()["id"]
+    assert response.json()["status"] == "queued"
+    assert response.json()["message"] == "重新解析任务已启动。"
+
+
+def test_save_generation_settings_returns_saved_payload() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+    settings = {"scriptType": "短剧", "contentOptions": ["保留对白", "强化冲突"]}
+
+    response = client.post(f"/api/v1/projects/{project_id}/generation-settings", json=settings)
+
+    assert response.status_code == 200
+    assert response.json() == {"project_id": project_id, "settings": settings}
+
+
 def test_create_project_and_generate_script() -> None:
     client = TestClient(app)
 
@@ -242,6 +317,18 @@ def test_create_project_and_generate_script() -> None:
     export_response = client.get(f"/api/v1/projects/{project_id}/script/export")
     assert export_response.status_code == 200
     assert "作者修订版" in export_response.text
+
+    markdown_response = client.get(f"/api/v1/projects/{project_id}/script/export/markdown")
+    assert markdown_response.status_code == 200
+    assert markdown_response.headers["content-disposition"] == f'attachment; filename="project-{project_id}-screenplay.md"'
+    assert "# 三国演义（作者修订版）" in markdown_response.text
+    assert "## 人物" in markdown_response.text
+
+    txt_response = client.get(f"/api/v1/projects/{project_id}/script/export/txt")
+    assert txt_response.status_code == 200
+    assert txt_response.headers["content-disposition"] == f'attachment; filename="project-{project_id}-screenplay.txt"'
+    assert "三国演义（作者修订版）" in txt_response.text
+    assert "人物" in txt_response.text
 
 
 def test_get_readiness_after_analysis_points_to_script_generation() -> None:
@@ -488,3 +575,102 @@ def test_get_readiness_returns_404_for_missing_project() -> None:
     response = client.get("/api/v1/projects/999999/readiness")
 
     assert response.status_code == 404
+
+
+def test_preview_import_detects_chapters() -> None:
+    client = TestClient(app)
+    text = "\n".join(
+        [
+            "标题：测试小说",
+            "第1章 初遇",
+            "第一章正文。",
+            "第2章 转折",
+            "第二章正文。",
+            "第3章 抉择",
+            "第三章正文。",
+        ]
+    )
+
+    response = client.post("/api/v1/import/preview", json={"text": text})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["title"] == "测试小说"
+    assert payload["chapter_count"] == 3
+    assert payload["can_create_project"] is True
+    assert payload["chapters"][0]["title"] == "第1章 初遇"
+    assert payload["chapters"][0]["content"] == "第一章正文。"
+
+
+def test_dashboard_and_script_library_return_backend_data() -> None:
+    client = TestClient(app)
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+    assert client.post(f"/api/v1/projects/{project_id}/script-jobs").status_code == 202
+
+    dashboard = client.get("/api/v1/projects/dashboard")
+    library = client.get("/api/v1/scripts/library")
+
+    assert dashboard.status_code == 200
+    assert dashboard.json()["cards"][0]["id"] == project_id
+    assert dashboard.json()["stats"][0]["label"] == "全部项目"
+    assert library.status_code == 200
+    assert library.json()["items"][0]["projectId"] == project_id
+    assert library.json()["items"][0]["schemaStatus"] == "校验通过"
+
+
+def test_templates_route_returns_generation_templates() -> None:
+    client = TestClient(app)
+
+    response = client.get("/api/v1/templates")
+
+    assert response.status_code == 200
+    templates = response.json()
+    assert {template["id"] for template in templates} >= {"film", "short-drama", "stage-play"}
+    assert templates[0]["yamlExample"]
+
+
+def test_clone_project_copies_chapters_and_script() -> None:
+    client = TestClient(app)
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+    assert client.post(f"/api/v1/projects/{project_id}/script-jobs").status_code == 202
+
+    clone_response = client.post(f"/api/v1/projects/{project_id}/clone")
+
+    assert clone_response.status_code == 201
+    clone = clone_response.json()
+    assert clone["id"] != project_id
+    assert clone["title"].endswith("副本")
+    detail = client.get(f"/api/v1/projects/{clone['id']}")
+    assert detail.status_code == 200
+    assert len(detail.json()["chapters"]) == 3
+    assert client.get(f"/api/v1/projects/{clone['id']}/script").status_code == 200
+
+
+def test_add_scene_updates_saved_yaml() -> None:
+    client = TestClient(app)
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+    assert client.post(f"/api/v1/projects/{project_id}/script-jobs").status_code == 202
+    before = client.get(f"/api/v1/projects/{project_id}/script/diagnosis").json()
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/scenes",
+        json={
+            "chapterTitle": "桃园起义",
+            "sceneTitle": "新增冲突场",
+            "location": "桃园",
+            "time": "夜晚",
+            "characters": "刘备、关羽",
+            "action": "刘备和关羽确认下一步行动。",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "新增冲突场" in response.json()["yaml"]
+    after = client.get(f"/api/v1/projects/{project_id}/script/diagnosis").json()
+    assert after["summary"]["scene_count"] == before["summary"]["scene_count"] + 1

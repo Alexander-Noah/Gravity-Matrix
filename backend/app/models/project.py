@@ -41,6 +41,11 @@ class Project(Base):
         order_by="Chapter.number",
     )
     jobs: Mapped[list["Job"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    generation_settings: Mapped["ProjectGenerationSettings | None"] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
 
 
 class Chapter(Base):
@@ -74,3 +79,17 @@ class Job(Base):
     )
 
     project: Mapped[Project] = relationship(back_populates="jobs")
+
+
+class ProjectGenerationSettings(Base):
+    __tablename__ = "project_generation_settings"
+
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), primary_key=True)
+    settings_json: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    project: Mapped[Project] = relationship(back_populates="generation_settings")

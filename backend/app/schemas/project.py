@@ -16,6 +16,11 @@ class ProjectCreate(BaseModel):
     chapters: list[ChapterCreate]
 
 
+class ProjectUpdate(BaseModel):
+    title: str | None = Field(default=None, max_length=255)
+    name: str | None = Field(default=None, max_length=255)
+
+
 class ChapterRead(BaseModel):
     id: int
     number: int
@@ -51,6 +56,23 @@ class ProjectReadinessRead(BaseModel):
     can_export: bool
     missing_steps: list[str] = Field(default_factory=list)
     next_action: str
+
+
+class MessageResponse(BaseModel):
+    success: bool
+    message: str
+
+
+class AnalysisRerunResponse(BaseModel):
+    id: int
+    job_id: int
+    status: str
+    message: str
+
+
+class GenerationSettingsRead(BaseModel):
+    project_id: int
+    settings: dict[str, Any]
 
 
 class ProjectDetail(ProjectRead):

@@ -8,6 +8,8 @@ import {
   createProject,
   diagnoseProjectScriptDraft,
   getJob,
+  getStoredScriptDiagnosis,
+  getProjectDetail,
   getProjectReadiness,
   getProjectAnalysis,
   getProjectScript,
@@ -22,6 +24,7 @@ import {
   addProjectScene,
   exportProjectMarkdown,
   exportProjectTxt,
+  exportProjectYaml,
   deleteProject,
   getScriptTemplates,
   updateProject,
@@ -387,10 +390,15 @@ const fetchProjects = async () => {
       displayedProjectActivities.value = dashboard.activities || projectActivities
     }
   } catch (error) {
-    console.warn('Backend dashboard not available, falling back to mock data.', error)
-    displayedProjectStats.value = projectStats
-    displayedProjectCards.value = projectCards
-    displayedProjectActivities.value = projectActivities
+    console.warn('Backend dashboard not available, falling back to project list.', error)
+    try {
+      applyProjectsResult(await listProjects())
+    } catch (listError) {
+      console.warn('Backend project list not available, falling back to mock data.', listError)
+      displayedProjectStats.value = projectStats
+      displayedProjectCards.value = projectCards
+      displayedProjectActivities.value = projectActivities
+    }
   }
 }
 
@@ -726,6 +734,17 @@ const openProject = async (project) => {
 
   try {
     const workbench = await getProjectWorkbench(currentProjectId.value)
+    const detail = await getProjectDetail(currentProjectId.value)
+    detectedChapters.value = (detail.chapters || []).map((chapter) => ({
+      number: chapter.number,
+      title: chapter.title,
+      content: chapter.content,
+      excerpt: `${chapter.content.replace(/\s+/g, ' ').slice(0, 46)}...`,
+    }))
+    chapterCount.value = detectedChapters.value.length
+    novelText.value = detectedChapters.value
+      .map((chapter) => `${chapter.title}\n\n${chapter.content}`)
+      .join('\n\n')
 
     if (workbench.analysis?.raw) {
       applyAnalysisResult(workbench.analysis.raw)
@@ -781,6 +800,8 @@ const editLibraryScript = async (script) => {
     try {
       const workbench = await getProjectWorkbench(currentProjectId.value)
       applyWorkbenchScript(workbench)
+      const diagnosis = await getStoredScriptDiagnosis(currentProjectId.value)
+      schemaValidation.value = mapDiagnosisToSchemaValidation(diagnosis)
     } catch (error) {
       editorNotice.value = getApiErrorMessage(error)
     }
@@ -798,6 +819,8 @@ const previewLibraryScript = async (script) => {
     try {
       const workbench = await getProjectWorkbench(currentProjectId.value)
       applyWorkbenchScript(workbench)
+      const diagnosis = await getStoredScriptDiagnosis(currentProjectId.value)
+      schemaValidation.value = mapDiagnosisToSchemaValidation(diagnosis)
     } catch (error) {
       previewNotice.value = getApiErrorMessage(error)
     }
@@ -814,18 +837,13 @@ const exportLibraryScript = async (script, format) => {
     let blob
     if (format === 'Markdown') {
       blob = await exportProjectMarkdown(projectId)
+    } else if (format === 'YAML') {
+      blob = await exportProjectYaml(projectId)
     } else {
       blob = await exportProjectTxt(projectId)
     }
-
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${script.title}.${format === 'Markdown' ? 'md' : 'txt'}`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    const extension = format === 'Markdown' ? 'md' : format.toLowerCase()
+    downloadBlob(blob, `${script.title}.${extension}`)
   } catch (error) {
     alert('导出失败: ' + getApiErrorMessage(error))
   }
@@ -933,9 +951,10 @@ const rerunAnalysis = async () => {
 
   try {
     const job = await rerunAnalysisJob(currentProjectId.value)
-    analysisNotice.value = job.current_step || '重新解析任务已启动...'
+    const jobId = job.id || job.job_id
+    analysisNotice.value = job.current_step || job.message || '重新解析任务已启动...'
     analysisProgress.value = job.progress || 30
-    await waitForJob(job.id)
+    await waitForJob(jobId)
     const analysis = await getProjectAnalysis(currentProjectId.value)
     applyAnalysisResult(analysis)
     analysisProgress.value = 100
@@ -962,6 +981,11 @@ const confirmGenerationSettings = async (settings) => {
   }
 
   try {
+    const readiness = await getProjectReadiness(currentProjectId.value)
+    if (!readiness.can_generate_script) {
+      editorNotice.value = '当前项目还不满足生成剧本条件，请先完成 AI 解析。'
+      return
+    }
     await updateGenerationSettings(currentProjectId.value, settings)
     const job = await startScriptJob(currentProjectId.value)
     editorNotice.value = job.current_step || '剧本生成任务已启动。'
@@ -1047,15 +1071,21 @@ const copyYaml = async () => {
   }
 }
 
-const downloadYaml = () => {
-  const blob = new Blob([generatedYamlText.value], { type: 'text/yaml;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
+const downloadYaml = async () => {
+  if (currentProjectId.value) {
+    try {
+      editorNotice.value = '正在向服务端请求导出 YAML...'
+      const blob = await exportProjectYaml(currentProjectId.value)
+      downloadBlob(blob, `project-${currentProjectId.value}-script.yaml`)
+      editorNotice.value = '服务端 YAML 文件已开始下载。'
+      return
+    } catch (error) {
+      editorNotice.value = '服务端 YAML 导出失败，已改用当前编辑内容下载：' + getApiErrorMessage(error)
+    }
+  }
 
-  link.href = url
-  link.download = 'generated-script.yaml'
-  link.click()
-  URL.revokeObjectURL(url)
+  const blob = new Blob([generatedYamlText.value], { type: 'text/yaml;charset=utf-8' })
+  downloadBlob(blob, 'generated-script.yaml')
   editorNotice.value = 'YAML 文件已开始下载。'
 }
 
@@ -1074,6 +1104,10 @@ const goBackToEditor = () => {
 
 const downloadTextFile = (content, filename, type) => {
   const blob = new Blob([content], { type })
+  downloadBlob(blob, filename)
+}
+
+const downloadBlob = (blob, filename) => {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
 
@@ -1083,7 +1117,19 @@ const downloadTextFile = (content, filename, type) => {
   URL.revokeObjectURL(url)
 }
 
-const exportPreviewYaml = () => {
+const exportPreviewYaml = async () => {
+  if (currentProjectId.value) {
+    try {
+      previewNotice.value = '正在向服务端请求导出 YAML...'
+      const blob = await exportProjectYaml(currentProjectId.value)
+      downloadBlob(blob, `project-${currentProjectId.value}-script.yaml`)
+      previewNotice.value = '服务端 YAML 文件已开始下载。'
+      return
+    } catch (error) {
+      previewNotice.value = '服务端 YAML 导出失败，已改用当前预览内容下载：' + getApiErrorMessage(error)
+    }
+  }
+
   downloadTextFile(generatedYamlText.value, 'generated-script.yaml', 'text/yaml;charset=utf-8')
   previewNotice.value = 'YAML 文件已开始下载。'
 }
@@ -1093,12 +1139,7 @@ const exportPreviewMarkdown = async () => {
     try {
       previewNotice.value = '正在向服务端请求导出 Markdown...'
       const blob = await exportProjectMarkdown(currentProjectId.value)
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `project-${currentProjectId.value}-script.md`
-      link.click()
-      URL.revokeObjectURL(url)
+      downloadBlob(blob, `project-${currentProjectId.value}-script.md`)
       previewNotice.value = '服务端 Markdown 文件下载完成。'
     } catch (error) {
       previewNotice.value = '下载失败：' + getApiErrorMessage(error)
@@ -1120,12 +1161,7 @@ const exportPreviewTxt = async () => {
     try {
       previewNotice.value = '正在向服务端请求导出 TXT...'
       const blob = await exportProjectTxt(currentProjectId.value)
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `project-${currentProjectId.value}-script.txt`
-      link.click()
-      URL.revokeObjectURL(url)
+      downloadBlob(blob, `project-${currentProjectId.value}-script.txt`)
       previewNotice.value = '服务端 TXT 文件下载完成。'
     } catch (error) {
       previewNotice.value = '下载失败：' + getApiErrorMessage(error)
