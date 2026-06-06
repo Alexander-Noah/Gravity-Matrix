@@ -216,7 +216,7 @@
     border-bottom: 1px solid var(--border);
   }
 
-  .analysis-actions,
+  .analysis-command-bar,
   .analysis-action-group {
     display: grid;
   }
