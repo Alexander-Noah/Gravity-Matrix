@@ -82,7 +82,10 @@ button {
 
 button:disabled {
   cursor: not-allowed;
-  opacity: 0.58;
+  filter: saturate(0.72);
+  opacity: 0.56;
+  transform: none !important;
+  box-shadow: none !important;
 }
 
 button,
@@ -91,7 +94,7 @@ a {
 }
 
 button:focus-visible {
-  outline: 2px solid oklch(58% 0.12 236 / 0.34);
+  outline: 3px solid oklch(65% 0.16 285 / 0.24);
   outline-offset: 2px;
 }
 

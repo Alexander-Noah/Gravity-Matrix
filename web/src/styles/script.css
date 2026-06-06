@@ -52,58 +52,161 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
   flex: 1 1 auto;
 }
 
 .toolbar-button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  min-height: 36px;
-  padding: 0 11px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid oklch(86% 0.016 275);
+  border-radius: 9px;
   color: var(--text);
-  background: var(--surface);
+  background: linear-gradient(180deg, oklch(99.2% 0.004 275), oklch(96.8% 0.008 275));
+  box-shadow:
+    0 1px 1px oklch(25% 0.03 275 / 0.04),
+    0 8px 18px oklch(35% 0.035 275 / 0.055);
   font-size: 13px;
-  font-weight: 760;
+  font-weight: 800;
   white-space: nowrap;
   cursor: pointer;
   transition:
     background-color 160ms ease,
     border-color 160ms ease,
-    color 160ms ease;
+    box-shadow 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
 }
 
 .toolbar-button:hover {
   color: var(--primary-strong);
-  border-color: var(--border-strong);
-  background: var(--primary-faint);
+  border-color: oklch(76% 0.055 285);
+  background: linear-gradient(180deg, oklch(98.5% 0.018 285), oklch(94.8% 0.026 285));
+  box-shadow:
+    0 1px 1px oklch(25% 0.03 275 / 0.045),
+    0 10px 22px oklch(50% 0.12 285 / 0.12);
+  transform: translateY(-1px);
+}
+
+.toolbar-button:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px oklch(25% 0.03 275 / 0.06);
 }
 
 .toolbar-button svg {
-  width: 17px;
-  height: 17px;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
 }
 
 .toolbar-button.is-success {
-  color: oklch(42% 0.105 165);
-  border-color: oklch(84% 0.055 165);
-  background: var(--success-soft);
+  color: oklch(36% 0.11 158);
+  border-color: oklch(80% 0.07 158);
+  background: linear-gradient(180deg, oklch(96.5% 0.04 158), oklch(92.8% 0.055 158));
+  box-shadow:
+    0 1px 1px oklch(28% 0.05 158 / 0.04),
+    0 8px 18px oklch(45% 0.1 158 / 0.1);
+}
+
+.toolbar-button.is-success:hover {
+  color: oklch(31% 0.12 158);
+  border-color: oklch(71% 0.09 158);
+  background: linear-gradient(180deg, oklch(95.5% 0.055 158), oklch(90.8% 0.07 158));
 }
 
 .toolbar-button.is-primary {
   color: var(--surface);
   border-color: transparent;
-  background: var(--primary);
+  background: linear-gradient(180deg, oklch(48% 0.13 238), oklch(37% 0.105 238));
+  box-shadow:
+    inset 0 1px 0 oklch(100% 0 0 / 0.18),
+    0 10px 22px oklch(38% 0.105 238 / 0.22);
 }
 
 .toolbar-button.is-primary:hover {
   color: var(--surface);
-  background: var(--primary-strong);
+  background: linear-gradient(180deg, oklch(52% 0.14 238), oklch(34% 0.11 238));
+  box-shadow:
+    inset 0 1px 0 oklch(100% 0 0 / 0.2),
+    0 12px 26px oklch(38% 0.105 238 / 0.28);
+}
+
+.editor-tool {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid oklch(86% 0.016 275);
+  border-radius: 9px;
+  color: var(--text);
+  background: linear-gradient(180deg, oklch(99.2% 0.004 275), oklch(96.8% 0.008 275));
+  box-shadow:
+    0 1px 1px oklch(25% 0.03 275 / 0.04),
+    0 8px 18px oklch(35% 0.035 275 / 0.055);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.editor-tool:hover {
+  color: var(--primary-strong);
+  border-color: oklch(76% 0.055 285);
+  background: linear-gradient(180deg, oklch(98.5% 0.018 285), oklch(94.8% 0.026 285));
+  box-shadow:
+    0 1px 1px oklch(25% 0.03 275 / 0.045),
+    0 10px 22px oklch(50% 0.12 285 / 0.12);
+  transform: translateY(-1px);
+}
+
+.editor-tool:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px oklch(25% 0.03 275 / 0.06);
+}
+
+.editor-tool svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.editor-tool.is-primary {
+  color: var(--surface);
+  border-color: transparent;
+  background: linear-gradient(180deg, oklch(48% 0.13 238), oklch(37% 0.105 238));
+  box-shadow:
+    inset 0 1px 0 oklch(100% 0 0 / 0.18),
+    0 10px 22px oklch(38% 0.105 238 / 0.22);
+}
+
+.editor-tool.is-primary:hover {
+  color: var(--surface);
+  background: linear-gradient(180deg, oklch(52% 0.14 238), oklch(34% 0.11 238));
+  box-shadow:
+    inset 0 1px 0 oklch(100% 0 0 / 0.2),
+    0 12px 26px oklch(38% 0.105 238 / 0.28);
+}
+
+.editor-tool.is-safe {
+  color: oklch(36% 0.11 158);
+  border-color: oklch(80% 0.07 158);
+  background: linear-gradient(180deg, oklch(96.5% 0.04 158), oklch(92.8% 0.055 158));
 }
 
 .console-grid {
@@ -240,24 +343,35 @@
 }
 
 .add-scene-button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 38px;
+  min-height: 42px;
   margin-top: 14px;
-  border: 1px solid oklch(80% 0.06 285);
-  border-radius: 8px;
+  border: 1px solid oklch(79% 0.065 285);
+  border-radius: 9px;
   color: var(--primary);
-  background: transparent;
+  background: linear-gradient(180deg, oklch(99% 0.006 285), oklch(96% 0.02 285));
+  box-shadow: 0 8px 18px oklch(45% 0.12 285 / 0.08);
   font-size: 13px;
-  font-weight: 780;
+  font-weight: 820;
   cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
 }
 
 .add-scene-button:hover {
   border-color: var(--primary);
-  background: var(--primary-faint);
+  color: var(--primary-strong);
+  background: linear-gradient(180deg, oklch(98% 0.022 285), oklch(93.8% 0.035 285));
+  box-shadow: 0 12px 24px oklch(45% 0.12 285 / 0.14);
+  transform: translateY(-1px);
 }
 
 .add-scene-button svg {

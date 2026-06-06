@@ -1,20 +1,23 @@
 .import-workspace {
   display: grid;
-  grid-template-columns: minmax(480px, 0.9fr) minmax(520px, 1.1fr);
+  grid-template-columns: minmax(500px, 0.95fr) minmax(520px, 1.05fr);
   gap: 20px;
-  max-width: 1280px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
 }
 
 .import-card,
 .novel-preview-card {
   min-width: 0;
-  padding: 18px;
+  padding: 20px;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 12px;
 }
 
@@ -30,11 +33,11 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  min-height: 30px;
-  padding: 0 11px;
-  border-radius: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
   font-size: 12px;
-  font-weight: 730;
+  font-weight: 800;
 }
 
 .status-pill::before {
@@ -61,34 +64,37 @@
   display: grid;
   grid-template-columns: minmax(240px, 0.72fr) minmax(320px, 1.28fr);
   gap: 18px;
-  padding: 20px 0;
+  padding: 22px 0;
 }
 
 .upload-dropzone {
   position: relative;
   display: grid;
-  min-height: 278px;
+  min-height: 304px;
   align-content: center;
   justify-items: center;
   gap: 9px;
   padding: 28px 24px;
-  border: 1px dashed var(--border-strong);
-  border-radius: 8px;
+  border: 1px dashed oklch(76% 0.055 285);
+  border-radius: 10px;
   color: var(--text-muted);
-  background: var(--surface-raised);
+  background:
+    linear-gradient(180deg, oklch(99% 0.004 275), oklch(96.8% 0.014 285));
   text-align: center;
   cursor: pointer;
   transition:
     border-color 160ms ease,
     background-color 160ms ease,
+    box-shadow 160ms ease,
     transform 160ms ease;
 }
 
 .upload-dropzone:hover {
   border-color: var(--primary);
-  background: var(--primary-faint);
-  box-shadow: none;
-  transform: none;
+  background:
+    linear-gradient(180deg, oklch(98.5% 0.018 285), oklch(94.8% 0.03 285));
+  box-shadow: 0 16px 34px oklch(45% 0.12 285 / 0.12);
+  transform: translateY(-1px);
 }
 
 .upload-dropzone input {
@@ -101,14 +107,14 @@
 
 .upload-icon {
   display: inline-grid;
-  width: 54px;
-  height: 54px;
+  width: 58px;
+  height: 58px;
   place-items: center;
   border: 1px solid oklch(84% 0.055 285);
-  border-radius: 9px;
+  border-radius: 14px;
   color: var(--primary-strong);
-  background: var(--surface);
-  box-shadow: none;
+  background: linear-gradient(180deg, oklch(99.4% 0.004 285), oklch(94.8% 0.026 285));
+  box-shadow: 0 12px 24px oklch(45% 0.12 285 / 0.12);
 }
 
 .upload-icon svg {
@@ -156,10 +162,10 @@
 
 .paste-panel textarea {
   width: 100%;
-  min-height: 278px;
+  min-height: 304px;
   resize: vertical;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   color: var(--text);
   background:
     linear-gradient(90deg, var(--surface-muted) 0 42px, transparent 42px),
@@ -174,7 +180,7 @@
 
 .paste-panel textarea:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px oklch(58% 0.12 236 / 0.12);
+  box-shadow: 0 0 0 3px oklch(65% 0.16 285 / 0.16);
 }
 
 .inline-note {
@@ -194,8 +200,8 @@
   gap: 16px;
   padding: 16px 18px;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-raised);
+  border-radius: 10px;
+  background: linear-gradient(180deg, oklch(99% 0.004 275), oklch(97% 0.01 275));
 }
 
 .chapter-summary div {
@@ -241,8 +247,8 @@
   gap: 12px;
   padding: 14px;
   border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--surface);
+  border-radius: 9px;
+  background: var(--surface-raised);
   transition:
     border-color 160ms ease,
     box-shadow 160ms ease,
@@ -251,8 +257,8 @@
 
 .chapter-list li:hover {
   border-color: var(--border-strong);
-  box-shadow: var(--shadow-soft);
-  transform: none;
+  box-shadow: 0 10px 24px oklch(34% 0.032 275 / 0.08);
+  transform: translateY(-1px);
 }
 
 .chapter-list li.is-current {
@@ -287,19 +293,13 @@
   white-space: nowrap;
 }
 
-.editor-tool:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-  transform: none;
-}
-
 .novel-preview {
-  height: 580px;
+  height: 620px;
   overflow: auto;
-  padding: 18px 16px;
+  padding: 22px 24px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--surface-raised);
+  background: oklch(99% 0.004 275);
 }
 
 .novel-preview p {

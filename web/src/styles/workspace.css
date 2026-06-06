@@ -97,35 +97,51 @@
 .guide-button,
 .notification-button,
 .profile-button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: 1px solid oklch(86% 0.016 275);
+  border-radius: 10px;
   color: var(--text);
-  background: var(--surface-raised);
-  box-shadow: 0 1px 2px oklch(28% 0.025 270 / 0.04);
+  background: linear-gradient(180deg, oklch(99.2% 0.004 275), oklch(96.8% 0.008 275));
+  box-shadow:
+    0 1px 1px oklch(25% 0.03 275 / 0.04),
+    0 8px 18px oklch(35% 0.035 275 / 0.055);
   cursor: pointer;
   transition:
     border-color 160ms ease,
     background-color 160ms ease,
-    color 160ms ease;
+    box-shadow 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
 }
 
 .guide-button:hover,
 .notification-button:hover,
 .profile-button:hover {
   color: var(--primary-strong);
-  border-color: var(--border-strong);
-  background: var(--primary-faint);
+  border-color: oklch(76% 0.055 285);
+  background: linear-gradient(180deg, oklch(98.5% 0.018 285), oklch(94.8% 0.026 285));
+  box-shadow:
+    0 1px 1px oklch(25% 0.03 275 / 0.045),
+    0 10px 22px oklch(50% 0.12 285 / 0.12);
+  transform: translateY(-1px);
+}
+
+.guide-button:active,
+.notification-button:active,
+.profile-button:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px oklch(25% 0.03 275 / 0.06);
 }
 
 .guide-button {
   gap: 8px;
-  height: 42px;
-  padding: 0 16px;
+  height: 44px;
+  padding: 0 18px;
   font-size: 13px;
-  font-weight: 760;
+  font-weight: 820;
 }
 
 .guide-button svg,
@@ -136,8 +152,8 @@
 
 .notification-button {
   position: relative;
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
 }
 
 .notification-button span {
@@ -153,13 +169,10 @@
 
 .profile-button {
   gap: 9px;
-  height: 42px;
-  padding: 0 10px 0 8px;
-  border-color: transparent;
-  background: transparent;
-  box-shadow: none;
+  height: 44px;
+  padding: 0 12px 0 8px;
   font-size: 13px;
-  font-weight: 740;
+  font-weight: 820;
 }
 
 .profile-menu-wrap {
@@ -174,7 +187,7 @@
   border: 1px solid oklch(82% 0.035 72);
   border-radius: 50%;
   color: oklch(39% 0.06 60);
-  background: oklch(86% 0.05 72);
+  background: linear-gradient(180deg, oklch(88% 0.05 72), oklch(82% 0.06 72));
   font-size: 13px;
   font-weight: 800;
 }
@@ -209,6 +222,9 @@
   cursor: pointer;
   font: 740 13px/1 var(--font-sans);
   text-align: left;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
 }
 
 .profile-menu button:hover {
