@@ -148,6 +148,226 @@
   border-top: 1px solid var(--border);
 }
 
+.recycle-dialog {
+  width: min(800px, 90vw);
+}
+
+.recycle-dialog-header {
+  align-items: flex-start;
+  background:
+    linear-gradient(180deg, oklch(98.8% 0.006 235), var(--surface));
+}
+
+.recycle-title-row {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.recycle-title-row p {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.recycle-title-icon,
+.recycle-empty-icon {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--primary-strong);
+  background: var(--primary-faint);
+}
+
+.recycle-title-icon {
+  width: 42px;
+  height: 42px;
+  border: 1px solid oklch(86% 0.028 236);
+  border-radius: 10px;
+}
+
+.recycle-title-icon svg,
+.recycle-empty-icon svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.recycle-dialog-body {
+  max-height: min(60vh, 520px);
+  padding: 24px;
+}
+
+.recycle-empty-state {
+  display: grid;
+  min-height: 206px;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  border: 1px dashed oklch(83% 0.026 235);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, oklch(99% 0.004 235), oklch(96.8% 0.008 235));
+  text-align: center;
+}
+
+.recycle-empty-icon {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 2px;
+  border-radius: 12px;
+}
+
+.recycle-empty-state strong {
+  color: var(--text);
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.recycle-empty-state p {
+  max-width: 34ch;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.recycle-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid oklch(87% 0.018 235);
+  border-radius: 10px;
+  background: oklch(97.5% 0.008 235);
+}
+
+.recycle-note strong {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.recycle-note p {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.recycle-note > span {
+  flex: 0 0 auto;
+  border: 1px solid oklch(84% 0.026 236);
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: var(--primary-strong);
+  background: var(--primary-faint);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.recycle-table-wrap {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.recycle-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.recycle-table th,
+.recycle-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.recycle-table th {
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.recycle-table th:last-child,
+.recycle-table td:last-child {
+  text-align: right;
+}
+
+.recycle-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.recycle-table tbody tr:hover {
+  background: oklch(97.7% 0.008 235);
+}
+
+.recycle-table td {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.recycle-table td:first-child {
+  color: var(--text);
+}
+
+.recycle-table td:first-child strong,
+.recycle-table td:first-child span {
+  display: block;
+}
+
+.recycle-table td:first-child strong {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.recycle-table td:first-child span {
+  margin-top: 5px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.recycle-disabled-action {
+  min-height: 30px;
+  border: 1px solid oklch(85% 0.015 235);
+  border-radius: 999px;
+  padding: 0 10px;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.recycle-actions {
+  justify-content: space-between;
+  background: oklch(98% 0.005 235);
+}
+
+.recycle-actions .editor-tool.is-danger {
+  color: var(--danger);
+  border-color: oklch(81% 0.05 26);
+  background: linear-gradient(180deg, oklch(98% 0.016 26), var(--danger-soft));
+}
+
+.recycle-actions .editor-tool.is-danger:hover {
+  color: oklch(42% 0.16 26);
+  border-color: oklch(70% 0.09 26);
+  background: linear-gradient(180deg, oklch(97% 0.022 26), oklch(93.8% 0.036 26));
+}
+
 .add-scene-dialog {
   width: min(600px, 100%);
 }
@@ -225,5 +445,27 @@
   .dialog-body {
     padding-right: 18px;
     padding-left: 18px;
+  }
+
+  .recycle-dialog {
+    width: min(100%, 560px);
+  }
+
+  .recycle-note,
+  .recycle-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .recycle-note > span {
+    width: fit-content;
+  }
+
+  .recycle-table-wrap {
+    overflow-x: auto;
+  }
+
+  .recycle-table {
+    min-width: 620px;
   }
 }

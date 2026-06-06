@@ -1631,46 +1631,68 @@ const handleFileUpload = async (event) => {
 
     <Teleport to="body">
       <div v-if="showRecycleBin" class="dialog-backdrop" role="presentation" @click.self="closeRecycleBin">
-        <section class="generation-dialog" style="max-width: 800px; width: 90%;" role="dialog" aria-modal="true" aria-labelledby="recycle-bin-title">
-          <header class="dialog-header">
-            <div>
-              <span>项目管理</span>
-              <h2 id="recycle-bin-title">回收站</h2>
+        <section class="generation-dialog recycle-dialog" role="dialog" aria-modal="true" aria-labelledby="recycle-bin-title">
+          <header class="dialog-header recycle-dialog-header">
+            <div class="recycle-title-row">
+              <span class="recycle-title-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path v-for="path in iconPaths.trash" :key="path" :d="path" />
+                </svg>
+              </span>
+              <div>
+                <span>项目管理</span>
+                <h2 id="recycle-bin-title">回收站</h2>
+                <p>{{ recycleBinItems.length === 0 ? '没有待处理记录' : `共 ${recycleBinItems.length} 条本地删除记录` }}</p>
+              </div>
             </div>
             <button class="dialog-close" type="button" aria-label="关闭回收站" @click="closeRecycleBin">×</button>
           </header>
 
-          <div class="dialog-body" style="max-height: 60vh; overflow-y: auto;">
-            <div v-if="recycleBinItems.length === 0" class="library-empty-state" style="padding: 40px 0;">
+          <div class="dialog-body recycle-dialog-body">
+            <div v-if="recycleBinItems.length === 0" class="recycle-empty-state">
+              <span class="recycle-empty-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path v-for="path in iconPaths.trash" :key="path" :d="path" />
+                </svg>
+              </span>
               <strong>回收站是空的</strong>
+              <p>删除记录会显示在这里，便于核对最近移除的剧本。</p>
             </div>
             <div v-else>
-              <p class="inline-note">当前后端删除为永久删除，回收站仅记录本地删除历史，暂不支持恢复。</p>
-            <table style="width: 100%; border-collapse: collapse; text-align: left;">
-              <thead>
-                <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-secondary);">
-                  <th style="padding: 12px 8px; font-weight: 500;">剧本名称</th>
-                  <th style="padding: 12px 8px; font-weight: 500;">删除时间</th>
-                  <th style="padding: 12px 8px; font-weight: 500; text-align: right;">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in recycleBinItems" :key="item.id" style="border-bottom: 1px solid var(--border-color-light);">
-                  <td style="padding: 16px 8px;">
-                    <strong>{{ item.title }}</strong>
-                    <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">来源小说：{{ item.sourceNovel }}</div>
-                  </td>
-                  <td style="padding: 16px 8px; color: var(--text-secondary);">{{ item.deletedAt }}</td>
-                  <td style="padding: 16px 8px; text-align: right;">
-                    <button class="link-button" type="button" disabled @click="restoreFromRecycleBin">暂不支持恢复</button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+              <div class="recycle-note">
+                <div>
+                  <strong>本地删除历史</strong>
+                  <p>当前后端删除为永久删除，回收站仅记录本地删除历史，暂不支持恢复。</p>
+                </div>
+                <span>{{ recycleBinItems.length }} 条</span>
+              </div>
+              <div class="recycle-table-wrap">
+                <table class="recycle-table">
+                  <thead>
+                    <tr>
+                      <th>剧本名称</th>
+                      <th>删除时间</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="item in recycleBinItems" :key="item.id">
+                      <td>
+                        <strong>{{ item.title }}</strong>
+                        <span>来源小说：{{ item.sourceNovel }}</span>
+                      </td>
+                      <td>{{ item.deletedAt }}</td>
+                      <td>
+                        <button class="recycle-disabled-action" type="button" disabled @click="restoreFromRecycleBin">暂不支持恢复</button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 
-          <footer class="dialog-actions" style="justify-content: space-between;">
+          <footer class="dialog-actions recycle-actions">
             <button class="editor-tool is-danger" type="button" :disabled="recycleBinItems.length === 0" @click="clearRecycleBin">清空回收站</button>
             <button class="editor-tool is-primary" type="button" @click="closeRecycleBin">关闭</button>
           </footer>
