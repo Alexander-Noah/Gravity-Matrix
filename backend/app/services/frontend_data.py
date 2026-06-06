@@ -8,7 +8,6 @@ from typing import Any
 
 import yaml
 from pydantic import ValidationError
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -38,14 +37,14 @@ def preview_import_text(title: str | None, author: str | None, text: str) -> dic
 
 
 def build_projects_dashboard(db: Session) -> dict[str, Any]:
-    projects = db.query(Project).order_by(Project.updated_at.desc(), Project.id.desc()).limit(20).all()
-    total = db.query(func.count(Project.id)).scalar() or 0
-    has_script = db.query(func.count(Project.id)).filter(Project.script_yaml.is_not(None)).scalar() or 0
+    active_projects_query = db.query(Project).filter(Project.deleted_at.is_(None))
+    projects = active_projects_query.order_by(Project.updated_at.desc(), Project.id.desc()).limit(20).all()
+    total = active_projects_query.count()
+    has_script = active_projects_query.filter(Project.script_yaml.is_not(None)).count()
     active = (
-        db.query(func.count(Project.id))
+        active_projects_query
         .filter(Project.status.in_(["created", "analysis_completed", "script_completed", "script_edited"]))
-        .scalar()
-        or 0
+        .count()
     )
     exported = has_script
     needs_validation = sum(1 for project in projects if project.script_yaml and not _script_valid(project.script_yaml))
@@ -85,6 +84,7 @@ def build_projects_dashboard(db: Session) -> dict[str, Any]:
 def build_scripts_library(db: Session) -> dict[str, Any]:
     projects = (
         db.query(Project)
+        .filter(Project.deleted_at.is_(None))
         .filter(Project.script_yaml.is_not(None))
         .order_by(Project.updated_at.desc(), Project.id.desc())
         .all()
@@ -524,7 +524,7 @@ def _recent_activities(db: Session, projects: list[Project]) -> list[dict[str, s
     project_map = {project.id: project for project in projects}
     for job in jobs:
         project = project_map.get(job.project_id) or db.get(Project, job.project_id)
-        if project is None:
+        if project is None or project.deleted_at is not None:
             continue
         activities.append(
             {

@@ -97,6 +97,10 @@ pytest
 - `GET /api/v1/projects`：分页获取项目列表。
 - `POST /api/v1/projects`：创建小说改编项目，至少需要 3 个章节。
 - `GET /api/v1/projects/{project_id}`：获取项目详情。
+- `DELETE /api/v1/projects/{project_id}`：将项目移动到回收站。
+- `GET /api/v1/projects/recycle-bin`：获取回收站项目列表。
+- `POST /api/v1/projects/{project_id}/restore`：从回收站恢复项目。
+- `DELETE /api/v1/projects/recycle-bin`：清空回收站并永久删除项目。
 - `GET /api/v1/projects/{project_id}/readiness`：获取项目下一步操作和可用能力。
 - `POST /api/v1/projects/{project_id}/analysis-jobs`：启动 AI 解析任务。
 - `GET /api/v1/projects/{project_id}/analysis`：获取 AI 解析结果。

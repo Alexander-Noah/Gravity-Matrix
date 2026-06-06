@@ -89,6 +89,15 @@ class ProjectListRead(BaseModel):
     offset: int
 
 
+class RecycleBinProjectRead(ProjectRead):
+    deleted_at: datetime
+
+
+class RecycleBinRead(BaseModel):
+    items: list[RecycleBinProjectRead]
+    total: int
+
+
 class DashboardStat(BaseModel):
     label: str
     value: str
@@ -178,6 +187,10 @@ class ScriptRead(BaseModel):
 class ProjectDeleteResponse(BaseModel):
     deleted: bool
     project_id: int
+
+
+class RecycleBinClearResponse(BaseModel):
+    deleted: int
 
 
 class TemplateRead(BaseModel):

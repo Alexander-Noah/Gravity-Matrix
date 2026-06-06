@@ -29,6 +29,7 @@ class Project(Base):
     analysis_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     script_yaml: Mapped[str | None] = mapped_column(Text, nullable=True)
     generation_settings_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -228,7 +228,7 @@ def test_update_project_rejects_blank_name() -> None:
     assert "项目名称不能为空" in response.text
 
 
-def test_delete_project_removes_related_data() -> None:
+def test_delete_project_moves_project_to_recycle_bin() -> None:
     client = TestClient(app)
 
     create_response = client.post("/api/v1/projects", json=_payload())
@@ -240,7 +240,49 @@ def test_delete_project_removes_related_data() -> None:
     response = client.delete(f"/api/v1/projects/{project_id}")
 
     assert response.status_code == 200
-    assert response.json() == {"success": True, "message": "项目已删除。"}
+    assert response.json() == {"deleted": True, "project_id": project_id}
+    assert client.get(f"/api/v1/projects/{project_id}").status_code == 404
+    assert client.get("/api/v1/projects").json()["total"] == 0
+    assert client.get(f"/api/v1/jobs/{analysis_response.json()['id']}").status_code == 200
+
+    recycle_bin = client.get("/api/v1/projects/recycle-bin")
+    assert recycle_bin.status_code == 200
+    assert recycle_bin.json()["total"] == 1
+    assert recycle_bin.json()["items"][0]["id"] == project_id
+    assert recycle_bin.json()["items"][0]["deleted_at"]
+
+
+def test_restore_project_from_recycle_bin() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+    assert client.delete(f"/api/v1/projects/{project_id}").status_code == 200
+
+    response = client.post(f"/api/v1/projects/{project_id}/restore")
+
+    assert response.status_code == 200
+    assert response.json()["id"] == project_id
+    assert client.get(f"/api/v1/projects/{project_id}").status_code == 200
+    assert client.get("/api/v1/projects/recycle-bin").json() == {"items": [], "total": 0}
+
+
+def test_clear_recycle_bin_permanently_deletes_projects() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+    analysis_response = client.post(f"/api/v1/projects/{project_id}/analysis-jobs")
+    assert analysis_response.status_code == 202
+    assert client.delete(f"/api/v1/projects/{project_id}").status_code == 200
+
+    response = client.delete("/api/v1/projects/recycle-bin")
+
+    assert response.status_code == 200
+    assert response.json() == {"deleted": 1}
+    assert client.get("/api/v1/projects/recycle-bin").json() == {"items": [], "total": 0}
     assert client.get(f"/api/v1/projects/{project_id}").status_code == 404
     assert client.get(f"/api/v1/jobs/{analysis_response.json()['id']}").status_code == 404
 

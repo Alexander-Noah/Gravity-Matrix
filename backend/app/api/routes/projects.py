@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import Response
@@ -24,6 +25,9 @@ from app.schemas.project import (
     ProjectRead,
     ProjectUpdate,
     ProjectWorkbenchRead,
+    RecycleBinClearResponse,
+    RecycleBinProjectRead,
+    RecycleBinRead,
     SceneCreateRequest,
     SceneCreateResponse,
     ScriptLibraryRead,
@@ -208,9 +212,10 @@ def list_projects(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ) -> ProjectListRead:
-    total = db.query(func.count(Project.id)).scalar() or 0
+    total = db.query(func.count(Project.id)).filter(Project.deleted_at.is_(None)).scalar() or 0
     projects = (
         db.query(Project)
+        .filter(Project.deleted_at.is_(None))
         .order_by(Project.updated_at.desc(), Project.id.desc())
         .offset(offset)
         .limit(limit)
@@ -233,6 +238,30 @@ def get_projects_dashboard(db: Session = Depends(get_db)) -> ProjectsDashboardRe
 @router.get("/scripts/library", response_model=ScriptLibraryRead)
 def get_scripts_library(db: Session = Depends(get_db)) -> ScriptLibraryRead:
     return ScriptLibraryRead.model_validate(build_scripts_library(db))
+
+
+@router.get("/projects/recycle-bin", response_model=RecycleBinRead)
+def get_recycle_bin(db: Session = Depends(get_db)) -> RecycleBinRead:
+    projects = (
+        db.query(Project)
+        .filter(Project.deleted_at.is_not(None))
+        .order_by(Project.deleted_at.desc(), Project.id.desc())
+        .all()
+    )
+    return RecycleBinRead(
+        items=[_project_to_recycle_read(project) for project in projects],
+        total=len(projects),
+    )
+
+
+@router.delete("/projects/recycle-bin", response_model=RecycleBinClearResponse)
+def clear_recycle_bin(db: Session = Depends(get_db)) -> RecycleBinClearResponse:
+    projects = db.query(Project).filter(Project.deleted_at.is_not(None)).all()
+    deleted_count = len(projects)
+    for project in projects:
+        db.delete(project)
+    db.commit()
+    return RecycleBinClearResponse(deleted=deleted_count)
 
 
 @router.post("/scripts/library/sources/{source_id}/import", response_model=ProjectRead, status_code=201)
@@ -270,9 +299,21 @@ def get_project(project_id: int, db: Session = Depends(get_db)) -> ProjectDetail
 @router.delete("/projects/{project_id}", response_model=ProjectDeleteResponse)
 def delete_project(project_id: int, db: Session = Depends(get_db)) -> ProjectDeleteResponse:
     project = _require_project(db, project_id)
-    db.delete(project)
+    project.deleted_at = datetime.now(timezone.utc)
     db.commit()
     return ProjectDeleteResponse(deleted=True, project_id=project_id)
+
+
+@router.post("/projects/{project_id}/restore", response_model=ProjectRead)
+def restore_project(project_id: int, db: Session = Depends(get_db)) -> ProjectRead:
+    project = _require_project(db, project_id, include_deleted=True)
+    if project.deleted_at is None:
+        return _project_to_read(project)
+
+    project.deleted_at = None
+    db.commit()
+    db.refresh(project)
+    return _project_to_read(project)
 
 
 @router.patch("/projects/{project_id}", response_model=ProjectRead)
@@ -569,6 +610,11 @@ def _project_to_read(project: Project) -> ProjectRead:
     )
 
 
+def _project_to_recycle_read(project: Project) -> RecycleBinProjectRead:
+    base = _project_to_read(project).model_dump()
+    return RecycleBinProjectRead(**base, deleted_at=project.deleted_at)
+
+
 def _project_readiness(project: Project) -> ProjectReadinessRead:
     has_script = project.script_yaml is not None
     has_analysis = project.analysis_json is not None or has_script
@@ -595,9 +641,9 @@ def _project_readiness(project: Project) -> ProjectReadinessRead:
     )
 
 
-def _require_project(db: Session, project_id: int) -> Project:
+def _require_project(db: Session, project_id: int, include_deleted: bool = False) -> Project:
     project = db.get(Project, project_id)
-    if project is None:
+    if project is None or (project.deleted_at is not None and not include_deleted):
         raise HTTPException(status_code=404, detail="项目不存在。")
     return project
 

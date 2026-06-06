@@ -91,7 +91,10 @@
 - `GET /templates`：获取可用剧本模板（当前前端退化为本地默认变量）。
 
 ### 4.4 项目管理二次操作
-- `DELETE /projects/{id}`：删除项目。
+- `DELETE /projects/{id}`：将项目移动到回收站，常规列表、详情、工作台和生成接口不再返回该项目。
+- `GET /projects/recycle-bin`：获取回收站项目列表，返回 `items` 和 `total`。
+- `POST /projects/{id}/restore`：从回收站恢复项目，恢复后项目重新出现在常规列表。
+- `DELETE /projects/recycle-bin`：清空回收站，永久删除回收站内项目及其关联章节、任务等数据。
 - `PATCH /projects/{id}`：重命名项目。
 - `POST /projects/{id}/clone`：克隆项目。
 
