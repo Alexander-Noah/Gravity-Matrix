@@ -115,6 +115,8 @@ const displayedLibraryItems = ref(scriptLibraryItems)
 const displayedLibraryStats = ref(scriptLibraryStats)
 const displayedTemplates = ref(mockTemplates)
 const selectedSceneId = ref(null)
+const projectListNotice = ref('')
+const libraryNotice = ref('')
 
 const CURRENT_PROJECT_STORAGE_KEY = 'gravityMatrixCurrentProjectId'
 
@@ -456,32 +458,44 @@ const applyWorkbenchScript = (workbench) => {
 }
 
 const fetchProjects = async () => {
+  projectListNotice.value = ''
   try {
     const dashboard = await getProjectsDashboard()
     if (dashboard) {
       displayedProjectStats.value = dashboard.stats || projectStats
-      displayedProjectCards.value = dashboard.project_cards || dashboard.cards || projectCards
+      displayedProjectCards.value = dashboard.project_cards || dashboard.cards || []
       displayedProjectActivities.value = dashboard.activities || projectActivities
     }
   } catch (error) {
-    console.warn('Backend dashboard not available, falling back to mock data.', error)
-    displayedProjectStats.value = projectStats
-    displayedProjectCards.value = projectCards
-    displayedProjectActivities.value = projectActivities
+    projectListNotice.value = `项目列表加载失败：${getApiErrorMessage(error)}`
+    displayedProjectStats.value = [
+      { label: '进行中项目', value: '0', note: '后端暂不可用', tone: 'violet' },
+      { label: '已生成剧本', value: '0', note: '后端暂不可用', tone: 'blue' },
+      { label: '待校验 YAML', value: '0', note: '后端暂不可用', tone: 'orange' },
+      { label: '已导出文件', value: '0', note: '后端暂不可用', tone: 'mint' },
+    ]
+    displayedProjectCards.value = []
+    displayedProjectActivities.value = []
   }
 }
 
 const fetchScriptLibrary = async () => {
+  libraryNotice.value = ''
   try {
     const library = await getScriptsLibrary()
     if (library) {
       displayedLibraryStats.value = library.stats || scriptLibraryStats
-      displayedLibraryItems.value = library.items || scriptLibraryItems
+      displayedLibraryItems.value = library.items || []
     }
   } catch (error) {
-    console.warn('Backend library not available, falling back to mock data.', error)
-    displayedLibraryStats.value = scriptLibraryStats
-    displayedLibraryItems.value = scriptLibraryItems
+    libraryNotice.value = `剧本库加载失败：${getApiErrorMessage(error)}`
+    displayedLibraryStats.value = [
+      { label: '全部剧本', value: '0', note: '后端暂不可用', tone: 'violet' },
+      { label: '编辑中', value: '0', note: '后端暂不可用', tone: 'blue' },
+      { label: '已完成', value: '0', note: '后端暂不可用', tone: 'mint' },
+      { label: '校验异常', value: '0', note: '后端暂不可用', tone: 'orange' },
+    ]
+    displayedLibraryItems.value = []
   }
 }
 
@@ -1307,10 +1321,8 @@ const clearRecycleBin = () => {
   recycleBinItems.value = []
 }
 
-const restoreFromRecycleBin = (scriptId) => {
-  alert('后端暂未实现恢复项目接口，仅作前端演示。')
-  recycleBinItems.value = recycleBinItems.value.filter(item => item.id !== scriptId)
-  localStorage.setItem('gravityMatrixRecycleBin', JSON.stringify(recycleBinItems.value))
+const restoreFromRecycleBin = () => {
+  previewNotice.value = '当前后端删除是永久删除，回收站只保留本地删除记录，暂不支持恢复。'
 }
 
 
@@ -1363,14 +1375,14 @@ const handleFileUpload = async (event) => {
         <section class="workspace-body" aria-label="工作台内容">
         <ProjectsPage v-if="activeRoute.id === 'projects'" :activities="displayedProjectActivities"
           :icon-paths="iconPaths" :projects="displayedProjectCards" :stats="displayedProjectStats"
-          @open-project="openProject" @delete-project="handleDeleteProject" />
+          :notice="projectListNotice" @open-project="openProject" @delete-project="handleDeleteProject" />
 
         <TemplateCenterPage v-else-if="activeRoute.id === 'templates'" :icon-paths="iconPaths"
           :selected-template-id="selectedTemplateId" :templates="displayedTemplates"
           @select-template="selectGenerationTemplate" />
 
         <ScriptLibraryPage v-else-if="activeRoute.id === 'library'" :icon-paths="iconPaths"
-          :scripts="displayedLibraryItems" :stats="displayedLibraryStats" @edit-script="editLibraryScript"
+          :notice="libraryNotice" :scripts="displayedLibraryItems" :stats="displayedLibraryStats" @edit-script="editLibraryScript"
           @preview-script="previewLibraryScript" @export-script="exportLibraryScript" @delete-script="deleteLibraryScript"
           @rename-script="renameLibraryScript" @clone-script="cloneLibraryScript" />
 
@@ -1439,7 +1451,9 @@ const handleFileUpload = async (event) => {
             <div v-if="recycleBinItems.length === 0" class="library-empty-state" style="padding: 40px 0;">
               <strong>回收站是空的</strong>
             </div>
-            <table v-else style="width: 100%; border-collapse: collapse; text-align: left;">
+            <div v-else>
+              <p class="inline-note">当前后端删除为永久删除，回收站仅记录本地删除历史，暂不支持恢复。</p>
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
               <thead>
                 <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-secondary);">
                   <th style="padding: 12px 8px; font-weight: 500;">剧本名称</th>
@@ -1455,11 +1469,12 @@ const handleFileUpload = async (event) => {
                   </td>
                   <td style="padding: 16px 8px; color: var(--text-secondary);">{{ item.deletedAt }}</td>
                   <td style="padding: 16px 8px; text-align: right;">
-                    <button class="link-button" type="button" @click="restoreFromRecycleBin(item.id)">恢复</button>
+                    <button class="link-button" type="button" disabled @click="restoreFromRecycleBin">暂不支持恢复</button>
                   </td>
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
 
           <footer class="dialog-actions" style="justify-content: space-between;">

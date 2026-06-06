@@ -4,6 +4,7 @@ import { computed, ref } from 'vue'
 const props = defineProps({
   activities: { type: Array, required: true },
   iconPaths: { type: Object, required: true },
+  notice: { type: String, default: '' },
   projects: { type: Array, required: true },
   stats: { type: Array, required: true },
 })
@@ -81,6 +82,7 @@ const resetFilters = () => {
 
     <div class="project-result-row">
       <span>当前显示 {{ filteredProjects.length }} 个项目</span>
+      <p v-if="notice" class="inline-note">{{ notice }}</p>
       <button v-if="searchKeyword || activeStatus !== 'all'" class="link-button" type="button" @click="resetFilters">
         清空筛选
       </button>

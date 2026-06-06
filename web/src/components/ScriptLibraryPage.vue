@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 
 const props = defineProps({
   iconPaths: { type: Object, required: true },
+  notice: { type: String, default: '' },
   scripts: { type: Array, required: true },
   stats: { type: Array, required: true },
 })
@@ -108,6 +109,7 @@ const handleMoreAction = (script, action) => {
 
     <div class="library-result-row">
       <span>当前显示 {{ filteredScripts.length }} 个剧本</span>
+      <p v-if="notice" class="inline-note">{{ notice }}</p>
       <p v-if="actionNotice">{{ actionNotice }}</p>
       <button
         v-if="searchKeyword || selectedType !== '全部' || selectedStatus !== '全部'"
