@@ -23,9 +23,17 @@ defineEmits(['file-upload', 'next', 'update:novelText'])
           </svg>
           <h2 id="import-title">导入小说内容</h2>
         </div>
-        <span class="status-pill" :class="isValid ? 'is-valid' : 'is-warning'">
-          {{ isValid ? '章节校验通过' : '至少需要 3 章' }}
-        </span>
+        <div class="import-header-actions">
+          <span class="status-pill" :class="isValid ? 'is-valid' : 'is-warning'">
+            {{ isValid ? '章节校验通过' : '至少需要 3 章' }}
+          </span>
+          <button class="editor-tool is-primary" type="button" :disabled="!isValid || isSubmitting" @click="$emit('next')">
+            <span>{{ isSubmitting ? '正在提交项目...' : '下一步：AI解析' }}</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div class="import-source-grid">
@@ -73,14 +81,6 @@ defineEmits(['file-upload', 'next', 'update:novelText'])
         </li>
       </ul>
 
-      <div class="import-actions">
-        <button class="editor-tool is-primary" type="button" :disabled="!isValid || isSubmitting" @click="$emit('next')">
-          <span>{{ isSubmitting ? '正在提交项目...' : '下一步：AI解析' }}</span>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
-          </svg>
-        </button>
-      </div>
     </section>
 
     <aside class="work-card novel-preview-card" aria-labelledby="novel-preview-title">

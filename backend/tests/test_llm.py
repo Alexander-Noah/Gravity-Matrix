@@ -133,7 +133,7 @@ def test_demo_analysis_extracts_spaced_character_names(monkeypatch) -> None:
     result = llm.analyze_project(project)
 
     names = [character["name"] for character in result.content["characters"]]
-    assert names[:3] == ["魏北辰", "秦知", "温微"]
+    assert names[:4] == ["魏北辰", "秦知", "温微", "沈珩"]
     assert "的风" not in names
     assert "只停" not in names
 

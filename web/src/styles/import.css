@@ -12,6 +12,14 @@
   padding: 22px;
 }
 
+.import-header-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -275,12 +283,6 @@
   line-height: 1.55;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.import-actions {
-  display: flex;
-  justify-content: flex-end;
-  padding-top: 18px;
 }
 
 .editor-tool:disabled {

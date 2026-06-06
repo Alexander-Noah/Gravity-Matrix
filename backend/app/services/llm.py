@@ -350,7 +350,7 @@ def _demo_characters(project: Project) -> list[dict[str, Any]]:
     elif len(names) == 1:
         names.append("重要角色")
 
-    roles = ["主角", "重要角色", "重要角色"]
+    roles = ["主角", "重要角色", "重要角色", "重要角色", "重要角色", "重要角色"]
     return [
         {
             "id": f"char_{index:03d}",
@@ -360,7 +360,7 @@ def _demo_characters(project: Project) -> list[dict[str, Any]]:
             "age": None,
             "description": "根据小说章节自动识别出的核心人物。",
         }
-        for index, name in enumerate(names[:3], start=1)
+        for index, name in enumerate(names[:6], start=1)
     ]
 
 
@@ -375,7 +375,7 @@ def _extract_character_names(project: Project) -> list[str]:
         candidates.extend(match.groups())
 
     name_action_pattern = (
-        r"([\u4e00-\u9fff]{2,4})\s*"
+        r"(?<![\u4e00-\u9fff])([\u4e00-\u9fff]{2,4})\s*"
         r"(?:握着|说|低声道|道|问|答|没有|从|提醒|看着|率|与|和|同|向)"
     )
     for match in re.finditer(name_action_pattern, text):
