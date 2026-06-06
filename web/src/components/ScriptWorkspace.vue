@@ -2,6 +2,7 @@
 defineProps({
   iconPaths: { type: Object, required: true },
   previewDialogues: { type: Array, required: true },
+  previewScene: { type: Object, required: true },
   scriptChapters: { type: Array, required: true },
   schemaValidation: { type: Object, required: true },
   statusNotice: { type: String, default: '' },
@@ -164,10 +165,13 @@ defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-sc
       <div class="preview-body">
         <article class="scene-preview">
           <div class="scene-meta">
-            <h3>场景 1-1 地铁站相遇</h3>
-            <p>内景 / 地铁站 / 傍晚</p>
+            <h3>{{ previewScene.title }}</h3>
+            <p>{{ previewScene.meta }}</p>
           </div>
-          <p class="scene-action">人头攒动的地铁站，广播声回荡。林晓背着吉他包，低头看着手机，神情略显迷茫。</p>
+          <div v-if="previewScene.characters?.length" class="scene-cast">
+            <span v-for="character in previewScene.characters" :key="character">{{ character }}</span>
+          </div>
+          <p class="scene-action">{{ previewScene.action }}</p>
         </article>
 
         <div class="dialogue-preview">

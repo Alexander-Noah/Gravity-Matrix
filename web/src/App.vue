@@ -526,26 +526,35 @@ const displayedPreviewScenes = computed(() => {
   try {
     const parsed = yaml.load(generatedScriptYaml.value)
     if (!parsed || !parsed.script || !parsed.script.chapters) return scriptPreviewScenes
-    
+
+    const characterNameById = Object.fromEntries(
+      (parsed.script.characters || []).map((character) => [character.id, character.name || character.id]),
+    )
+    const locationNameById = Object.fromEntries(
+      (parsed.script.locations || []).map((location) => [location.id, location.name || location.id]),
+    )
     const scenes = []
     parsed.script.chapters.forEach((chapter, cIdx) => {
       if (!chapter.scenes) return
       chapter.scenes.forEach((scene, sIdx) => {
-        const characters = new Set()
-        const dialogues = []
-        if (scene.dialogues) {
-          scene.dialogues.forEach(d => {
-            characters.add(d.speaker)
-            dialogues.push({ speaker: d.speaker, note: d.note || '', line: d.line })
-          })
-        }
-        
+        const sceneDialogues = scene.dialogue || scene.dialogues || []
+        const dialogues = sceneDialogues.map((dialogue) => ({
+          speaker: dialogue.speaker_name || characterNameById[dialogue.speaker_id] || dialogue.speaker || '角色',
+          note: dialogue.emotion ? `（${dialogue.emotion}）` : dialogue.note || '',
+          line: dialogue.line || '',
+        }))
+        const characters = (scene.characters || [])
+          .map((characterId) => characterNameById[characterId] || characterId)
+          .filter(Boolean)
+        const dialogueSpeakers = dialogues.map((dialogue) => dialogue.speaker).filter(Boolean)
+        const locationName = locationNameById[scene.location_id] || scene.location || scene.location_id || '未知地点'
+
         scenes.push({
-          title: `场景 ${cIdx + 1}-${sIdx + 1} ${scene.label || scene.location || '未知场景'}`,
-          meta: `${scene.interior || '内/外景'} / ${scene.location || '未知地点'} / ${scene.time || '未知时间'}`,
-          characters: Array.from(characters),
-          action: scene.action || '无动作描写',
-          dialogues: dialogues
+          title: `场景 ${cIdx + 1}-${sIdx + 1} ${scene.title || scene.label || locationName || '未知场景'}`,
+          meta: `${locationName} / ${scene.time || '未知时间'}`,
+          characters: [...new Set([...characters, ...dialogueSpeakers])],
+          action: scene.synopsis || scene.action || scene.stage_directions?.[0] || '无动作描写',
+          dialogues,
         })
       })
     })
@@ -555,6 +564,10 @@ const displayedPreviewScenes = computed(() => {
     return scriptPreviewScenes
   }
 })
+const activePreviewScene = computed(() => displayedPreviewScenes.value[0] || scriptPreviewScenes[0])
+const activePreviewDialogues = computed(() =>
+  activePreviewScene.value?.dialogues?.length ? activePreviewScene.value.dialogues : previewDialogues,
+)
 
 const scriptTextPreview = computed(() =>
   displayedPreviewScenes.value
@@ -1273,7 +1286,8 @@ const handleFileUpload = async (event) => {
             <SupportColumn
               :analysis-metrics="displayedAnalysisMetrics" :icon-paths="iconPaths" :insight-items="displayedInsightItems"
               :project-stages="projectStages" />
-            <ScriptWorkspace :icon-paths="iconPaths" :preview-dialogues="previewDialogues"
+            <ScriptWorkspace :icon-paths="iconPaths" :preview-dialogues="activePreviewDialogues"
+              :preview-scene="activePreviewScene"
               :schema-validation="schemaValidation" :script-chapters="displayedScriptChapters"
               :status-notice="editorNotice" :yaml-lines="generatedYamlLines" @add-scene="openAddScene"
               @copy-yaml="copyYaml" @download-yaml="downloadYaml" @open-preview="goToPreview"
