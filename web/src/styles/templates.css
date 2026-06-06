@@ -1,7 +1,8 @@
 .template-center-page {
   display: grid;
-  gap: 16px;
-  max-width: 1360px;
+  gap: 18px;
+  width: min(100%, 1480px);
+  max-width: 1480px;
   margin: 0 auto;
 }
 
@@ -16,7 +17,7 @@
 
 .template-summary {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.34fr);
+  grid-template-columns: minmax(0, 1fr) 300px;
   gap: 18px;
   align-items: stretch;
   padding: 22px;

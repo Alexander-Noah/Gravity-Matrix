@@ -74,8 +74,8 @@ const fieldCount = props.content.schemaFields.length
       <section id="import" class="help-doc-section help-doc-section-split" aria-labelledby="import-title">
         <div class="help-doc-section-copy">
           <span>小说导入说明</span>
-          <h3 id="import-title">至少识别出 3 个章节后，才允许进入 AI 解析。</h3>
-          <p>小说导入页面支持上传文件、粘贴正文和示例导入。系统会识别常见章节标题，如果章节数量不足，会提示用户补充文本内容。</p>
+          <h3 id="import-title">导入后系统会先整理章节结构，再进入 AI 解析。</h3>
+          <p>小说导入页面支持上传文件、粘贴正文和示例导入。系统会识别常见章节标题，并将正文整理为后续 AI 解析可使用的结构化输入。</p>
         </div>
         <div class="help-mini-grid">
           <div>
