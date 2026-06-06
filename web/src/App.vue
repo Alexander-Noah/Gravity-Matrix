@@ -93,6 +93,7 @@ const previewNotice = ref('')
 const selectedTemplateId = ref(localStorage.getItem('gravityMatrixSelectedTemplate') || 'tv-drama')
 const currentUser = ref(getAuthSession().user)
 const isProfileCenterOpen = ref(false)
+const isGuideOpen = ref(false)
 const displayedAnalysisCharacters = ref(analysisCharacters)
 const displayedAnalysisMetrics = ref(analysisMetrics)
 const displayedAnalysisScenes = ref(analysisScenes)
@@ -120,6 +121,29 @@ const currentProjectStages = ref(projectStages)
 let isExplicitProjectOpen = false
 
 const CURRENT_PROJECT_STORAGE_KEY = 'gravityMatrixCurrentProjectId'
+
+const guideSteps = [
+  {
+    title: '导入小说',
+    description: '上传 TXT 文件或粘贴小说正文，系统会自动识别章节结构。至少识别 3 章后才能进入下一步。',
+    icon: 'upload',
+  },
+  {
+    title: 'AI 解析',
+    description: '提取人物、场景、剧情事件、人物关系和对白线索，形成后续生成剧本的结构依据。',
+    icon: 'spark',
+  },
+  {
+    title: '生成剧本',
+    description: '选择模板和生成偏好后，系统会生成可编辑的 YAML 剧本草稿。',
+    icon: 'format',
+  },
+  {
+    title: '编辑与导出',
+    description: '在工作台校验 YAML、补充场景、预览成稿，并导出 YAML、TXT、Markdown 或 PDF。',
+    icon: 'download',
+  },
+]
 
 const setCurrentProjectId = (projectId) => {
   currentProjectId.value = projectId || null
@@ -827,6 +851,14 @@ const logout = () => {
   router.push('/auth')
 }
 
+const openGuide = () => {
+  isGuideOpen.value = true
+}
+
+const closeGuide = () => {
+  isGuideOpen.value = false
+}
+
 const openProject = async (project) => {
   isExplicitProjectOpen = true
   router.push('/workbench')
@@ -1421,7 +1453,7 @@ const handleFileUpload = async (event) => {
     <main class="main-wrapper" aria-label="工作区">
       <div class="page-content">
         <WorkspaceHeader :description="pageDescription" :icon-paths="iconPaths" :title="pageTitle" @logout="logout"
-          @open-profile="openProfileCenter" />
+          @open-guide="openGuide" @open-profile="openProfileCenter" />
         <section class="workspace-body" aria-label="工作台内容">
         <TemplateCenterPage v-if="activeRoute.id === 'templates'" :icon-paths="iconPaths"
           :selected-template-id="selectedTemplateId" :templates="displayedTemplates"
@@ -1483,6 +1515,59 @@ const handleFileUpload = async (event) => {
     </main>
 
     <ProfileCenterDialog v-model="isProfileCenterOpen" :icon-paths="iconPaths" :user="currentUser" @logout="logout" />
+
+    <Teleport to="body">
+      <div v-if="isGuideOpen" class="dialog-backdrop" role="presentation" @click.self="closeGuide">
+        <section class="generation-dialog guide-dialog" role="dialog" aria-modal="true" aria-labelledby="guide-title">
+          <header class="dialog-header guide-dialog-header">
+            <div class="guide-title-row">
+              <span class="guide-title-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path v-for="path in iconPaths.shield" :key="path" :d="path" />
+                </svg>
+              </span>
+              <div>
+                <span>使用指南</span>
+                <h2 id="guide-title">从小说到剧本的完整流程</h2>
+                <p>按步骤完成导入、解析、生成、校验和导出，适合第一次使用时快速对齐操作路径。</p>
+              </div>
+            </div>
+            <button class="dialog-close" type="button" aria-label="关闭使用指南" @click="closeGuide">×</button>
+          </header>
+
+          <div class="dialog-body guide-dialog-body">
+            <ol class="guide-step-list">
+              <li v-for="(step, index) in guideSteps" :key="step.title" class="guide-step-item">
+                <span class="guide-step-number">{{ index + 1 }}</span>
+                <span class="guide-step-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path v-for="path in iconPaths[step.icon]" :key="path" :d="path" />
+                  </svg>
+                </span>
+                <div>
+                  <strong>{{ step.title }}</strong>
+                  <p>{{ step.description }}</p>
+                </div>
+              </li>
+            </ol>
+
+            <div class="guide-tips">
+              <strong>使用提示</strong>
+              <ul>
+                <li>TXT 会读取正文内容；DOCX 当前只记录文件名，建议粘贴正文后继续。</li>
+                <li>生成后的 YAML 可以继续编辑，校验通过后再进入预览和导出。</li>
+                <li>已生成的剧本可在剧本库继续编辑、预览、导出或移动到回收站。</li>
+              </ul>
+            </div>
+          </div>
+
+          <footer class="dialog-actions guide-actions">
+            <button class="editor-tool" type="button" @click="goToPage('help'); closeGuide()">查看帮助文档</button>
+            <button class="editor-tool is-primary" type="button" @click="closeGuide">开始使用</button>
+          </footer>
+        </section>
+      </div>
+    </Teleport>
 
     <Teleport to="body">
       <div v-if="showRecycleBin" class="dialog-backdrop" role="presentation" @click.self="closeRecycleBin">

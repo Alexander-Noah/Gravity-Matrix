@@ -7,7 +7,7 @@ const props = defineProps({
   title: { type: String, default: '小说转剧本工作台' },
 })
 
-const emit = defineEmits(['logout', 'open-profile'])
+const emit = defineEmits(['logout', 'open-guide', 'open-profile'])
 const isProfileMenuOpen = ref(false)
 const profileMenuRef = ref(null)
 const showWorkflowBadge = computed(() => props.title.includes('工作台'))
@@ -52,7 +52,7 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="top-actions" aria-label="快捷操作">
-      <button class="guide-button" type="button">
+      <button class="guide-button" type="button" @click="emit('open-guide')">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path v-for="path in iconPaths.shield" :key="path" :d="path" />
         </svg>

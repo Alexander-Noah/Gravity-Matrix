@@ -148,6 +148,138 @@
   border-top: 1px solid var(--border);
 }
 
+.guide-dialog {
+  width: min(760px, 92vw);
+}
+
+.guide-dialog-header {
+  align-items: flex-start;
+  background:
+    linear-gradient(180deg, oklch(98.8% 0.006 235), var(--surface));
+}
+
+.guide-title-row {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.guide-title-row p {
+  max-width: 58ch;
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.guide-title-icon,
+.guide-step-icon {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--primary-strong);
+  background: var(--primary-faint);
+}
+
+.guide-title-icon {
+  width: 42px;
+  height: 42px;
+  border: 1px solid oklch(86% 0.028 236);
+  border-radius: 10px;
+}
+
+.guide-title-icon svg,
+.guide-step-icon svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.guide-dialog-body {
+  gap: 18px;
+  max-height: min(64vh, 560px);
+}
+
+.guide-step-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guide-step-item {
+  display: grid;
+  grid-template-columns: 28px 42px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: oklch(98.5% 0.005 235);
+}
+
+.guide-step-number {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--primary-strong);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px oklch(84% 0.026 236);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.guide-step-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+}
+
+.guide-step-item strong,
+.guide-tips strong {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 820;
+  line-height: 1.4;
+}
+
+.guide-step-item p {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.guide-tips {
+  padding: 15px 16px;
+  border: 1px solid oklch(87% 0.018 235);
+  border-radius: 10px;
+  background: oklch(97.5% 0.008 235);
+}
+
+.guide-tips ul {
+  display: grid;
+  gap: 7px;
+  margin: 9px 0 0;
+  padding-left: 18px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.guide-actions {
+  justify-content: space-between;
+  background: oklch(98% 0.005 235);
+}
+
 .recycle-dialog {
   width: min(800px, 90vw);
 }
@@ -449,6 +581,19 @@
 
   .recycle-dialog {
     width: min(100%, 560px);
+  }
+
+  .guide-step-item {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+
+  .guide-step-icon {
+    display: none;
+  }
+
+  .guide-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .recycle-note,
