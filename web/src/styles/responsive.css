@@ -83,7 +83,14 @@
 
   .script-editor-layout {
     grid-template-columns: 1fr;
+    height: auto;
     min-height: 0;
+  }
+
+  .chapter-tree,
+  .code-pane,
+  .schema-panel {
+    max-height: 520px;
   }
 
   .structure-pane {

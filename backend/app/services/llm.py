@@ -368,10 +368,17 @@ def _extract_character_names(project: Project) -> list[str]:
     text = "\n".join(chapter.content for chapter in project.chapters)
     candidates: list[str] = []
 
+    for match in re.finditer(r"(?:主角|主要人物|人物|角色)[:：]\s*([^\n]+)", text):
+        candidates.extend(re.findall(r"[\u4e00-\u9fff]{2,4}", match.group(1)))
+
     for match in re.finditer(r"([\u4e00-\u9fff]{2})、([\u4e00-\u9fff]{2})、([\u4e00-\u9fff]{2})", text):
         candidates.extend(match.groups())
 
-    for match in re.finditer(r"([\u4e00-\u9fff]{2})(?:庄|在|率|与|和|同|向|说|道|问|答)", text):
+    name_action_pattern = (
+        r"([\u4e00-\u9fff]{2,4})\s*"
+        r"(?:握着|说|低声道|道|问|答|没有|从|提醒|看着|率|与|和|同|向)"
+    )
+    for match in re.finditer(name_action_pattern, text):
         candidates.append(match.group(1))
 
     stopwords = {
@@ -388,6 +395,11 @@ def _extract_character_names(project: Project) -> list[str]:
         "黎庶",
         "小说",
         "章节",
+        "事情",
+        "表面",
+        "立刻",
+        "众人",
+        "他们",
     }
     seen = set()
     names = []

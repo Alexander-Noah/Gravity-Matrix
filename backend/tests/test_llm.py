@@ -116,6 +116,28 @@ def test_analyze_project_records_fallback_reason_for_invalid_model_output(monkey
     assert result.fallback_reason == "invalid_analysis_response"
 
 
+def test_demo_analysis_extracts_spaced_character_names(monkeypatch) -> None:
+    _settings(monkeypatch)
+    project = Project(id=2, title="测试长篇001：武侠之断裂玉牌", author="合成作者001")
+    chapter_text = (
+        "流萤车站 的风在夜色里慢慢压低，魏北辰 握着断裂玉牌，听见远处传来断续的钟声。"
+        "秦知 说，事情不会只停在表面。温微 没有立刻回答，只把断裂玉牌 推到桌边。"
+        "沈珩 从阴影里看着他们。"
+    )
+    project.chapters = [
+        Chapter(number=1, title="第1章 长明城 的旧照片", content=chapter_text),
+        Chapter(number=2, title="第2章 镜湖 的旧照片", content=chapter_text),
+        Chapter(number=3, title="第3章 白塔 的旧戏票", content=chapter_text),
+    ]
+
+    result = llm.analyze_project(project)
+
+    names = [character["name"] for character in result.content["characters"]]
+    assert names[:3] == ["魏北辰", "秦知", "温微"]
+    assert "的风" not in names
+    assert "只停" not in names
+
+
 def test_call_deepseek_parses_json_object(monkeypatch) -> None:
     _settings(monkeypatch, api_key="test-key", base_url="https://api.deepseek.com", model="deepseek-v4-flash")
 
