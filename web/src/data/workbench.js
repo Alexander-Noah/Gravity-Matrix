@@ -1,6 +1,5 @@
 export const navItems = [
   { id: 'workbench', label: '工作台', icon: 'home' },
-  { id: 'projects', label: '我的项目', icon: 'folder' },
   { id: 'templates', label: '模板中心', icon: 'grid' },
   { id: 'library', label: '剧本库', icon: 'book' },
   { id: 'help', label: '帮助文档', icon: 'help' },

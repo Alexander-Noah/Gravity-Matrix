@@ -8,7 +8,7 @@ defineProps({
   projectTitle: { type: String, default: '未创建项目' },
 })
 
-defineEmits(['show-analysis', 'show-projects'])
+defineEmits(['show-analysis'])
 </script>
 
 <template>
@@ -19,7 +19,6 @@ defineEmits(['show-analysis', 'show-projects'])
           <span>项目进度</span>
           <h2 id="project-progress-title">{{ projectTitle }}</h2>
         </div>
-        <button class="side-link" type="button" @click="$emit('show-projects')">全部</button>
       </div>
 
       <div class="progress-readout">

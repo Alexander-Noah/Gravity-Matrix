@@ -8,6 +8,7 @@ const router = createRouter({
   routes: [
     { path: '/', redirect: defaultRoute.path },
     { path: '/profile', redirect: defaultRoute.path },
+    { path: '/projects', redirect: defaultRoute.path },
     ...appRoutes.map((route) => ({
       path: route.path,
       name: route.id,

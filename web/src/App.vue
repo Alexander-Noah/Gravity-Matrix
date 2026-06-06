@@ -12,7 +12,6 @@ import {
   getProjectAnalysis,
   getProjectScript,
   getProjectWorkbench,
-  listProjects,
   saveProjectScript,
   startAnalysisJob,
   startScriptJob,
@@ -27,7 +26,6 @@ import {
   updateProject,
   cloneProject,
   previewImport,
-  getProjectsDashboard,
   getScriptsLibrary,
   importLibrarySource,
   rerunScriptJob,
@@ -41,7 +39,6 @@ import HelpDocsPage from './components/HelpDocsPage.vue'
 import NovelImportPage from './components/NovelImportPage.vue'
 import ProductRoutePage from './components/ProductRoutePage.vue'
 import ProfileCenterDialog from './components/ProfileCenterDialog.vue'
-import ProjectsPage from './components/ProjectsPage.vue'
 import SchemaHelpPage from './components/SchemaHelpPage.vue'
 import ScriptLibraryPage from './components/ScriptLibraryPage.vue'
 import ScriptPreviewPage from './components/ScriptPreviewPage.vue'
@@ -104,14 +101,6 @@ const displayedCharacterRelations = ref(characterRelations)
 const displayedDialogueExtracts = ref(dialogueExtracts)
 const displayedInsightItems = ref(insightItems)
 const displayedScriptChapters = ref(scriptChapters)
-const displayedProjectCards = ref([])
-const displayedProjectStats = ref([
-  { label: '全部项目', value: '0', note: '等待读取真实项目', tone: 'violet' },
-  { label: '编辑中', value: '0', note: '等待读取真实项目', tone: 'blue' },
-  { label: '已生成剧本', value: '0', note: '等待读取真实项目', tone: 'mint' },
-  { label: '待解析', value: '0', note: '等待读取真实项目', tone: 'orange' },
-])
-const displayedProjectActivities = ref([])
 const displayedLibraryItems = ref([])
 const displayedLibraryStats = ref([
   { label: '全部剧本', value: '0', note: '等待读取真实剧本库', tone: 'violet' },
@@ -121,11 +110,8 @@ const displayedLibraryStats = ref([
 ])
 const displayedTemplates = ref(mockTemplates)
 const selectedSceneId = ref(null)
-const projectListNotice = ref('')
 const libraryNotice = ref('')
-const isProjectsLoading = ref(false)
 const isLibraryLoading = ref(false)
-const hasProjectsLoaded = ref(false)
 const hasLibraryLoaded = ref(false)
 const isScriptGenerating = ref(false)
 const currentProjectTitle = ref('未创建项目')
@@ -260,84 +246,6 @@ const formatProjectTime = (value) => {
     hour: '2-digit',
     minute: '2-digit',
   })
-}
-
-const mapProjectStatus = (project) => {
-  if (project.status === 'script_edited') {
-    return '编辑中'
-  }
-
-  if (project.has_script) {
-    return '待导出'
-  }
-
-  if (project.has_analysis) {
-    return '待生成剧本'
-  }
-
-  return '待解析'
-}
-
-const mapProjectProgress = (project) => {
-  if (project.status === 'script_edited') {
-    return 100
-  }
-
-  if (project.has_script) {
-    return 90
-  }
-
-  if (project.has_analysis) {
-    return 60
-  }
-
-  return 30
-}
-
-const mapProjectNextAction = (project) => {
-  if (project.has_script) {
-    return '继续编辑 YAML'
-  }
-
-  if (project.has_analysis) {
-    return '生成剧本'
-  }
-
-  return '进入 AI 解析'
-}
-
-const mapProjectCard = (project) => ({
-  id: project.id,
-  title: `《${project.title}》改编项目`,
-  type: project.has_script ? '结构化剧本 / YAML' : '小说改编 / 工作台',
-  status: mapProjectStatus(project),
-  progress: mapProjectProgress(project),
-  updatedAt: formatProjectTime(project.updated_at),
-  chapters: project.chapter_count,
-  scenes: project.has_script ? '已生成' : 0,
-  owner: project.author || '创作者',
-  nextAction: mapProjectNextAction(project),
-  raw: project,
-})
-
-const applyProjectsResult = (result) => {
-  const projects = result.items || []
-  const scriptCount = projects.filter((project) => project.has_script).length
-  const editingCount = projects.filter((project) => project.status === 'script_edited').length
-  const analysisPendingCount = projects.filter((project) => !project.has_analysis).length
-
-  displayedProjectCards.value = projects.map(mapProjectCard)
-  displayedProjectStats.value = [
-    { label: '全部项目', value: String(result.total ?? projects.length), note: '来自后端项目列表', tone: 'violet' },
-    { label: '编辑中', value: String(editingCount), note: '已保存剧本草稿', tone: 'blue' },
-    { label: '已生成剧本', value: String(scriptCount), note: '可继续编辑或导出', tone: 'mint' },
-    { label: '待解析', value: String(analysisPendingCount), note: '需要进入 AI 解析', tone: 'orange' },
-  ]
-  displayedProjectActivities.value = projects.slice(0, 4).map((project) => ({
-    title: `${mapProjectNextAction(project)}：${project.title}`,
-    time: formatProjectTime(project.updated_at),
-    status: mapProjectStatus(project),
-  }))
 }
 
 const mapLibraryStatus = (project, diagnosis) => {
@@ -496,40 +404,6 @@ const applyWorkbenchProgress = (workbench) => {
   }
 }
 
-const fetchProjects = async () => {
-  if (isProjectsLoading.value) return
-  isProjectsLoading.value = true
-  projectListNotice.value = ''
-  try {
-    const dashboard = await getProjectsDashboard()
-    if (dashboard) {
-      displayedProjectStats.value = dashboard.stats || [
-        { label: '全部项目', value: '0', note: '后端暂无项目', tone: 'violet' },
-        { label: '编辑中', value: '0', note: '暂无编辑中项目', tone: 'blue' },
-        { label: '已生成剧本', value: '0', note: '暂无已生成剧本', tone: 'mint' },
-        { label: '待解析', value: '0', note: '暂无待解析项目', tone: 'orange' },
-      ]
-      displayedProjectCards.value = dashboard.project_cards || dashboard.cards || []
-      displayedProjectActivities.value = dashboard.activities || []
-    }
-    hasProjectsLoaded.value = true
-  } catch (error) {
-    projectListNotice.value = `项目列表加载失败：${getApiErrorMessage(error)}`
-    if (!hasProjectsLoaded.value) {
-      displayedProjectStats.value = [
-        { label: '全部项目', value: '0', note: '后端暂不可用', tone: 'violet' },
-        { label: '编辑中', value: '0', note: '后端暂不可用', tone: 'blue' },
-        { label: '已生成剧本', value: '0', note: '后端暂不可用', tone: 'mint' },
-        { label: '待解析', value: '0', note: '后端暂不可用', tone: 'orange' },
-      ]
-      displayedProjectCards.value = []
-      displayedProjectActivities.value = []
-    }
-  } finally {
-    isProjectsLoading.value = false
-  }
-}
-
 const fetchScriptLibrary = async () => {
   if (isLibraryLoading.value) return
   isLibraryLoading.value = true
@@ -565,9 +439,7 @@ const fetchScriptLibrary = async () => {
 watch(
   () => activeRoute.value.id,
   (routeId) => {
-    if (routeId === 'projects') {
-      fetchProjects()
-    } else if (routeId === 'templates') {
+    if (routeId === 'templates') {
       fetchTemplates()
     } else if (routeId === 'library') {
       fetchScriptLibrary()
@@ -614,7 +486,7 @@ const resetWorkbenchFlow = () => {
 const enterWorkbenchHome = () => {
   resetWorkbenchFlow()
   activePage.value = 'import'
-  importNotice.value = '工作台已回到导入准备区；从“我的项目”或“剧本库”打开项目时才会进入已生成剧本。'
+  importNotice.value = '工作台已回到导入准备区；从“剧本库”打开项目时才会进入已生成剧本。'
 }
 
 const detectedChapters = ref([])
@@ -953,17 +825,6 @@ const logout = () => {
   isProfileCenterOpen.value = false
   clearAuthSession()
   router.push('/auth')
-}
-
-const handleDeleteProject = async (project) => {
-  if (!confirm(`确定要删除项目《${project.raw?.title || project.title}》吗？此操作无法恢复。`)) return
-
-  try {
-    await deleteProject(project.id)
-    await fetchProjects()
-  } catch (error) {
-    alert('删除失败: ' + getApiErrorMessage(error))
-  }
 }
 
 const openProject = async (project) => {
@@ -1554,8 +1415,7 @@ const handleFileUpload = async (event) => {
   <AuthPage v-if="isAuthRoute" :icon-paths="iconPaths" @authenticated="handleAuthenticated" />
 
   <div v-else class="app-layout">
-    <AppSidebar :icon-paths="iconPaths" :nav-items="activeNavItems" :project-progress="currentProjectProgress"
-      :project-title="currentProjectTitle" @select="goToPage" @open-current-project="openCurrentProject"
+    <AppSidebar :icon-paths="iconPaths" :nav-items="activeNavItems" @select="goToPage"
       @open-recycle-bin="openRecycleBin" />
 
     <main class="main-wrapper" aria-label="工作区">
@@ -1563,12 +1423,7 @@ const handleFileUpload = async (event) => {
         <WorkspaceHeader :description="pageDescription" :icon-paths="iconPaths" :title="pageTitle" @logout="logout"
           @open-profile="openProfileCenter" />
         <section class="workspace-body" aria-label="工作台内容">
-        <ProjectsPage v-if="activeRoute.id === 'projects'" :activities="displayedProjectActivities"
-          :icon-paths="iconPaths" :is-loaded="hasProjectsLoaded" :is-loading="isProjectsLoading"
-          :projects="displayedProjectCards" :stats="displayedProjectStats"
-          :notice="projectListNotice" @open-project="openProject" @delete-project="handleDeleteProject" />
-
-        <TemplateCenterPage v-else-if="activeRoute.id === 'templates'" :icon-paths="iconPaths"
+        <TemplateCenterPage v-if="activeRoute.id === 'templates'" :icon-paths="iconPaths"
           :selected-template-id="selectedTemplateId" :templates="displayedTemplates"
           @select-template="selectGenerationTemplate" />
 
@@ -1610,7 +1465,7 @@ const handleFileUpload = async (event) => {
             <SupportColumn
               :analysis-metrics="displayedAnalysisMetrics" :icon-paths="iconPaths" :insight-items="displayedInsightItems"
               :project-progress="currentProjectProgress" :project-stages="currentProjectStages"
-              :project-title="currentProjectTitle" @show-analysis="goBackToAnalysis" @show-projects="goToPage('projects')" />
+              :project-title="currentProjectTitle" @show-analysis="goBackToAnalysis" />
             <ScriptWorkspace :icon-paths="iconPaths" :preview-scene="selectedPreviewScene"
               :schema-validation="schemaValidation" :script-chapters="displayedScriptChapters"
               :is-generating="isScriptGenerating" :status-notice="editorNotice" :yaml-lines="generatedYamlLines" @add-scene="openAddScene"

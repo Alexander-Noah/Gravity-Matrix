@@ -12,12 +12,6 @@ export const appRoutes = [
     description: '按流程完成小说导入、AI解析、剧本编辑与导出',
   },
   {
-    id: 'projects',
-    path: '/projects',
-    title: '我的项目',
-    description: '集中管理小说改编项目和最近编辑记录',
-  },
-  {
     id: 'templates',
     path: '/templates',
     title: '模板中心',

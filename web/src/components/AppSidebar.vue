@@ -2,11 +2,9 @@
 defineProps({
   iconPaths: { type: Object, required: true },
   navItems: { type: Array, required: true },
-  projectProgress: { type: Number, default: 0 },
-  projectTitle: { type: String, default: '导入小说开始新项目' },
 })
 
-defineEmits(['select', 'open-current-project', 'open-recycle-bin'])
+defineEmits(['select', 'open-recycle-bin'])
 </script>
 
 <template>
@@ -46,29 +44,7 @@ defineEmits(['select', 'open-current-project', 'open-recycle-bin'])
 
     <div class="sidebar-spacer" aria-hidden="true"></div>
 
-    <section class="sidebar-panel project-panel" aria-labelledby="current-project-title">
-      <div class="panel-heading">
-        <h2 id="current-project-title">当前项目</h2>
-        <button class="icon-button" type="button" aria-label="查看当前项目" @click="$emit('open-current-project')">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path v-for="path in iconPaths.eye" :key="path" :d="path" />
-          </svg>
-        </button>
-      </div>
-
-      <div class="project-row">
-        <svg class="item-icon project-icon" viewBox="0 0 24 24" aria-hidden="true">
-          <path v-for="path in iconPaths.folder" :key="path" :d="path" />
-        </svg>
-        <div>
-          <strong>{{ projectTitle }}</strong>
-          <span>{{ projectProgress > 0 ? `流程进度 ${projectProgress}%` : '等待导入小说' }}</span>
-          <span class="sidebar-project-meter" aria-hidden="true">
-            <span :style="{ width: `${projectProgress}%` }"></span>
-          </span>
-        </div>
-      </div>
-
+    <section class="sidebar-panel project-panel" aria-label="项目管理">
       <button class="utility-row" type="button" @click="$emit('open-recycle-bin')">
         <svg class="item-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path v-for="path in iconPaths.trash" :key="path" :d="path" />
