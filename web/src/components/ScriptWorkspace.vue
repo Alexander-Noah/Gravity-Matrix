@@ -1,6 +1,4 @@
 <script setup>
-import { ref } from 'vue'
-
 defineProps({
   iconPaths: { type: Object, required: true },
   isGenerating: { type: Boolean, default: false },
@@ -9,19 +7,10 @@ defineProps({
   schemaValidation: { type: Object, required: true },
   statusNotice: { type: String, default: '' },
   yamlLines: { type: Array, required: true },
-  yamlText: { type: String, required: true },
   saveStatus: { type: String, default: '' },
 })
 
-defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'previous', 'select-scene', 'validate-yaml', 'update:yamlText'])
-
-const preRef = ref(null)
-const syncScroll = (e) => {
-  if (preRef.value) {
-    preRef.value.scrollTop = e.target.scrollTop
-    preRef.value.scrollLeft = e.target.scrollLeft
-  }
-}
+defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'previous', 'select-scene', 'validate-yaml'])
 </script>
 
 <template>
@@ -114,14 +103,7 @@ const syncScroll = (e) => {
         </aside>
 
         <div class="code-pane" aria-label="YAML 剧本文档">
-          <textarea
-            class="yaml-editor-textarea"
-            :value="yamlText"
-            @input="$emit('update:yamlText', $event.target.value)"
-            @scroll="syncScroll"
-            spellcheck="false"
-          ></textarea>
-          <pre ref="preRef" aria-hidden="true"><code><span v-for="(line, index) in yamlLines" :key="index" class="code-line"><span class="line-number">{{ index + 1 }}</span><span class="line-content"><template v-for="(token, tokenIndex) in line" :key="`${index}-${tokenIndex}`"><span :class="`yaml-${token.tone}`">{{ token.text }}</span></template></span></span></code></pre>
+          <pre><code><span v-for="(line, index) in yamlLines" :key="index" class="code-line"><span class="line-number">{{ index + 1 }}</span><span class="line-content"><template v-for="(token, tokenIndex) in line" :key="`${index}-${tokenIndex}`"><span :class="`yaml-${token.tone}`">{{ token.text }}</span></template></span></span></code></pre>
         </div>
 
         <aside class="schema-panel" aria-labelledby="schema-title">

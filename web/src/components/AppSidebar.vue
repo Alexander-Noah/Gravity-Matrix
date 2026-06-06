@@ -63,6 +63,9 @@ defineEmits(['select', 'open-current-project', 'open-recycle-bin'])
         <div>
           <strong>{{ projectTitle }}</strong>
           <span>{{ projectProgress > 0 ? `流程进度 ${projectProgress}%` : '等待导入小说' }}</span>
+          <span class="sidebar-project-meter" aria-hidden="true">
+            <span :style="{ width: `${projectProgress}%` }"></span>
+          </span>
         </div>
       </div>
 
