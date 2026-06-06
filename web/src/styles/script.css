@@ -254,7 +254,7 @@
   position: relative;
   min-width: 0;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   background: var(--editor-bg);
 }
 
@@ -283,6 +283,38 @@
 .code-more svg {
   width: 17px;
   height: 17px;
+}
+
+.yaml-editor {
+  width: 100%;
+  height: 100%;
+  min-width: 720px;
+  min-height: 100%;
+  resize: none;
+  overflow: auto;
+  padding: 16px 68px 22px 54px;
+  border: 0;
+  color: oklch(86% 0.04 255);
+  background:
+    repeating-linear-gradient(
+      180deg,
+      transparent 0 20.8px,
+      oklch(17% 0.025 265 / 0.22) 20.8px 41.6px
+    ),
+    var(--editor-bg);
+  font: 13px/1.6 "JetBrains Mono", "SFMono-Regular", Consolas, "Microsoft YaHei", monospace;
+  outline: none;
+  tab-size: 2;
+  white-space: pre;
+}
+
+.yaml-editor:focus {
+  box-shadow: inset 0 0 0 2px oklch(62% 0.18 285 / 0.72);
+}
+
+.yaml-editor::selection {
+  color: oklch(99% 0.004 275);
+  background: oklch(58% 0.2 285 / 0.42);
 }
 
 .code-pane pre {

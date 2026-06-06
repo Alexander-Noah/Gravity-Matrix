@@ -1,23 +1,23 @@
 .script-preview-page {
   display: grid;
-  gap: 16px;
-  max-width: 1280px;
+  gap: 18px;
+  max-width: 1480px;
   margin: 0 auto;
 }
 
 .preview-export-toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto minmax(420px, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 18px 20px;
+  gap: 16px;
+  padding: 18px 22px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 10px;
   background: oklch(99% 0.004 275 / 0.94);
   box-shadow: var(--shadow-soft);
 }
 
-.preview-export-toolbar span {
+.preview-export-toolbar > div:first-child > span {
   color: var(--primary-strong);
   font-size: 13px;
   font-weight: 760;
@@ -29,6 +29,35 @@
   font-size: 19px;
   font-weight: 780;
   line-height: 1.25;
+}
+
+.preview-export-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-muted);
+}
+
+.preview-export-stats span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 7px;
+  color: var(--text-muted);
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.preview-export-stats strong {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 820;
 }
 
 .preview-export-actions {
@@ -46,37 +75,66 @@
   margin: 0;
 }
 
+.screenplay-preview-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 18px;
+  align-items: start;
+}
+
 .screenplay-paper {
   display: grid;
-  gap: 18px;
+  gap: 0;
   max-height: calc(100vh - 260px);
   min-height: 420px;
   overflow: auto;
-  padding: 24px;
+  padding: 30px 36px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 10px;
   background:
-    linear-gradient(90deg, transparent 0 54px, oklch(92% 0.012 275) 55px, transparent 56px),
+    linear-gradient(90deg, transparent 0 68px, oklch(91% 0.014 275) 69px, transparent 70px),
     oklch(99% 0.004 275);
   box-shadow: var(--shadow-soft);
+  scrollbar-gutter: stable;
 }
 
 .screenplay-scene {
   display: grid;
-  gap: 16px;
+  gap: 15px;
   max-width: 860px;
-  padding: 20px 0 22px 28px;
+  padding: 28px 0 30px 38px;
   border-bottom: 1px solid var(--border);
+  scroll-margin-top: 18px;
 }
 
 .screenplay-scene:last-child {
   border-bottom: 0;
 }
 
+.screenplay-scene header {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.screenplay-scene header > span {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid oklch(84% 0.055 285);
+  border-radius: 9px;
+  color: var(--primary-strong);
+  background: var(--primary-faint);
+  font-size: 12px;
+  font-weight: 820;
+}
+
 .screenplay-scene header h3 {
   margin: 0;
   color: var(--text);
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 800;
   line-height: 1.35;
 }
@@ -112,19 +170,22 @@
   max-width: 65ch;
   color: var(--text);
   font-size: 14px;
-  line-height: 1.8;
+  line-height: 1.9;
 }
 
 .screenplay-dialogues {
   display: grid;
-  gap: 14px;
+  gap: 10px;
+  margin-top: 2px;
 }
 
 .screenplay-dialogues article {
   display: grid;
-  gap: 5px;
-  max-width: 58ch;
-  padding-left: 24px;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 18px;
+  max-width: 66ch;
+  padding: 11px 0;
+  border-top: 1px solid oklch(93% 0.012 275);
 }
 
 .screenplay-dialogues h4 {
@@ -142,12 +203,107 @@
   line-height: 1.75;
 }
 
+.screenplay-outline {
+  position: sticky;
+  top: 18px;
+  display: grid;
+  gap: 14px;
+  max-height: calc(100vh - 260px);
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: oklch(99% 0.004 275 / 0.96);
+  box-shadow: var(--shadow-soft);
+  scrollbar-gutter: stable;
+}
+
+.screenplay-outline > div {
+  display: grid;
+  gap: 4px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.screenplay-outline > div span {
+  color: var(--primary-strong);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.screenplay-outline > div strong {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.screenplay-outline nav {
+  display: grid;
+  gap: 8px;
+}
+
+.screenplay-outline a {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 9px;
+  padding: 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.screenplay-outline a:hover,
+.screenplay-outline a:focus-visible {
+  border-color: var(--border-strong);
+  background: var(--primary-faint);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.screenplay-outline a span {
+  grid-row: span 2;
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--primary-strong);
+  background: var(--primary-soft);
+  font-size: 11px;
+  font-weight: 820;
+}
+
+.screenplay-outline a strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.screenplay-outline a small {
+  overflow: hidden;
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media print {
   .sidebar,
   .workspace-header,
   .workflow-sticky,
   .preview-export-toolbar,
-  .preview-export-notice {
+  .preview-export-notice,
+  .screenplay-outline {
     display: none;
   }
 
@@ -170,6 +326,26 @@
   }
 }
 
+@media (max-width: 1180px) {
+  .preview-export-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .preview-export-stats,
+  .preview-export-actions {
+    justify-self: start;
+  }
+
+  .screenplay-preview-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .screenplay-outline {
+    position: static;
+    max-height: 220px;
+  }
+}
+
 @media (max-width: 720px) {
   .preview-export-toolbar,
   .preview-export-actions {
@@ -189,5 +365,10 @@
 
   .screenplay-scene {
     padding-left: 0;
+  }
+
+  .screenplay-scene header,
+  .screenplay-dialogues article {
+    grid-template-columns: 1fr;
   }
 }

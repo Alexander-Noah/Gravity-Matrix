@@ -517,24 +517,30 @@ const generatedYamlLines = computed(() => {
     ...yamlLines.slice(6),
   ]
 })
-const generatedYamlText = computed(() =>
-  generatedScriptYaml.value || generatedYamlLines.value.map((line) => line.map((token) => token.text).join('')).join('\n'),
-)
+const generatedYamlText = computed({
+  get: () =>
+    generatedScriptYaml.value || generatedYamlLines.value.map((line) => line.map((token) => token.text).join('')).join('\n'),
+  set: (value) => {
+    generatedScriptYaml.value = value
+  },
+})
 const displayedPreviewScenes = computed(() => {
-  if (!generatedScriptYaml.value) return scriptPreviewScenes
+  if (!generatedYamlText.value) return scriptPreviewScenes
 
   try {
-    const parsed = yaml.load(generatedScriptYaml.value)
-    if (!parsed || !parsed.script || !parsed.script.chapters) return scriptPreviewScenes
+    const parsed = yaml.load(generatedYamlText.value)
+    const script = parsed?.script || parsed
+    const chapters = script?.chapters || []
+    if (!script || !chapters.length) return scriptPreviewScenes
 
     const characterNameById = Object.fromEntries(
-      (parsed.script.characters || []).map((character) => [character.id, character.name || character.id]),
+      (script.characters || []).map((character) => [character.id, character.name || character.id]),
     )
     const locationNameById = Object.fromEntries(
-      (parsed.script.locations || []).map((location) => [location.id, location.name || location.id]),
+      (script.locations || []).map((location) => [location.id, location.name || location.id]),
     )
     const scenes = []
-    parsed.script.chapters.forEach((chapter, cIdx) => {
+    chapters.forEach((chapter, cIdx) => {
       if (!chapter.scenes) return
       chapter.scenes.forEach((scene, sIdx) => {
         const sceneDialogues = scene.dialogue || scene.dialogues || []
@@ -1084,6 +1090,25 @@ const copyYaml = async () => {
   }
 }
 
+const updateYamlText = (value) => {
+  generatedYamlText.value = value
+}
+
+const saveYaml = async () => {
+  if (!currentProjectId.value) {
+    editorNotice.value = '当前为本地 YAML 草稿，修改已保留在页面中。'
+    return
+  }
+
+  try {
+    editorNotice.value = '正在保存手动修改的 YAML...'
+    await saveProjectScript(currentProjectId.value, generatedYamlText.value)
+    editorNotice.value = '手动修改已保存到后端，预览已同步当前 YAML。'
+  } catch (error) {
+    editorNotice.value = `保存 YAML 失败：${getApiErrorMessage(error)}`
+  }
+}
+
 const downloadYaml = async () => {
   if (currentProjectId.value) {
     try {
@@ -1289,9 +1314,10 @@ const handleFileUpload = async (event) => {
             <ScriptWorkspace :icon-paths="iconPaths" :preview-dialogues="activePreviewDialogues"
               :preview-scene="activePreviewScene"
               :schema-validation="schemaValidation" :script-chapters="displayedScriptChapters"
-              :status-notice="editorNotice" :yaml-lines="generatedYamlLines" @add-scene="openAddScene"
+              :status-notice="editorNotice" :yaml-lines="generatedYamlLines" :yaml-text="generatedYamlText" @add-scene="openAddScene"
               @copy-yaml="copyYaml" @download-yaml="downloadYaml" @open-preview="goToPreview"
-              @open-schema="goToSchemaHelp" @previous="goBackToAnalysis" @validate-yaml="validateYaml" />
+              @open-schema="goToSchemaHelp" @previous="goBackToAnalysis" @save-yaml="saveYaml"
+              @update:yaml-text="updateYamlText" @validate-yaml="validateYaml" />
           </div>
 
           <GenerationSettingsDialog v-model="isGenerationSettingsOpen" :initial-settings="generatedSettings || defaultGenerationSettings"

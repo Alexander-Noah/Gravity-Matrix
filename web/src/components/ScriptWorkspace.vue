@@ -7,10 +7,21 @@ defineProps({
   schemaValidation: { type: Object, required: true },
   statusNotice: { type: String, default: '' },
   yamlLines: { type: Array, required: true },
+  yamlText: { type: String, required: true },
   saveStatus: { type: String, default: '' },
 })
 
-defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'previous', 'validate-yaml'])
+defineEmits([
+  'add-scene',
+  'copy-yaml',
+  'download-yaml',
+  'open-preview',
+  'open-schema',
+  'previous',
+  'save-yaml',
+  'update:yaml-text',
+  'validate-yaml',
+])
 </script>
 
 <template>
@@ -39,6 +50,12 @@ defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-sc
               <path v-for="path in iconPaths.shield" :key="path" :d="path" />
             </svg>
             <span>校验格式</span>
+          </button>
+          <button class="editor-tool" type="button" @click="$emit('save-yaml')">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path v-for="path in iconPaths.file" :key="path" :d="path" />
+            </svg>
+            <span>保存 YAML</span>
           </button>
           <button class="editor-tool" type="button" @click="$emit('copy-yaml')">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -107,7 +124,13 @@ defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-sc
               <path v-for="path in iconPaths.more" :key="path" :d="path" />
             </svg>
           </button>
-          <pre><code><span v-for="(line, index) in yamlLines" :key="index" class="code-line"><span class="line-number">{{ index + 1 }}</span><span class="line-content"><template v-for="(token, tokenIndex) in line" :key="`${index}-${tokenIndex}`"><span :class="`yaml-${token.tone}`">{{ token.text }}</span></template></span></span></code></pre>
+          <textarea
+            class="yaml-editor"
+            :value="yamlText"
+            aria-label="可编辑 YAML 剧本内容"
+            spellcheck="false"
+            @input="$emit('update:yaml-text', $event.target.value)"
+          ></textarea>
         </div>
 
         <aside class="schema-panel" aria-labelledby="schema-title">
