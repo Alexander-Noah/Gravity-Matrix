@@ -18,6 +18,7 @@ class ProjectCreate(BaseModel):
 
 class ProjectUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
+    name: str | None = Field(default=None, min_length=1, max_length=255)
     author: str | None = Field(default=None, max_length=255)
 
 
@@ -118,12 +119,14 @@ class DashboardActivity(BaseModel):
 class ProjectsDashboardRead(BaseModel):
     stats: list[DashboardStat]
     project_cards: list[DashboardProjectCard]
+    cards: list[DashboardProjectCard] = Field(default_factory=list)
     activities: list[DashboardActivity]
 
 
 class ScriptLibraryItem(BaseModel):
     id: str
     project_id: int | None = None
+    projectId: int | None = None
     source_id: str | None = None
     source_type: str = "project"
     title: str
@@ -159,6 +162,7 @@ class ProjectDetail(ProjectRead):
 
 class JobRead(BaseModel):
     id: int
+    job_id: int | None = None
     project_id: int
     type: str
     status: str
@@ -166,6 +170,7 @@ class JobRead(BaseModel):
     current_step: str
     result_id: int | None
     error_message: str | None
+    message: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -176,8 +181,8 @@ class ScriptRead(BaseModel):
 
 
 class ProjectDeleteResponse(BaseModel):
-    deleted: bool
-    project_id: int
+    success: bool
+    message: str
 
 
 class TemplateRead(BaseModel):
@@ -200,8 +205,7 @@ class GenerationSettingsRequest(BaseModel):
 
 class GenerationSettingsResponse(BaseModel):
     project_id: int
-    accepted: bool
-    settings: GenerationSettingsRequest
+    settings: dict[str, Any]
 
 
 class SceneCreateRequest(BaseModel):

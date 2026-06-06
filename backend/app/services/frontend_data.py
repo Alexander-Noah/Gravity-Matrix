@@ -50,12 +50,14 @@ def build_projects_dashboard(db: Session) -> dict[str, Any]:
     exported = has_script
     needs_validation = sum(1 for project in projects if project.script_yaml and not _script_valid(project.script_yaml))
 
+    project_cards = [_project_card(project) for project in projects]
+
     return {
         "stats": [
             {
-                "label": "进行中项目",
-                "value": str(active),
-                "note": f"共 {total} 个项目",
+                "label": "全部项目",
+                "value": str(total),
+                "note": f"进行中 {active} 个项目",
                 "tone": "violet",
             },
             {
@@ -77,7 +79,8 @@ def build_projects_dashboard(db: Session) -> dict[str, Any]:
                 "tone": "mint",
             },
         ],
-        "project_cards": [_project_card(project) for project in projects],
+        "project_cards": project_cards,
+        "cards": project_cards,
         "activities": _recent_activities(db, projects),
     }
 
@@ -270,7 +273,7 @@ def _detect_chapters(text: str) -> list[dict[str, Any]]:
         return []
 
     pattern = re.compile(
-        r"(?m)^\s*(?P<title>(?:第[\d一二三四五六七八九十百千万零〇两]+[章节回卷幕部集][^\n]{0,80}|Chapter\s+\d+[^\n]{0,80}|CHAPTER\s+[IVXLCDM\d]+[^\n]{0,80}))\s*$",
+        r"(?m)^\s*(?P<title>(?:第[\d一二三四五六七八九十百千万零〇两]+[章节回卷幕部集](?:\s+|[：:《「（(【-])[^\n]{0,80}|Chapter\s+\d+[^\n]{0,80}|CHAPTER\s+[IVXLCDM\d]+[^\n]{0,80}))\s*$",
         re.IGNORECASE,
     )
     matches = list(pattern.finditer(text))
@@ -505,6 +508,7 @@ def _script_library_item(project: Project) -> dict[str, Any]:
     return {
         "id": f"script-{project.id:03d}",
         "project_id": project.id,
+        "projectId": project.id,
         "title": f"《{project.title}》剧本",
         "sourceNovel": f"《{project.title}》",
         "type": "影视剧",
@@ -573,6 +577,12 @@ def _script_valid(yaml_text: str) -> bool:
 def _detect_title(text: str) -> str | None:
     for line in text.splitlines():
         stripped = line.strip()
+        if stripped.startswith("标题："):
+            title = stripped.replace("标题：", "", 1).strip()
+            return title[:80] if title else None
+        if stripped.startswith("标题:"):
+            title = stripped.replace("标题:", "", 1).strip()
+            return title[:80] if title else None
         if stripped and not stripped.startswith("第") and not stripped.lower().startswith("chapter"):
             return stripped[:80]
     return None

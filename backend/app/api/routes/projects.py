@@ -52,6 +52,22 @@ router = APIRouter(tags=["projects"])
 def list_templates() -> list[TemplateRead]:
     return [
         TemplateRead(
+            id="film",
+            name="影视剧剧本模板",
+            scenario="适合长篇小说改编为电视剧、网剧或电影分场剧本。",
+            target_format="screenplay",
+            backend_rules=["按章节组织场景", "突出人物动作和对白", "每场保留可拍摄的地点、时间和调度"],
+            features=["按章节拆分场景", "保留人物动机与动作描写", "适配标准场景标题"],
+            fields=["script", "metadata", "characters", "locations", "chapters", "scenes", "dialogue"],
+            yamlExample=[
+                "script:",
+                "  schema_version: 1.0",
+                "  metadata:",
+                "    title: 剧本标题",
+                "    target_format: screenplay",
+            ],
+        ),
+        TemplateRead(
             id="tv-drama",
             name="影视剧剧本模板",
             scenario="适合长篇小说改编为电视剧、网剧或电影分场剧本。",
@@ -272,14 +288,18 @@ def delete_project(project_id: int, db: Session = Depends(get_db)) -> ProjectDel
     project = _require_project(db, project_id)
     db.delete(project)
     db.commit()
-    return ProjectDeleteResponse(deleted=True, project_id=project_id)
+    return ProjectDeleteResponse(success=True, message="项目已删除。")
 
 
 @router.patch("/projects/{project_id}", response_model=ProjectRead)
 def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depends(get_db)) -> ProjectRead:
     project = _require_project(db, project_id)
-    if payload.title is not None:
-        project.title = payload.title
+    next_title = payload.title if payload.title is not None else payload.name
+    if next_title is not None:
+        next_title = next_title.strip()
+        if not next_title:
+            raise HTTPException(status_code=422, detail="项目名称不能为空。")
+        project.title = next_title
     if payload.author is not None:
         project.author = payload.author
     db.commit()
@@ -363,7 +383,7 @@ def rerun_analysis_job(
 
     job = create_job(db, project_id, JobType.analysis)
     background_tasks.add_task(_run_analysis_job_task, job.id)
-    return job
+    return _job_to_read(job, message="重新解析任务已启动。")
 
 
 @router.get("/projects/{project_id}/analysis", response_model=AnalysisRead)
@@ -416,9 +436,10 @@ def update_generation_settings(
     db: Session = Depends(get_db),
 ) -> GenerationSettingsResponse:
     project = _require_project(db, project_id)
-    project.generation_settings_json = json.dumps(payload.model_dump(), ensure_ascii=False)
+    saved_settings = payload.model_dump(exclude_none=True)
+    project.generation_settings_json = json.dumps(saved_settings, ensure_ascii=False)
     db.commit()
-    return GenerationSettingsResponse(project_id=project_id, accepted=True, settings=payload)
+    return GenerationSettingsResponse(project_id=project_id, settings=saved_settings)
 
 
 @router.get("/jobs/{job_id}", response_model=JobRead)
@@ -426,7 +447,7 @@ def get_job(job_id: int, db: Session = Depends(get_db)) -> Job:
     job = db.get(Job, job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="任务不存在。")
-    return job
+    return _job_to_read(job)
 
 
 @router.get("/projects/{project_id}/script", response_model=ScriptRead)
@@ -566,6 +587,21 @@ def _project_to_read(project: Project) -> ProjectRead:
         has_script=project.script_yaml is not None,
         created_at=project.created_at,
         updated_at=project.updated_at,
+    )
+
+
+def _job_to_read(job: Job, message: str | None = None) -> JobRead:
+    return JobRead(
+        id=job.id,
+        job_id=job.id,
+        project_id=job.project_id,
+        type=job.type,
+        status=job.status,
+        progress=job.progress,
+        current_step=job.current_step,
+        result_id=job.result_id,
+        error_message=job.error_message,
+        message=message,
     )
 
 
@@ -713,6 +749,17 @@ def _screenplay_text(yaml_text: str) -> str:
         str(script.get("metadata", {}).get("title") or "未命名剧本"),
         "",
     ]
+    characters = script.get("characters", [])
+    if characters:
+        lines.extend(["人物", ""])
+        for character in characters:
+            name = character.get("name") or character.get("id") or "未命名人物"
+            role = character.get("role") or "角色"
+            description = character.get("description") or ""
+            suffix = f"：{description}" if description else ""
+            lines.append(f"{name}（{role}）{suffix}")
+        lines.append("")
+
     for chapter in script.get("chapters", []):
         lines.extend([str(chapter.get("title", "未命名章节")), ""])
         for scene in chapter.get("scenes", []):
@@ -732,6 +779,28 @@ def _screenplay_markdown(yaml_text: str) -> str:
     parsed = _load_screenplay(yaml_text)
     script = parsed["script"]
     lines = [f"# {script.get('metadata', {}).get('title') or '未命名剧本'}", ""]
+
+    characters = script.get("characters", [])
+    if characters:
+        lines.extend(["## 人物", ""])
+        for character in characters:
+            name = character.get("name") or character.get("id") or "未命名人物"
+            role = character.get("role") or "角色"
+            description = character.get("description") or ""
+            suffix = f"：{description}" if description else ""
+            lines.append(f"- **{name}**（{role}）{suffix}")
+        lines.append("")
+
+    locations = script.get("locations", [])
+    if locations:
+        lines.extend(["## 地点", ""])
+        for location in locations:
+            name = location.get("name") or location.get("id") or "未命名地点"
+            description = location.get("description") or ""
+            suffix = f"：{description}" if description else ""
+            lines.append(f"- **{name}**{suffix}")
+        lines.append("")
+
     for chapter in script.get("chapters", []):
         lines.extend([f"## {chapter.get('title', '未命名章节')}", ""])
         for scene in chapter.get("scenes", []):
