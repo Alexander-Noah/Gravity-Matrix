@@ -1,8 +1,8 @@
 .help-docs-page {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: 38px;
-  max-width: 1280px;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 42px;
+  max-width: 1640px;
   margin: 0 auto;
   align-items: start;
 }
@@ -11,11 +11,14 @@
   position: sticky;
   top: 116px;
   display: grid;
-  gap: 28px;
+  gap: 22px;
   max-height: calc(100svh - 150px);
   overflow: auto;
-  padding: 12px 18px 18px 4px;
-  border-right: 1px solid var(--border);
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: oklch(99% 0.004 275 / 0.9);
+  box-shadow: 0 12px 30px oklch(36% 0.06 275 / 0.055);
 }
 
 .help-docs-nav-group {
@@ -44,17 +47,22 @@
 
 .help-docs-article {
   display: grid;
-  gap: 34px;
+  gap: 28px;
   min-width: 0;
 }
 
 .help-docs-hero {
-  min-height: 360px;
+  min-height: 300px;
   display: grid;
   align-content: center;
   gap: 18px;
-  padding: 46px 0 58px;
-  border-bottom: 1px solid var(--border);
+  padding: 42px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg, oklch(99% 0.004 275 / 0.94), var(--primary-faint)),
+    var(--surface);
+  box-shadow: 0 14px 34px oklch(36% 0.06 275 / 0.07);
 }
 
 .help-docs-hero span,
@@ -65,7 +73,7 @@
 }
 
 .help-docs-hero h2 {
-  max-width: 10ch;
+  max-width: 16ch;
   margin: 0;
   color: var(--text);
   font-size: 60px;
@@ -91,8 +99,11 @@
 .help-doc-section {
   display: grid;
   gap: 18px;
-  padding-bottom: 34px;
-  border-bottom: 1px solid var(--border);
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: oklch(99% 0.004 275 / 0.78);
+  box-shadow: 0 12px 30px oklch(36% 0.06 275 / 0.055);
   scroll-margin-top: 110px;
 }
 
@@ -107,7 +118,7 @@
 }
 
 .help-doc-section-copy h3 {
-  max-width: 17ch;
+  max-width: 22ch;
   margin: 0;
   color: var(--text);
   font-size: 38px;
@@ -149,7 +160,7 @@
   border: 1px solid var(--border);
   border-radius: 10px;
   background: oklch(99% 0.004 275 / 0.94);
-  box-shadow: var(--shadow-soft);
+  box-shadow: 0 10px 24px oklch(36% 0.06 275 / 0.055);
 }
 
 .help-check-list li {
