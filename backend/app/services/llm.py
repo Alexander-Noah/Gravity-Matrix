@@ -162,7 +162,7 @@ def _analysis_prompt(project: Project) -> str:
             f"小说标题：{project.title}",
             f"作者：{project.author or '未知'}",
             "",
-            _chapters_for_prompt(project),
+            _chapters_for_prompt(project, per_chapter_limit=1200),
         ]
     )
 
@@ -174,15 +174,18 @@ def _screenplay_prompt(project: Project, analysis: dict) -> str:
             "必须输出顶层包含 script 字段的 JSON 对象，所有字段名必须使用下方模板中的英文 snake_case 字段名。",
             "不得省略模板中的任何必填字段；未知 age 必须输出 null，不要输出“未知”。",
             "scene.location_id 必须引用 locations 中已有 id；scene.characters 和 dialogue.speaker_id 必须引用 characters 中已有 id。",
+            "每章只生成 1 到 2 个核心场景，不要把每个自然段都拆成场景。",
+            "每个场景保留 2 到 4 句关键对白，优先覆盖核心冲突和人物选择。",
+            "如果原文很长，请压缩支线细节，输出可编辑的剧本初稿，而不是全文逐段改写。",
             "不要输出 YAML，不要输出 Markdown。",
             "JSON 模板如下：",
             _screenplay_json_template(project),
             "",
             f"小说标题：{project.title}",
             f"作者：{project.author or '未知'}",
-            f"分析结果 JSON：{json.dumps(analysis, ensure_ascii=False)}",
+            f"分析结果 JSON：{json.dumps(_compact_analysis_for_prompt(analysis), ensure_ascii=False)}",
             "",
-            _chapters_for_prompt(project),
+            _chapters_for_prompt(project, per_chapter_limit=700),
         ]
     )
 
@@ -253,18 +256,50 @@ def _screenplay_json_template(project: Project) -> str:
     return json.dumps(template, ensure_ascii=False)
 
 
-def _chapters_for_prompt(project: Project) -> str:
+def _chapters_for_prompt(project: Project, per_chapter_limit: int = 1200) -> str:
     parts = []
     for chapter in project.chapters:
         parts.append(
             "\n".join(
                 [
                     f"第 {chapter.number} 章：{chapter.title}",
-                    _brief(chapter.content, 2500),
+                    _brief(chapter.content, per_chapter_limit),
                 ]
             )
         )
     return "\n\n".join(parts)
+
+
+def _compact_analysis_for_prompt(analysis: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "characters": [
+            {
+                "id": character.get("id"),
+                "name": character.get("name"),
+                "role": character.get("role"),
+                "description": _brief(str(character.get("description", "")), 80),
+            }
+            for character in analysis.get("characters", [])[:6]
+        ],
+        "locations": [
+            {
+                "id": location.get("id"),
+                "name": location.get("name"),
+                "description": _brief(str(location.get("description", "")), 80),
+            }
+            for location in analysis.get("locations", [])[:10]
+        ],
+        "chapter_summaries": [
+            {
+                "chapter_number": chapter.get("chapter_number"),
+                "title": chapter.get("title"),
+                "summary": _brief(str(chapter.get("summary", "")), 100),
+            }
+            for chapter in analysis.get("chapter_summaries", [])[:30]
+        ],
+        "themes": analysis.get("themes", [])[:6],
+        "conflicts": analysis.get("conflicts", [])[:6],
+    }
 
 
 def _is_valid_analysis(data: dict[str, Any]) -> bool:

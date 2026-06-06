@@ -1,5 +1,7 @@
 <script setup>
-defineProps({
+import { computed } from 'vue'
+
+const props = defineProps({
   analysisCharacters: { type: Array, required: true },
   analysisMetrics: { type: Array, required: true },
   analysisScenes: { type: Array, required: true },
@@ -12,6 +14,8 @@ defineProps({
 })
 
 defineEmits(['next', 'previous', 'rerun'])
+
+const isComplete = computed(() => props.progress >= 100)
 </script>
 
 <template>
@@ -19,8 +23,8 @@ defineEmits(['next', 'previous', 'rerun'])
     <section class="work-card analysis-progress-card" aria-labelledby="analysis-progress-title">
       <div>
         <span class="analysis-eyebrow">AI 解析进度</span>
-        <h2 id="analysis-progress-title">内容结构识别已完成</h2>
-        <p>已从小说原文中提取人物、场景、剧情事件、人物关系和对白候选。</p>
+        <h2 id="analysis-progress-title">{{ isComplete ? '内容结构识别已完成' : '正在识别内容结构' }}</h2>
+        <p>{{ isComplete ? '已从小说原文中提取人物、场景、剧情事件、人物关系和对白候选。' : '请等待后端任务完成，完成后再进入剧本生成。' }}</p>
       </div>
       <div class="analysis-progress-meter">
         <div
@@ -161,7 +165,7 @@ defineEmits(['next', 'previous', 'rerun'])
           </svg>
           <span>重新解析</span>
         </button>
-        <button class="editor-tool is-primary" type="button" @click="$emit('next')">
+        <button class="editor-tool is-primary" type="button" :disabled="!isComplete" @click="$emit('next')">
           <span>下一步：生成剧本</span>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path v-for="path in iconPaths.arrow" :key="path" :d="path" />

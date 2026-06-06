@@ -446,6 +446,27 @@ def test_start_script_job_reuses_active_job(monkeypatch) -> None:
     assert second_response.json()["status"] == "queued"
 
 
+def test_rerun_script_job_replaces_active_job(monkeypatch) -> None:
+    client = TestClient(app)
+    monkeypatch.setattr(project_routes, "_run_script_generation_job_task", lambda job_id: None)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    first_response = client.post(f"/api/v1/projects/{project_id}/script-jobs")
+    rerun_response = client.post(f"/api/v1/projects/{project_id}/script-jobs/rerun")
+
+    assert first_response.status_code == 202
+    assert rerun_response.status_code == 202
+    assert rerun_response.json()["id"] != first_response.json()["id"]
+
+    old_job = client.get(f"/api/v1/jobs/{first_response.json()['id']}")
+    assert old_job.status_code == 200
+    assert old_job.json()["status"] == "failed"
+    assert old_job.json()["current_step"] == "任务已取消"
+
+
 def test_save_script_rejects_invalid_yaml() -> None:
     client = TestClient(app)
 

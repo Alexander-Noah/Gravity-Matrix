@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -88,7 +89,7 @@ def create_job(db: Session, project_id: int, job_type: JobType) -> Job:
 
 
 def get_active_job(db: Session, project_id: int, job_type: JobType) -> Job | None:
-    return (
+    job = (
         db.query(Job)
         .filter(
             Job.project_id == project_id,
@@ -98,3 +99,37 @@ def get_active_job(db: Session, project_id: int, job_type: JobType) -> Job | Non
         .order_by(Job.created_at.desc(), Job.id.desc())
         .first()
     )
+    if job is not None and _is_stale_active_job(job):
+        job.status = JobStatus.failed.value
+        job.current_step = "任务已超时"
+        job.error_message = "任务长时间没有更新，已自动结束。请重新启动任务。"
+        db.commit()
+        return None
+
+    return job
+
+
+def cancel_active_jobs(db: Session, project_id: int, job_type: JobType, reason: str) -> None:
+    jobs = (
+        db.query(Job)
+        .filter(
+            Job.project_id == project_id,
+            Job.type == job_type.value,
+            Job.status.in_([JobStatus.queued.value, JobStatus.running.value]),
+        )
+        .all()
+    )
+    for job in jobs:
+        job.status = JobStatus.failed.value
+        job.current_step = "任务已取消"
+        job.error_message = reason
+    db.commit()
+
+
+def _is_stale_active_job(job: Job) -> bool:
+    updated_at = job.updated_at
+    if updated_at is None:
+        return False
+    if updated_at.tzinfo is None:
+        updated_at = updated_at.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - updated_at > timedelta(minutes=10)

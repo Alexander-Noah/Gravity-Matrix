@@ -48,6 +48,12 @@ export const startScriptJob = async (projectId) => {
   return response.data
 }
 
+export const rerunScriptJob = async (projectId) => {
+  const response = await http.post(`/projects/${projectId}/script-jobs/rerun`)
+
+  return response.data
+}
+
 export const getProjectScript = async (projectId) => {
   const response = await http.get(`/projects/${projectId}/script`)
 

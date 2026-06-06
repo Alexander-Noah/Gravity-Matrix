@@ -34,7 +34,7 @@ from app.schemas.project import (
     TemplateRead,
 )
 from app.services.frontend_data import build_projects_dashboard, build_scripts_library, preview_import_text
-from app.services.jobs import create_job, get_active_job, run_analysis_job, run_script_generation_job
+from app.services.jobs import cancel_active_jobs, create_job, get_active_job, run_analysis_job, run_script_generation_job
 from app.services.script_diagnosis import diagnose_screenplay_yaml
 from app.services.screenplay_yaml import validate_screenplay_yaml
 from app.services.workbench import build_project_workbench
@@ -323,6 +323,24 @@ def start_script_job(
     active_job = get_active_job(db, project_id, JobType.script_generation)
     if active_job is not None:
         return active_job
+
+    job = create_job(db, project_id, JobType.script_generation)
+    background_tasks.add_task(_run_script_generation_job_task, job.id)
+    return job
+
+
+@router.post("/projects/{project_id}/script-jobs/rerun", response_model=JobRead, status_code=202)
+def rerun_script_job(
+    project_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+) -> Job:
+    project = _require_project(db, project_id)
+    cancel_active_jobs(db, project_id, JobType.script_generation, "已被重新生成任务取代")
+    project.script_yaml = None
+    if project.analysis_json:
+        project.status = "analysis_completed"
+    db.commit()
 
     job = create_job(db, project_id, JobType.script_generation)
     background_tasks.add_task(_run_script_generation_job_task, job.id)

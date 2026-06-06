@@ -28,7 +28,8 @@ import {
   cloneProject,
   previewImport,
   getProjectsDashboard,
-  getScriptsLibrary
+  getScriptsLibrary,
+  rerunScriptJob,
 } from './api/workbench'
 import AddSceneDialog from './components/AddSceneDialog.vue'
 import AiAnalysisPage from './components/AiAnalysisPage.vue'
@@ -117,6 +118,7 @@ const displayedTemplates = ref(mockTemplates)
 const selectedSceneId = ref(null)
 const projectListNotice = ref('')
 const libraryNotice = ref('')
+const isScriptGenerating = ref(false)
 
 const CURRENT_PROJECT_STORAGE_KEY = 'gravityMatrixCurrentProjectId'
 
@@ -1103,6 +1105,8 @@ const openGenerationSettings = () => {
 }
 
 const confirmGenerationSettings = async (settings) => {
+  if (isScriptGenerating.value) return
+
   generatedSettings.value = settings
   isGenerationSettingsOpen.value = false
   editorNotice.value = '正在启动剧本生成任务...'
@@ -1110,20 +1114,22 @@ const confirmGenerationSettings = async (settings) => {
   activePage.value = 'script'
   generatedScriptYaml.value = ''
   selectedSceneId.value = null
+  isScriptGenerating.value = true
 
   if (!currentProjectId.value) {
     editorNotice.value = '当前为静态演示剧本，请先从小说导入流程创建项目后再调用后端生成。'
+    isScriptGenerating.value = false
     return
   }
 
   try {
     await updateGenerationSettings(currentProjectId.value, settings)
-    const job = await startScriptJob(currentProjectId.value)
+    const job = await rerunScriptJob(currentProjectId.value)
     editorNotice.value = job.current_step || '剧本生成任务已启动。'
 
     await waitForJob(job.id, (currentJob) => {
       editorNotice.value = `${currentJob.current_step}（${currentJob.progress}%）`
-    })
+    }, { timeoutMs: 300000, intervalMs: 1200 })
 
     const script = await getProjectScript(currentProjectId.value)
     generatedScriptYaml.value = script.yaml
@@ -1133,6 +1139,8 @@ const confirmGenerationSettings = async (settings) => {
     editorNotice.value = '剧本 YAML 已从后端生成并同步到编辑区。'
   } catch (error) {
     editorNotice.value = getApiErrorMessage(error)
+  } finally {
+    isScriptGenerating.value = false
   }
 }
 
@@ -1420,7 +1428,7 @@ const handleFileUpload = async (event) => {
               :project-stages="projectStages" />
             <ScriptWorkspace :icon-paths="iconPaths" :preview-scene="selectedPreviewScene"
               :schema-validation="schemaValidation" :script-chapters="displayedScriptChapters"
-              :status-notice="editorNotice" :yaml-lines="generatedYamlLines" @add-scene="openAddScene"
+              :is-generating="isScriptGenerating" :status-notice="editorNotice" :yaml-lines="generatedYamlLines" @add-scene="openAddScene"
               @copy-yaml="copyYaml" @download-yaml="downloadYaml" @open-preview="goToPreview"
               @open-schema="goToSchemaHelp" @previous="goBackToAnalysis" @select-scene="selectScriptScene"
               @validate-yaml="validateYaml" />
