@@ -4,7 +4,12 @@
     <option name="autoReloadType" value="ALL" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="f217d95d-4d98-41e5-b563-7e337f9319ef" name="更改" comment="前端项目初始化" />
+    <list default="true" id="f217d95d-4d98-41e5-b563-7e337f9319ef" name="更改" comment="前端项目初始化">
+      <change beforePath="$PROJECT_DIR$/web/src/components/NovelImportPage.vue" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/components/NovelImportPage.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/styles/analysis.css" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/styles/analysis.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/styles/import.css" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/styles/import.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web/src/styles/script.css" beforeDir="false" afterPath="$PROJECT_DIR$/web/src/styles/script.css" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />

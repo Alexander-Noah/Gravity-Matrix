@@ -91,6 +91,10 @@
   display: grid;
   gap: 10px;
   padding-top: 16px;
+  max-height: 480px;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
 }
 
 .entity-list article,
@@ -137,6 +141,10 @@
   margin: 0;
   padding: 16px 0 0;
   list-style: none;
+  max-height: 520px;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
 }
 
 .event-timeline li {
