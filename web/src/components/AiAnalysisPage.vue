@@ -22,16 +22,16 @@ const isComplete = computed(() => props.progress >= 100)
   <div class="analysis-workspace">
     <section class="work-card analysis-progress-card" aria-labelledby="analysis-progress-title">
       <div>
-        <span class="analysis-eyebrow">本地整理 + AI 解析进度</span>
+        <span class="analysis-eyebrow">章节整理 + 内容解析进度</span>
         <h2 id="analysis-progress-title">{{ isComplete ? '内容结构识别已完成' : '正在识别内容结构' }}</h2>
-        <p>{{ isComplete ? '已结合本地章节整理和 AI 解析提取人物、场景、剧情事件、人物关系和对白候选。' : '请等待后端任务完成，完成后再进入剧本生成。' }}</p>
+        <p>{{ isComplete ? '已整理人物、场景、剧情事件、人物关系和对白候选，可继续进入改编草稿。' : '请等待后端任务完成，完成后再进入剧本生成。' }}</p>
       </div>
       <div class="analysis-progress-side">
         <div class="analysis-progress-meter">
           <div
             class="progress-track"
             role="progressbar"
-            aria-label="AI解析进度"
+            aria-label="内容解析进度"
             :aria-valuenow="progress"
             aria-valuemin="0"
             aria-valuemax="100"

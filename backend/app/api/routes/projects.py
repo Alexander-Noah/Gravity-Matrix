@@ -464,7 +464,7 @@ def rerun_analysis_job(
 
     job = create_job(db, project_id, JobType.analysis)
     background_tasks.add_task(_run_analysis_job_task, job.id)
-    return job
+    return _job_to_read(job, "重新解析任务已启动。")
 
 
 @router.get("/projects/{project_id}/analysis", response_model=AnalysisRead)
@@ -510,7 +510,11 @@ def rerun_script_job(
     return job
 
 
-@router.post("/projects/{project_id}/generation-settings", response_model=GenerationSettingsResponse)
+@router.post(
+    "/projects/{project_id}/generation-settings",
+    response_model=GenerationSettingsResponse,
+    response_model_exclude_none=True,
+)
 def update_generation_settings(
     project_id: int,
     payload: GenerationSettingsRequest,
@@ -521,7 +525,9 @@ def update_generation_settings(
         _require_template(payload.templateId)
     project.generation_settings_json = json.dumps(payload.model_dump(), ensure_ascii=False)
     db.commit()
-    return GenerationSettingsResponse(project_id=project_id, accepted=True, settings=payload)
+    settings_payload = payload.model_dump(exclude_none=True)
+    accepted = True if payload.templateId is not None or payload.adaptationStyle is not None else None
+    return GenerationSettingsResponse(project_id=project_id, accepted=accepted, settings=settings_payload)
 
 
 @router.get("/jobs/{job_id}", response_model=JobRead)
@@ -530,6 +536,21 @@ def get_job(job_id: int, db: Session = Depends(get_db)) -> Job:
     if job is None:
         raise HTTPException(status_code=404, detail="任务不存在。")
     return job
+
+
+def _job_to_read(job: Job, message: str | None = None) -> JobRead:
+    return JobRead(
+        id=job.id,
+        job_id=job.id,
+        project_id=job.project_id,
+        type=job.type,
+        status=job.status,
+        progress=job.progress,
+        current_step=job.current_step,
+        result_id=job.result_id,
+        error_message=job.error_message,
+        message=message,
+    )
 
 
 @router.get("/projects/{project_id}/script", response_model=ScriptRead)
@@ -839,6 +860,15 @@ def _screenplay_text(yaml_text: str) -> str:
         str(script.get("metadata", {}).get("title") or "未命名剧本"),
         "",
     ]
+    characters = script.get("characters") or []
+    if characters:
+        lines.extend(["人物", ""])
+        for character in characters:
+            name = character.get("name") or character.get("id") or "未命名人物"
+            role = character.get("role") or "角色"
+            description = character.get("description") or ""
+            lines.append(f"{name}（{role}）：{description}".rstrip("："))
+        lines.append("")
     for chapter in script.get("chapters", []):
         lines.extend([str(chapter.get("title", "未命名章节")), ""])
         for scene in chapter.get("scenes", []):
@@ -858,6 +888,15 @@ def _screenplay_markdown(yaml_text: str) -> str:
     parsed = _load_screenplay(yaml_text)
     script = parsed["script"]
     lines = [f"# {script.get('metadata', {}).get('title') or '未命名剧本'}", ""]
+    characters = script.get("characters") or []
+    if characters:
+        lines.extend(["## 人物", ""])
+        for character in characters:
+            name = character.get("name") or character.get("id") or "未命名人物"
+            role = character.get("role") or "角色"
+            description = character.get("description") or ""
+            lines.append(f"- **{name}**（{role}）：{description}".rstrip("："))
+        lines.append("")
     for chapter in script.get("chapters", []):
         lines.extend([f"## {chapter.get('title', '未命名章节')}", ""])
         for scene in chapter.get("scenes", []):

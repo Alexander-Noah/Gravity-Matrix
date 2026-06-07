@@ -28,29 +28,29 @@ export const schemaValidationMock = {
 
 export const workflowSteps = [
   { number: '1', title: '导入小说', description: '上传或粘贴小说内容', status: 'done' },
-  { number: '2', title: 'AI 解析', description: '智能识别人物、场景与剧情', status: 'done' },
-  { number: '3', title: '生成剧本', description: '一键生成结构化剧本', status: 'current' },
+  { number: '2', title: '内容解析', description: '整理人物、场景与剧情', status: 'done' },
+  { number: '3', title: '结构化改编', description: '生成可编辑剧本草稿', status: 'current' },
   { number: '4', title: '编辑与导出', description: '在线编辑并导出剧本', status: 'upcoming' },
 ]
 
 export const importWorkflowSteps = [
   { number: '1', title: '导入小说', description: '上传或粘贴小说内容', status: 'current' },
-  { number: '2', title: 'AI 解析', description: '智能识别人物、场景与剧情', status: 'upcoming' },
-  { number: '3', title: '生成剧本', description: '一键生成结构化剧本', status: 'upcoming' },
+  { number: '2', title: '内容解析', description: '整理人物、场景与剧情', status: 'upcoming' },
+  { number: '3', title: '结构化改编', description: '生成可编辑剧本草稿', status: 'upcoming' },
   { number: '4', title: '编辑与导出', description: '在线编辑并导出剧本', status: 'upcoming' },
 ]
 
 export const analysisWorkflowSteps = [
   { number: '1', title: '导入小说', description: '上传或粘贴小说内容', status: 'done' },
-  { number: '2', title: 'AI 解析', description: '智能识别人物、场景与剧情', status: 'current' },
-  { number: '3', title: '生成剧本', description: '一键生成结构化剧本', status: 'upcoming' },
+  { number: '2', title: '内容解析', description: '整理人物、场景与剧情', status: 'current' },
+  { number: '3', title: '结构化改编', description: '生成可编辑剧本草稿', status: 'upcoming' },
   { number: '4', title: '编辑与导出', description: '在线编辑并导出剧本', status: 'upcoming' },
 ]
 
 export const previewWorkflowSteps = [
   { number: '1', title: '导入小说', description: '上传或粘贴小说内容', status: 'done' },
-  { number: '2', title: 'AI 解析', description: '智能识别人物、场景与剧情', status: 'done' },
-  { number: '3', title: '生成剧本', description: '一键生成结构化剧本', status: 'done' },
+  { number: '2', title: '内容解析', description: '整理人物、场景与剧情', status: 'done' },
+  { number: '3', title: '结构化改编', description: '生成可编辑剧本草稿', status: 'done' },
   { number: '4', title: '编辑与导出', description: '在线编辑并导出剧本', status: 'current' },
 ]
 

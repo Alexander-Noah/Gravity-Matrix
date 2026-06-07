@@ -28,7 +28,7 @@ defineEmits(['file-upload', 'next', 'update:novelText'])
             {{ isValid ? '本地整理通过' : '至少需要 3 章' }}
           </span>
           <button class="editor-tool is-primary" type="button" :disabled="!isValid || isSubmitting" @click="$emit('next')">
-            <span>{{ isSubmitting ? '正在提交项目...' : '下一步：AI增强解析' }}</span>
+            <span>{{ isSubmitting ? '正在提交项目...' : isValid ? '下一步：内容解析' : '识别 3 章后继续' }}</span>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
             </svg>
@@ -38,16 +38,16 @@ defineEmits(['file-upload', 'next', 'update:novelText'])
 
       <div class="import-source-grid">
         <label class="upload-dropzone" for="novel-file">
-          <input id="novel-file" type="file" accept=".txt,.docx" multiple @change="$emit('file-upload', $event)" />
+          <input id="novel-file" type="file" accept=".txt,text/plain" multiple @change="$emit('file-upload', $event)" />
           <span class="upload-icon">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path v-for="path in iconPaths.file" :key="path" :d="path" />
             </svg>
           </span>
-          <span>上传 txt / docx 文件</span>
+          <span>上传 TXT 文件</span>
           <strong>{{ fileName || '选择文件或拖入此处' }}</strong>
           <small>支持长篇小说，系统先本地整理章节、人物候选和场景候选</small>
-          <em>TXT 可读取正文，DOCX 将先记录文件名</em>
+          <em>当前真实导入读取 TXT 正文，DOCX 请先转换或粘贴文本</em>
         </label>
 
         <label class="paste-panel">
@@ -68,7 +68,7 @@ defineEmits(['file-upload', 'next', 'update:novelText'])
           <span>自动识别章节</span>
           <strong>{{ chapterCount }} 章</strong>
         </div>
-        <p>{{ isValid ? '已满足 AI 解析最低要求，本地结构将作为后续 AI 增强解析的输入。' : '继续补充文本，系统至少需要识别 3 章。' }}</p>
+        <p>{{ isValid ? '章节结构已满足改编要求，下一步会整理人物、场景和剧情线索。' : '继续补充文本，系统至少需要识别 3 章。' }}</p>
       </div>
 
       <ul class="chapter-list" aria-label="章节列表">

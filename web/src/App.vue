@@ -22,6 +22,9 @@ import {
   exportProjectMarkdown,
   exportProjectTxt,
   deleteProject,
+  getRecycleBin,
+  restoreProject,
+  clearRecycleBin as clearRecycleBinRemote,
   getScriptTemplates,
   getDefaultTemplate,
   updateProject,
@@ -131,13 +134,13 @@ const guideSteps = [
     icon: 'upload',
   },
   {
-    title: 'AI 解析',
-    description: '提取人物、场景、剧情事件、人物关系和对白线索，形成后续生成剧本的结构依据。',
+    title: '内容解析',
+    description: '整理人物、场景、剧情事件、人物关系和对白线索，形成后续改编依据。',
     icon: 'spark',
   },
   {
-    title: '生成剧本',
-    description: '选择模板和生成偏好后，系统会生成可编辑的 YAML 剧本草稿。',
+    title: '结构化改编',
+    description: '选择模板和改编偏好后，生成可编辑的 YAML 剧本草稿。',
     icon: 'format',
   },
   {
@@ -198,7 +201,7 @@ const pageDescription = computed(() => {
   }
 
   if (activePage.value === 'import') {
-    return '导入小说原文，确认章节结构后进入 AI 解析与剧本生成流程'
+    return '导入小说原文，确认章节结构后进入内容解析与剧本改编流程'
   }
 
   if (activePage.value === 'analysis') {
@@ -806,8 +809,8 @@ const buildProjectStages = (stage) => {
   const order = ['import', 'analysis', 'script', 'preview']
   const labels = {
     import: '本地整理',
-    analysis: 'AI 解析',
-    script: '剧本生成',
+    analysis: '内容解析',
+    script: '结构化改编',
     preview: '校验导出',
   }
   const notes = {
@@ -1028,7 +1031,7 @@ const deleteLibraryScript = async (script) => {
   const projectId = getScriptProjectId(script)
   if (!projectId) return
 
-  if (!confirm(`确定要删除剧本《${script.title}》吗？此操作无法恢复。`)) return
+  if (!confirm(`确定要删除剧本《${script.title}》吗？删除后可在回收站恢复。`)) return
 
   try {
     await deleteProject(projectId)
@@ -1092,12 +1095,12 @@ const goToAnalysis = async () => {
     currentProjectProgress.value = 35
     currentProjectStages.value = buildProjectStages('analysis')
     analysisProgress.value = 25
-    importNotice.value = '项目已创建，正在启动 AI 解析任务...'
+    importNotice.value = '项目已创建，正在启动内容解析任务...'
 
     const job = await startAnalysisJob(project.id)
     activePage.value = 'analysis'
     hasEnteredAnalysis = true
-    analysisNotice.value = job.current_step || 'AI 解析任务已启动。'
+    analysisNotice.value = job.current_step || '内容解析任务已启动。'
     analysisProgress.value = job.progress ?? 30
 
     await waitForJob(job.id)
@@ -1106,7 +1109,7 @@ const goToAnalysis = async () => {
     analysisProgress.value = 100
     currentProjectProgress.value = 60
     currentProjectStages.value = buildProjectStages('analysis')
-    analysisNotice.value = 'AI 解析完成，结果已从后端同步。'
+    analysisNotice.value = '内容解析完成，结果已从后端同步。'
   } catch (error) {
     importNotice.value = getApiErrorMessage(error)
     analysisNotice.value = getApiErrorMessage(error)
@@ -1171,7 +1174,7 @@ const confirmGenerationSettings = async (settings) => {
   isScriptGenerating.value = true
 
   if (!currentProjectId.value) {
-    editorNotice.value = '当前为静态演示剧本，请先从小说导入流程创建项目后再调用后端生成。'
+    editorNotice.value = '请先从小说导入流程创建项目，再生成改编草稿。'
     isScriptGenerating.value = false
     return
   }
@@ -1191,7 +1194,7 @@ const confirmGenerationSettings = async (settings) => {
     const workbench = await getProjectWorkbench(currentProjectId.value)
     applyWorkbenchScript(workbench)
     applyWorkbenchProgress(workbench)
-    editorNotice.value = '剧本 YAML 已从后端生成并同步到编辑区。'
+    editorNotice.value = '改编草稿已从后端生成并同步到编辑区。'
   } catch (error) {
     editorNotice.value = getApiErrorMessage(error)
   } finally {
@@ -1314,17 +1317,17 @@ const importSourceNovel = async (script) => {
     currentProjectStages.value = buildProjectStages('analysis')
     activePage.value = 'analysis'
     analysisProgress.value = 10
-    analysisNotice.value = '素材已导入，正在启动 AI 解析...'
+    analysisNotice.value = '素材已导入，正在启动内容解析...'
 
     const job = await startAnalysisJob(project.id)
-    analysisNotice.value = job.current_step || 'AI 解析任务已启动。'
+    analysisNotice.value = job.current_step || '内容解析任务已启动。'
     analysisProgress.value = job.progress ?? 30
     await waitForJob(job.id)
 
     const analysis = await getProjectAnalysis(project.id)
     applyAnalysisResult(analysis)
     analysisProgress.value = 100
-    analysisNotice.value = '素材小说已导入并完成 AI 解析。'
+    analysisNotice.value = '素材小说已导入并完成内容解析。'
   } catch (error) {
     libraryNotice.value = `素材导入失败：${getApiErrorMessage(error)}`
   }
@@ -1401,24 +1404,59 @@ const exportPreviewTxt = async () => {
 
 const showRecycleBin = ref(false)
 const recycleBinItems = ref([])
+const recycleBinNotice = ref('')
+const isRecycleBinLoading = ref(false)
 
-const openRecycleBin = () => {
-  recycleBinItems.value = JSON.parse(localStorage.getItem('gravityMatrixRecycleBin') || '[]')
+const formatRecycleBinItem = (project) => ({
+  id: project.id,
+  title: `《${project.title}》改编项目`,
+  sourceNovel: `《${project.title}》`,
+  deletedAt: project.deleted_at ? new Date(project.deleted_at).toLocaleString('zh-CN') : '未知时间',
+})
+
+const fetchRecycleBin = async () => {
+  isRecycleBinLoading.value = true
+  recycleBinNotice.value = ''
+  try {
+    const payload = await getRecycleBin()
+    recycleBinItems.value = (payload.items || []).map(formatRecycleBinItem)
+  } catch (error) {
+    recycleBinNotice.value = `回收站加载失败：${getApiErrorMessage(error)}`
+  } finally {
+    isRecycleBinLoading.value = false
+  }
+}
+
+const openRecycleBin = async () => {
   showRecycleBin.value = true
+  await fetchRecycleBin()
 }
 
 const closeRecycleBin = () => {
   showRecycleBin.value = false
 }
 
-const clearRecycleBin = () => {
+const clearRecycleBin = async () => {
   if (!confirm('确定要清空回收站吗？此操作无法恢复。')) return
-  localStorage.removeItem('gravityMatrixRecycleBin')
-  recycleBinItems.value = []
+  try {
+    await clearRecycleBinRemote()
+    recycleBinItems.value = []
+    recycleBinNotice.value = '回收站已清空。'
+    await fetchScriptLibrary()
+  } catch (error) {
+    recycleBinNotice.value = `清空失败：${getApiErrorMessage(error)}`
+  }
 }
 
-const restoreFromRecycleBin = () => {
-  previewNotice.value = '当前后端删除是永久删除，回收站只保留本地删除记录，暂不支持恢复。'
+const restoreFromRecycleBin = async (item) => {
+  try {
+    await restoreProject(item.id)
+    recycleBinNotice.value = `已恢复 ${item.title}。`
+    await fetchRecycleBin()
+    await fetchScriptLibrary()
+  } catch (error) {
+    recycleBinNotice.value = `恢复失败：${getApiErrorMessage(error)}`
+  }
 }
 
 
@@ -1597,29 +1635,30 @@ const handleFileUpload = async (event) => {
               <div>
                 <span>项目管理</span>
                 <h2 id="recycle-bin-title">回收站</h2>
-                <p>{{ recycleBinItems.length === 0 ? '没有待处理记录' : `共 ${recycleBinItems.length} 条本地删除记录` }}</p>
+                <p>{{ isRecycleBinLoading ? '正在读取后端回收站' : recycleBinItems.length === 0 ? '没有待恢复项目' : `共 ${recycleBinItems.length} 个已删除项目` }}</p>
               </div>
             </div>
             <button class="dialog-close" type="button" aria-label="关闭回收站" @click="closeRecycleBin">×</button>
           </header>
 
           <div class="dialog-body recycle-dialog-body">
+            <p v-if="recycleBinNotice" class="inline-note">{{ recycleBinNotice }}</p>
             <div v-if="recycleBinItems.length === 0" class="recycle-empty-state">
               <span class="recycle-empty-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24">
                   <path v-for="path in iconPaths.trash" :key="path" :d="path" />
                 </svg>
               </span>
-              <strong>回收站是空的</strong>
-              <p>删除记录会显示在这里，便于核对最近移除的剧本。</p>
+              <strong>{{ isRecycleBinLoading ? '正在加载回收站' : '回收站是空的' }}</strong>
+              <p>{{ isRecycleBinLoading ? '请稍候，正在同步后端已删除项目。' : '删除后的项目会进入后端回收站，可在这里恢复或永久清空。' }}</p>
             </div>
             <div v-else>
               <div class="recycle-note">
                 <div>
-                  <strong>本地删除历史</strong>
-                  <p>当前后端删除为永久删除，回收站仅记录本地删除历史，暂不支持恢复。</p>
+                  <strong>后端回收站</strong>
+                  <p>这些项目已软删除，不会显示在剧本库。恢复后会重新进入项目和剧本列表。</p>
                 </div>
-                <span>{{ recycleBinItems.length }} 条</span>
+                <span>{{ recycleBinItems.length }} 个</span>
               </div>
               <div class="recycle-table-wrap">
                 <table class="recycle-table">
@@ -1638,7 +1677,7 @@ const handleFileUpload = async (event) => {
                       </td>
                       <td>{{ item.deletedAt }}</td>
                       <td>
-                        <button class="recycle-disabled-action" type="button" disabled @click="restoreFromRecycleBin">暂不支持恢复</button>
+                        <button class="recycle-disabled-action" type="button" @click="restoreFromRecycleBin(item)">恢复项目</button>
                       </td>
                     </tr>
                   </tbody>

@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Any
 
 from app.core.config import settings
@@ -18,7 +18,20 @@ class ProjectCreate(BaseModel):
 
 class ProjectUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
+    name: str | None = Field(default=None, min_length=1, max_length=255)
     author: str | None = Field(default=None, max_length=255)
+
+    @model_validator(mode="after")
+    def normalize_project_name(self) -> "ProjectUpdate":
+        candidate = self.title if self.title is not None else self.name
+        if candidate is not None:
+            stripped = candidate.strip()
+            if not stripped:
+                raise ValueError("项目名称不能为空。")
+            self.title = stripped
+        if self.author is not None:
+            self.author = self.author.strip() or None
+        return self
 
 
 class ImportPreviewRequest(BaseModel):
@@ -127,12 +140,14 @@ class DashboardActivity(BaseModel):
 class ProjectsDashboardRead(BaseModel):
     stats: list[DashboardStat]
     project_cards: list[DashboardProjectCard]
+    cards: list[DashboardProjectCard] = Field(default_factory=list)
     activities: list[DashboardActivity]
 
 
 class ScriptLibraryItem(BaseModel):
     id: str
     project_id: int | None = None
+    projectId: int | None = None
     source_id: str | None = None
     source_type: str = "project"
     title: str
@@ -168,6 +183,7 @@ class ProjectDetail(ProjectRead):
 
 class JobRead(BaseModel):
     id: int
+    job_id: int | None = None
     project_id: int
     type: str
     status: str
@@ -175,6 +191,7 @@ class JobRead(BaseModel):
     current_step: str
     result_id: int | None
     error_message: str | None
+    message: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -222,8 +239,8 @@ class GenerationSettingsRequest(BaseModel):
 
 class GenerationSettingsResponse(BaseModel):
     project_id: int
-    accepted: bool
-    settings: GenerationSettingsRequest
+    accepted: bool | None = None
+    settings: dict[str, Any]
 
 
 class SceneCreateRequest(BaseModel):

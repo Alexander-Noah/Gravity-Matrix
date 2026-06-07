@@ -3,13 +3,13 @@ export const appRoutes = [
     id: 'auth',
     path: '/auth',
     title: '登录注册',
-    description: '登录或创建账号，进入 AI 小说转剧本工作台',
+    description: '登录或创建账号，进入小说改编工作台',
   },
   {
     id: 'workbench',
     path: '/workbench',
-    title: 'AI小说转剧本工作台',
-    description: '按流程完成小说导入、AI解析、剧本编辑与导出',
+    title: '小说转剧本工作台',
+    description: '按流程完成小说导入、内容解析、剧本编辑与导出',
   },
   {
     id: 'templates',
@@ -27,7 +27,7 @@ export const appRoutes = [
     id: 'help',
     path: '/help',
     title: '帮助文档',
-    description: '题目三说明、AI 小说转剧本流程与剧本 YAML Schema 定义',
+    description: '题目三说明、小说转剧本流程与剧本 YAML Schema 定义',
   },
 ]
 

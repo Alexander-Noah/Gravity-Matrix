@@ -135,6 +135,21 @@ export const deleteProject = async (projectId) => {
   return response.data
 }
 
+export const getRecycleBin = async () => {
+  const response = await http.get('/projects/recycle-bin')
+  return response.data
+}
+
+export const restoreProject = async (projectId) => {
+  const response = await http.post(`/projects/${projectId}/restore`)
+  return response.data
+}
+
+export const clearRecycleBin = async () => {
+  const response = await http.delete('/projects/recycle-bin')
+  return response.data
+}
+
 export const getScriptTemplates = async () => {
   const response = await http.get('/templates')
   return response.data

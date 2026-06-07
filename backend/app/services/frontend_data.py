@@ -52,9 +52,9 @@ def build_projects_dashboard(db: Session) -> dict[str, Any]:
     return {
         "stats": [
             {
-                "label": "进行中项目",
-                "value": str(active),
-                "note": f"共 {total} 个项目",
+                "label": "全部项目" if total else "进行中项目",
+                "value": str(total if total else active),
+                "note": f"{active} 个项目进行中" if total else f"共 {total} 个项目",
                 "tone": "violet",
             },
             {
@@ -77,6 +77,7 @@ def build_projects_dashboard(db: Session) -> dict[str, Any]:
             },
         ],
         "project_cards": [_project_card(project) for project in projects],
+        "cards": [_project_card(project) for project in projects],
         "activities": _recent_activities(db, projects),
     }
 
@@ -164,6 +165,7 @@ def _novel_source_library_items(limit: int = 24) -> list[dict[str, Any]]:
             {
                 "id": f"source-{source_dir.name}",
                 "project_id": None,
+                "projectId": None,
                 "source_id": source_dir.name,
                 "source_type": "source_novel",
                 "title": f"《{title}》素材",
@@ -270,7 +272,7 @@ def _detect_chapters(text: str) -> list[dict[str, Any]]:
         return []
 
     pattern = re.compile(
-        r"(?m)^\s*(?P<title>(?:第[\d一二三四五六七八九十百千万零〇两]+[章节回卷幕部集][^\n]{0,80}|Chapter\s+\d+[^\n]{0,80}|CHAPTER\s+[IVXLCDM\d]+[^\n]{0,80}))\s*$",
+        r"(?m)^\s*(?P<title>(?:第[\d一二三四五六七八九十百千万零〇两]+[章节回卷幕部集](?:\s+[^\n。！？!?]{1,80}|[：:、-][^\n。！？!?]{1,80})?|Chapter\s+\d+[^\n]{0,80}|CHAPTER\s+[IVXLCDM\d]+[^\n]{0,80}))\s*$",
         re.IGNORECASE,
     )
     matches = list(pattern.finditer(text))
@@ -505,6 +507,7 @@ def _script_library_item(project: Project) -> dict[str, Any]:
     return {
         "id": f"script-{project.id:03d}",
         "project_id": project.id,
+        "projectId": project.id,
         "title": f"《{project.title}》剧本",
         "sourceNovel": f"《{project.title}》",
         "type": "影视剧",
@@ -573,6 +576,8 @@ def _script_valid(yaml_text: str) -> bool:
 def _detect_title(text: str) -> str | None:
     for line in text.splitlines():
         stripped = line.strip()
+        if stripped.startswith("标题："):
+            return stripped.replace("标题：", "", 1).strip()[:80] or None
         if stripped and not stripped.startswith("第") and not stripped.lower().startswith("chapter"):
             return stripped[:80]
     return None

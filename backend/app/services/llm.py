@@ -48,8 +48,8 @@ def _demo_analyze_project(project: Project, fallback_reason: str | None = None) 
     locations = [
         {
             "id": f"loc_{chapter.number:03d}",
-            "name": f"第 {chapter.number} 章主要场景",
-            "description": _brief(chapter.content, 80),
+            "name": _chapter_location_name(chapter),
+            "description": _brief(chapter.content, 96),
         }
         for chapter in project.chapters
     ]
@@ -69,8 +69,8 @@ def _demo_analyze_project(project: Project, fallback_reason: str | None = None) 
             "characters": characters,
             "locations": locations,
             "chapter_summaries": chapter_summaries,
-            "themes": ["成长", "选择"],
-            "conflicts": ["角色目标与现实阻碍之间的冲突"],
+            "themes": _demo_themes(project),
+            "conflicts": _demo_conflicts(project),
         },
     )
 
@@ -477,7 +477,7 @@ def _demo_characters(project: Project) -> list[dict[str, Any]]:
             "role": roles[min(index - 1, len(roles) - 1)],
             "gender": "unknown",
             "age": None,
-            "description": "根据小说章节自动识别出的核心人物。",
+            "description": _character_description(project, name, index),
         }
         for index, name in enumerate(names[:6], start=1)
     ]
@@ -532,43 +532,159 @@ def _extract_character_names(project: Project) -> list[str]:
 
 def _chapter_to_script(chapter: Chapter, locations: list[dict], characters: list[dict]) -> dict:
     location = locations[min(chapter.number - 1, len(locations) - 1)]
-    character = characters[0]
-    supporting_character = characters[1] if len(characters) > 1 else character
+    chapter_characters = _chapter_characters(chapter, characters)
+    scene_characters = chapter_characters[:3] or characters[:2]
+    if len(scene_characters) == 1:
+        scene_characters.append(characters[1] if len(characters) > 1 else scene_characters[0])
+    synopsis = _chapter_synopsis(chapter)
+    directions = _stage_directions(chapter, location)
+    dialogue = _chapter_dialogue(chapter, scene_characters)
 
     return {
         "id": f"ch_{chapter.number:03d}",
         "title": chapter.title,
         "source_chapter_numbers": [chapter.number],
-        "summary": _brief(chapter.content, 180),
+        "summary": synopsis,
         "scenes": [
             {
                 "id": f"sc_{chapter.number:03d}_001",
-                "title": f"{chapter.title} - 核心场景",
+                "title": _scene_title(chapter, location),
                 "location_id": location["id"],
-                "time": "day",
-                "characters": list(dict.fromkeys([character["id"], supporting_character["id"]])),
-                "synopsis": _brief(chapter.content, 140),
-                "stage_directions": [
-                    "镜头跟随主要人物进入场景，环境细节烘托本章情绪。",
-                    "角色的动作和停顿表现出内心变化。",
-                ],
-                "dialogue": [
-                    {
-                        "speaker_id": character["id"],
-                        "speaker_name": character["name"],
-                        "line": "这一刻，我必须做出选择。",
-                        "emotion": "determined",
-                    },
-                    {
-                        "speaker_id": supporting_character["id"],
-                        "speaker_name": supporting_character["name"],
-                        "line": "那就一起面对眼前的阻碍。",
-                        "emotion": "supportive",
-                    }
-                ],
+                "time": _scene_time(chapter.content),
+                "characters": [character["id"] for character in scene_characters],
+                "synopsis": synopsis,
+                "stage_directions": directions,
+                "dialogue": dialogue,
             }
         ],
     }
+
+
+def _chapter_location_name(chapter: Chapter) -> str:
+    location_pattern = re.compile(r"([\u4e00-\u9fff]{1,8}(?:城|府|宫|殿|门|山|河|江|营|寨|村|镇|街|院|房|屋|楼|阁|厅|店|站|场|桥|路|关|州|郡|县|塔|湖|岛|巷|码头))")
+    match = location_pattern.search(f"{chapter.title}\n{chapter.content}")
+    if match:
+        return match.group(1)
+    return f"第 {chapter.number} 章主要场景"
+
+
+def _demo_themes(project: Project) -> list[str]:
+    text = "\n".join(chapter.content for chapter in project.chapters)
+    rules = [
+        ("乱世抉择", ["乱世", "战", "兵", "敌", "黄巾"]),
+        ("结义与信任", ["结义", "兄弟", "同心", "信任", "约定"]),
+        ("秘密追寻", ["秘密", "线索", "真相", "旧照片", "玉牌"]),
+        ("成长试炼", ["第一次", "试炼", "成长", "终于", "选择"]),
+        ("情感裂痕", ["误会", "离开", "愤怒", "沉默", "眼泪"]),
+    ]
+    themes = [name for name, keywords in rules if any(keyword in text for keyword in keywords)]
+    return themes[:4] or ["人物选择", "关系变化"]
+
+
+def _demo_conflicts(project: Project) -> list[str]:
+    conflicts = []
+    for chapter in project.chapters[:6]:
+        sentence = _first_sentence(chapter.content, ["战", "怒", "逃", "拒", "危", "逼", "秘密", "真相", "误会", "断裂", "阻碍"])
+        if sentence:
+            conflicts.append(f"{chapter.title}：{sentence}")
+    return conflicts or ["人物目标与现实压力之间的冲突"]
+
+
+def _character_description(project: Project, name: str, index: int) -> str:
+    text = "\n".join(chapter.content for chapter in project.chapters)
+    position = text.find(name)
+    if position >= 0:
+        start = max(0, position - 22)
+        end = min(len(text), position + len(name) + 58)
+        return _brief(text[start:end], 92)
+    if index == 1:
+        return "推动主线选择的人物，承担主要行动和情绪变化。"
+    return "与主角形成关系压力或行动支援的重要人物。"
+
+
+def _chapter_characters(chapter: Chapter, characters: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    appeared = [character for character in characters if character["name"] in chapter.content or character["name"] in chapter.title]
+    if appeared:
+        return appeared
+    return characters
+
+
+def _chapter_synopsis(chapter: Chapter) -> str:
+    sentence = _first_sentence(chapter.content, ["战", "约定", "秘密", "真相", "选择", "相识", "离开", "危", "破", "冲突"])
+    return sentence or _brief(chapter.content, 150)
+
+
+def _stage_directions(chapter: Chapter, location: dict[str, Any]) -> list[str]:
+    opening = _brief(chapter.content, 72)
+    tension = _first_sentence(chapter.content, ["沉默", "风", "夜", "雨", "钟声", "怒", "停顿", "推到", "握着"])
+    directions = [
+        f"{location['name']}中，人物围绕“{_brief(opening, 38)}”展开行动。",
+        f"场面调度保留《{chapter.title}》的核心事件，让冲突集中在人物选择上。",
+    ]
+    if tension and tension != opening:
+        directions.insert(1, f"环境细节压低节奏：{_brief(tension, 54)}")
+    return directions
+
+
+def _chapter_dialogue(chapter: Chapter, characters: list[dict[str, Any]]) -> list[dict[str, str]]:
+    quoted_lines = re.findall(r"[“\"]([^”\"]{4,60})[”\"]", chapter.content)
+    key_sentences = _sentences(chapter.content)
+    first = characters[0]
+    second = characters[1] if len(characters) > 1 else first
+    third = characters[2] if len(characters) > 2 else first
+    lines = []
+    if quoted_lines:
+        for index, line in enumerate(quoted_lines[:3]):
+            speaker = characters[index % len(characters)]
+            lines.append(_dialogue_line(speaker, line, "focused"))
+    else:
+        lines.append(_dialogue_line(first, _line_from_sentence(key_sentences, 0, "这件事不能再拖下去了。"), "determined"))
+        lines.append(_dialogue_line(second, _line_from_sentence(key_sentences, 1, "先看清局势，再决定怎么走。"), "cautious"))
+        if third["id"] != first["id"]:
+            lines.append(_dialogue_line(third, _line_from_sentence(key_sentences, 2, "我会盯住最危险的那一处。"), "alert"))
+    return lines[:4]
+
+
+def _dialogue_line(character: dict[str, Any], line: str, emotion: str) -> dict[str, str]:
+    return {
+        "speaker_id": character["id"],
+        "speaker_name": character["name"],
+        "line": _brief(line.strip(" ，。！？!?"), 64),
+        "emotion": emotion,
+    }
+
+
+def _line_from_sentence(sentences: list[str], index: int, fallback: str) -> str:
+    if index < len(sentences):
+        sentence = sentences[index]
+        if len(sentence) <= 18:
+            return sentence
+        return f"{sentence[:18]}，这就是我们要处理的事。"
+    return fallback
+
+
+def _scene_title(chapter: Chapter, location: dict[str, Any]) -> str:
+    clean_title = re.sub(r"^\s*第[\d一二三四五六七八九十百千万零〇两]+[章节回卷幕部集]\s*", "", chapter.title).strip()
+    return f"{location['name']}的{clean_title or '转折'}"
+
+
+def _scene_time(text: str) -> str:
+    if any(word in text for word in ["夜", "黄昏", "灯", "月"]):
+        return "night"
+    if any(word in text for word in ["清晨", "黎明", "晨"]):
+        return "morning"
+    return "day"
+
+
+def _first_sentence(text: str, keywords: list[str]) -> str | None:
+    for sentence in _sentences(text):
+        if any(keyword in sentence for keyword in keywords):
+            return _brief(sentence, 120)
+    return None
+
+
+def _sentences(text: str) -> list[str]:
+    return [sentence.strip() for sentence in re.split(r"[。！？!?]\s*", text) if sentence.strip()]
 
 
 def _brief(text: str, limit: int) -> str:

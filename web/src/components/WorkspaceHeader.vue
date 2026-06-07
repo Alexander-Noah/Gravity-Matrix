@@ -46,7 +46,7 @@ onBeforeUnmount(() => {
     <div class="title-block">
       <div class="title-line">
         <h1>{{ title }}</h1>
-        <span v-if="showWorkflowBadge" class="header-badge">AI 创作流程</span>
+        <span v-if="showWorkflowBadge" class="header-badge">改编流程</span>
       </div>
       <p>{{ description }}</p>
     </div>
