@@ -130,6 +130,13 @@ export const exportProjectTxt = async (projectId) => {
   return response.data
 }
 
+export const exportProjectPdf = async (projectId) => {
+  const response = await http.get(`/projects/${projectId}/script/export/pdf`, {
+    responseType: 'blob',
+  })
+  return response.data
+}
+
 export const deleteProject = async (projectId) => {
   const response = await http.delete(`/projects/${projectId}`)
   return response.data

@@ -640,6 +640,21 @@ def export_script_markdown(project_id: int, db: Session = Depends(get_db)) -> Re
     )
 
 
+@router.get("/projects/{project_id}/script/export/pdf")
+def export_script_pdf(project_id: int, db: Session = Depends(get_db)) -> Response:
+    project = _require_project(db, project_id)
+    if not project.script_yaml:
+        raise HTTPException(status_code=404, detail="当前项目还没有生成剧本。")
+
+    content = _screenplay_pdf(project.script_yaml)
+    filename = f"project-{project.id}-screenplay.pdf"
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.post("/projects/{project_id}/scenes", response_model=SceneCreateResponse)
 def add_project_scene(
     project_id: int,
@@ -875,3 +890,85 @@ def _screenplay_markdown(yaml_text: str) -> str:
                 lines.extend(["", f"**{speaker}**：{dialogue.get('line', '')}"])
             lines.append("")
     return "\n".join(lines).strip() + "\n"
+
+
+def _screenplay_pdf(yaml_text: str) -> bytes:
+    text = _screenplay_text(yaml_text)
+    return _plain_text_pdf(text)
+
+
+def _plain_text_pdf(text: str) -> bytes:
+    lines = _wrap_pdf_lines(text)
+    pages = [lines[index:index + 42] for index in range(0, len(lines), 42)] or [[""]]
+    objects: list[bytes] = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [] /Count 0 >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    page_ids: list[int] = []
+
+    for page_lines in pages:
+        page_id = len(objects) + 1
+        content_id = page_id + 1
+        page_ids.append(page_id)
+        stream = _pdf_page_stream(page_lines)
+        objects.append(
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents {content_id} 0 R >>".encode(
+                "ascii"
+            )
+        )
+        objects.append(f"<< /Length {len(stream)} >>\nstream\n".encode("ascii") + stream + b"\nendstream")
+
+    kids = " ".join(f"{page_id} 0 R" for page_id in page_ids)
+    objects[1] = f"<< /Type /Pages /Kids [{kids}] /Count {len(page_ids)} >>".encode("ascii")
+    return _build_pdf(objects)
+
+
+def _wrap_pdf_lines(text: str, width: int = 76) -> list[str]:
+    wrapped: list[str] = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            wrapped.append("")
+            continue
+        while len(line) > width:
+            wrapped.append(line[:width])
+            line = line[width:]
+        wrapped.append(line)
+    return wrapped
+
+
+def _pdf_page_stream(lines: list[str]) -> bytes:
+    commands = ["BT", "/F1 11 Tf", "50 800 Td", "14 TL"]
+    for line in lines:
+        commands.append(f"({_pdf_text(line)}) Tj")
+        commands.append("T*")
+    commands.append("ET")
+    return "\n".join(commands).encode("ascii")
+
+
+def _pdf_text(value: str) -> str:
+    ascii_text = value.encode("latin-1", "replace").decode("latin-1")
+    return ascii_text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def _build_pdf(objects: list[bytes]) -> bytes:
+    output = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets = [0]
+    for index, content in enumerate(objects, start=1):
+        offsets.append(len(output))
+        output.extend(f"{index} 0 obj\n".encode("ascii"))
+        output.extend(content)
+        output.extend(b"\nendobj\n")
+
+    xref_offset = len(output)
+    output.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    output.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        output.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+    output.extend(
+        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF\n".encode(
+            "ascii"
+        )
+    )
+    return bytes(output)

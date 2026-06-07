@@ -553,6 +553,29 @@ def test_create_project_and_generate_script() -> None:
     assert "三国演义（作者修订版）" in txt_response.text
     assert "人物" in txt_response.text
 
+    pdf_response = client.get(f"/api/v1/projects/{project_id}/script/export/pdf")
+    assert pdf_response.status_code == 200
+    assert pdf_response.headers["content-type"] == "application/pdf"
+    assert pdf_response.headers["content-disposition"] == f'attachment; filename="project-{project_id}-screenplay.pdf"'
+    assert pdf_response.content.startswith(b"%PDF-")
+
+
+def test_export_script_pdf_returns_downloadable_pdf() -> None:
+    client = TestClient(app)
+
+    create_response = client.post("/api/v1/projects", json=_payload())
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+    assert client.post(f"/api/v1/projects/{project_id}/script-jobs").status_code == 202
+
+    response = client.get(f"/api/v1/projects/{project_id}/script/export/pdf")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.headers["content-disposition"] == f'attachment; filename="project-{project_id}-screenplay.pdf"'
+    assert response.content.startswith(b"%PDF-")
+    assert b"%%EOF" in response.content
+
 
 def test_frontend_extension_endpoints_support_latest_web_calls() -> None:
     client = TestClient(app)

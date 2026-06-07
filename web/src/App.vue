@@ -20,6 +20,7 @@ import {
   rerunAnalysisJob,
   addProjectScene,
   exportProjectMarkdown,
+  exportProjectPdf,
   exportProjectTxt,
   deleteProject,
   getScriptTemplates,
@@ -1137,9 +1138,7 @@ const exportLibraryScript = async (script, format) => {
     } else if (format === 'Markdown') {
       blob = await exportProjectMarkdown(projectId)
     } else if (format === 'PDF') {
-      await previewLibraryScript(script)
-      window.print()
-      return
+      blob = await exportProjectPdf(projectId)
     } else {
       blob = await exportProjectTxt(projectId)
     }
@@ -1147,7 +1146,7 @@ const exportLibraryScript = async (script, format) => {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${script.title}.${format === 'Markdown' ? 'md' : format === 'YAML' ? 'yaml' : 'txt'}`
+    a.download = `${script.title}.${format === 'Markdown' ? 'md' : format === 'YAML' ? 'yaml' : format === 'PDF' ? 'pdf' : 'txt'}`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -1530,9 +1529,25 @@ const exportPreviewMarkdown = async () => {
   previewNotice.value = 'Markdown 文件已开始下载。'
 }
 
-const exportPreviewPdf = () => {
-  previewNotice.value = '正在打开浏览器打印窗口，可选择另存为 PDF。'
-  window.print()
+const exportPreviewPdf = async () => {
+  if (!currentProjectId.value) {
+    previewNotice.value = '当前预览还没有后端项目，无法生成 PDF 文件。'
+    return
+  }
+
+  try {
+    previewNotice.value = '正在向服务端请求导出 PDF...'
+    const blob = await exportProjectPdf(currentProjectId.value)
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `project-${currentProjectId.value}-script.pdf`
+    link.click()
+    URL.revokeObjectURL(url)
+    previewNotice.value = '服务端 PDF 文件下载完成。'
+  } catch (error) {
+    previewNotice.value = '下载失败：' + getApiErrorMessage(error)
+  }
 }
 
 const exportPreviewTxt = async () => {
