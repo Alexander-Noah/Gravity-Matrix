@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_name: str = "Gravity-Matrix Backend"
     api_prefix: str = "/api/v1"
-    database_url: str = "sqlite:///./data/gravity_matrix.db"
+    database_url: str = "mysql+pymysql://root:root@127.0.0.1:3306/gravity_matrix"
     frontend_origins: str = (
         "http://localhost:5173,http://127.0.0.1:5173,"
         "http://localhost:5174,http://127.0.0.1:5174"
@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     max_chapters: int = Field(default=30, ge=1)
     max_chapter_chars: int = Field(default=20000, ge=100)
     max_script_yaml_chars: int = Field(default=1_000_000, ge=1000)
+
+    jwt_secret_key: str = "gravity-matrix-dev-secret-change-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = Field(default=1440, ge=1)
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

@@ -36,77 +36,33 @@ export const clearAuthSession = () => {
   localStorage.removeItem(USER_KEY)
 }
 
-const createLocalDemoSession = ({ name, email }) => {
-  const payload = {
-    access_token: 'local-demo-session',
-    token_type: 'bearer',
-    user: {
-      id: 'local-demo-user',
-      name: name || email?.split('@')[0] || '创作者',
-      email: email || 'demo@gravity-matrix.local',
-      role: '本地演示用户',
-      demo: true,
-    },
-  }
-
-  saveAuthSession(payload)
-  return payload
-}
-
-const shouldUseLocalDemoAuth = (error) =>
-  error?.response?.status === 404 || error?.response?.status === 405
-
 export const register = async ({ name, email, password }) => {
-  try {
-    const response = await http.post('/auth/register', {
-      name,
-      email,
-      password,
-    })
+  const response = await http.post('/auth/register', {
+    name,
+    email,
+    password,
+  })
 
-    saveAuthSession(response.data)
-    return response.data
-  } catch (error) {
-    if (shouldUseLocalDemoAuth(error)) {
-      return createLocalDemoSession({ name, email })
-    }
-
-    throw error
-  }
+  saveAuthSession(response.data)
+  return response.data
 }
 
 export const login = async ({ email, password }) => {
-  try {
-    const response = await http.post('/auth/login', {
-      email,
-      password,
-    })
+  const response = await http.post('/auth/login', {
+    email,
+    password,
+  })
 
-    saveAuthSession(response.data)
-    return response.data
-  } catch (error) {
-    if (shouldUseLocalDemoAuth(error)) {
-      return createLocalDemoSession({ email })
-    }
-
-    throw error
-  }
+  saveAuthSession(response.data)
+  return response.data
 }
 
 export const fetchCurrentUser = async () => {
-  try {
-    const response = await http.get('/auth/me')
+  const response = await http.get('/auth/me')
 
-    if (response.data) {
-      localStorage.setItem(USER_KEY, JSON.stringify(response.data))
-    }
-
-    return response.data
-  } catch (error) {
-    if (shouldUseLocalDemoAuth(error)) {
-      return getAuthSession().user
-    }
-
-    throw error
+  if (response.data) {
+    localStorage.setItem(USER_KEY, JSON.stringify(response.data))
   }
+
+  return response.data
 }
