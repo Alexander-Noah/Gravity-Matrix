@@ -1,8 +1,13 @@
 <script setup>
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+
 const props = defineProps({
   content: { type: Object, required: true },
   iconPaths: { type: Object, required: true },
 })
+
+const activeSectionId = ref('overview')
+let sectionObserver = null
 
 const docNavGroups = [
   {
@@ -30,7 +35,53 @@ const docNavGroups = [
   },
 ]
 
+const docNavLinks = computed(() => docNavGroups.flatMap((group) => group.links))
 const fieldCount = props.content.schemaFields.length
+
+const setActiveSection = (sectionId, shouldUpdateHash = false) => {
+  if (!docNavLinks.value.some((link) => link.id === sectionId)) {
+    return
+  }
+
+  activeSectionId.value = sectionId
+
+  if (shouldUpdateHash && window.location.hash !== `#${sectionId}`) {
+    window.history.replaceState(null, '', `#${sectionId}`)
+  }
+}
+
+const scrollToSection = (sectionId) => {
+  setActiveSection(sectionId, true)
+  document.getElementById(sectionId)?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+}
+
+onMounted(() => {
+  const hashSectionId = window.location.hash.replace('#', '')
+  setActiveSection(hashSectionId || 'overview')
+
+  sectionObserver = new IntersectionObserver((entries) => {
+    const visibleEntries = entries
+      .filter((entry) => entry.isIntersecting)
+      .sort((first, second) => second.intersectionRatio - first.intersectionRatio)
+
+    if (visibleEntries.length) {
+      setActiveSection(visibleEntries[0].target.id, true)
+    }
+  }, {
+    root: null,
+    rootMargin: '-28% 0px -58% 0px',
+    threshold: [0.05, 0.18, 0.32, 0.5],
+  })
+
+  docNavLinks.value.forEach((link) => {
+    const section = document.getElementById(link.id)
+    if (section) sectionObserver.observe(section)
+  })
+})
+
+onBeforeUnmount(() => {
+  sectionObserver?.disconnect()
+})
 </script>
 
 <template>
@@ -38,7 +89,13 @@ const fieldCount = props.content.schemaFields.length
     <aside class="help-docs-nav" aria-label="帮助文档目录">
       <div v-for="group in docNavGroups" :key="group.label" class="help-docs-nav-group">
         <span>{{ group.label }}</span>
-        <a v-for="link in group.links" :key="link.id" :href="`#${link.id}`">{{ link.label }}</a>
+        <a
+          v-for="link in group.links"
+          :key="link.id"
+          :class="{ 'is-active': activeSectionId === link.id }"
+          :href="`#${link.id}`"
+          @click.prevent="scrollToSection(link.id)"
+        >{{ link.label }}</a>
       </div>
     </aside>
 
