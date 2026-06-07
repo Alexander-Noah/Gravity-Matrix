@@ -1,403 +1,149 @@
 # Gravity-Matrix Web
 
-AI 小说转剧本工具前端，基于 Vue 3 + Vite。本文档给后端同学用于本地启动、接口联调和确认前端当前请求约定。
+AI 小说转剧本工具前端，基于 Vue 3 + Vite。
 
 ## 技术栈
 
-- Vue 3
+- Vue 3（Composition API）
 - Vite
 - Vue Router
 - Axios
+- js-yaml（YAML 解析与高亮）
 
 ## 本地启动
 
-进入前端目录：
-
 ```powershell
-cd C:\Users\zhibi\Desktop\Gravity-Matrix\web
-```
-
-安装依赖：
-
-```powershell
+cd web
 npm install
-```
-
-启动开发服务：
-
-```powershell
 npm run dev
 ```
 
-默认访问：
-
-```text
-http://localhost:5173
-```
-
-构建检查：
+默认访问 `http://localhost:5173`。构建检查：
 
 ```powershell
 npm run build
 ```
 
-## 后端接口地址配置
+## 目录结构
 
-前端统一使用 `src/api/http.js` 中的 axios 实例。
-
-默认接口地址：
-
-```text
-http://127.0.0.1:8000/api/v1
+```
+web/
+  src/
+    api/
+      auth.js            # 注册、登录、获取当前用户
+      http.js             # Axios 实例（baseURL、超时、token 注入）
+      workbench.js        # 所有业务接口调用
+    components/
+      AddSceneDialog.vue         # 添加场景弹窗
+      AiAnalysisPage.vue         # AI 解析结果页
+      AppSidebar.vue             # 左侧导航栏
+      AuthPage.vue               # 登录注册页
+      GenerationSettingsDialog.vue  # 剧本生成设置弹窗
+      HelpDocsPage.vue           # 帮助文档页
+      NovelImportPage.vue        # 小说导入页
+      ProductRoutePage.vue       # 路由占位页（已废弃路由用）
+      ProfileCenterDialog.vue    # 个人中心弹窗
+      SchemaHelpPage.vue         # YAML Schema 说明页
+      ScriptLibraryPage.vue      # 剧本库页
+      ScriptPreviewPage.vue      # 剧本预览导出页
+      ScriptWorkspace.vue        # YAML 编辑器 + 场景树
+      SupportColumn.vue          # 左侧进度面板
+      TemplateCenterPage.vue     # 模板中心页
+      WorkflowStepper.vue        # 流程步骤条
+      WorkspaceHeader.vue        # 顶栏（标题、用户头像、使用指南）
+    data/
+      workbench.js       # 静态演示数据 + 帮助文档内容
+    router/
+      index.js           # Vue Router 配置
+      routes.js          # 路由定义
+    styles/              # 各页面 / 组件样式
+    App.vue              # 根组件（路由分发 + 全局状态）
+    main.js              # 入口
+    style.css            # 样式入口
+  index.html
+  package.json
+  vite.config.js
 ```
 
-如果后端地址不同，请在 `web` 目录新增 `.env.local`：
+## 页面与路由
+
+| 路由 | 页面 | 说明 |
+|---|---|---|
+| `/auth` | 登录注册 | 注册账号或登录，支持表单校验 |
+| `/workbench` | 工作台 | 导入 → 解析 → 生成 → 编辑 → 预览 → 导出 |
+| `/templates` | 模板中心 | 选择默认模板，查看 YAML 示例结构 |
+| `/library` | 剧本库 | 已生成剧本管理：编辑、预览、导出、重命名、复制、回收站 |
+| `/help` | 帮助文档 | 使用流程、YAML Schema、字段说明、设计原因、FAQ |
+
+`/projects` 和 `/profile` 已移除，分别由剧本库和个人中心弹窗替代。
+
+## 工作台流程
+
+工作台按 4 步流程组织，由工作区左侧 Stepper 指示当前进度：
+
+1. **小说导入** — 上传 TXT 或粘贴正文，后端 /import/preview 识别章节结构，本地正则兜底。
+2. **AI 解析** — 启动 analysis-jobs，轮询完成后展示人物、场景、事件、对白识别结果。
+3. **剧本生成** — 选择模板和生成偏好，启动 script-jobs，生成可编辑 YAML。
+4. **编辑与导出** — 校验 YAML 结构，在线编辑内容，预览场景文本，导出 YAML / TXT / Markdown。
+
+## 后端接口配置
+
+默认接口地址 `http://127.0.0.1:8000/api/v1`，由 `src/api/http.js` 中 `VITE_API_BASE_URL` 环境变量控制。
+
+如需修改，在 `web/` 目录创建 `.env.local`：
 
 ```env
 VITE_API_BASE_URL=http://127.0.0.1:8000/api/v1
 ```
 
-修改后需要重启 `npm run dev`。
+### 请求约定
 
-## 鉴权约定
+- 所有请求使用 `application/json`。
+- 导出类接口使用 `responseType: 'blob'`。
+- 超时 15 秒。
+- 前端自动注入 `Authorization: Bearer <token>`（从 localStorage 读取 `gm_auth_token`）。
 
-登录或注册成功后，前端会保存：
+### 错误处理
 
-| localStorage key | 说明 |
-| --- | --- |
-| `gm_auth_token` | 后端返回的 token |
-| `gm_auth_user` | 后端返回的用户信息 JSON |
+前端优先展示 `error.response.data.detail` 字符串；网络不通时提示「暂时无法连接服务」。
 
-后续 axios 请求会自动携带：
+## 认证
 
-```http
-Authorization: Bearer <token>
-```
+登录/注册成功后保存：
 
-退出登录时会清理这两个 localStorage key。
+| localStorage Key | 说明 |
+|---|---|
+| `gm_auth_token` | 后端返回的 `access_token` |
+| `gm_auth_user` | 后端返回的 `user` JSON `{id, name, email}` |
 
-> 当前后端主流程尚未实现真实账号数据库和 `/auth/*` 路由。前端在检测到认证路由不存在时，会创建本地演示会话，避免比赛演示被登录页阻断。企业级版本应补真实用户表、密码哈希、Token 签发和鉴权中间件。
+退出登录清除两个 Key，重定向到 `/auth`。
 
-## 认证接口
+注册接口要求 `name`、`email`、`password`（≥6 位），登录接口要求 `email`、`password`。
 
-### 注册
+## 关键交互
 
-```http
-POST /auth/register
-```
+### 打开已有项目
 
-请求体：
-
-```json
-{
-  "name": "林默",
-  "email": "creator@example.com",
-  "password": "123456"
-}
-```
-
-期望响应：
-
-```json
-{
-  "access_token": "token-string",
-  "token_type": "bearer",
-  "user": {
-    "id": 1,
-    "name": "林默",
-    "email": "creator@example.com"
-  }
-}
-```
-
-### 登录
-
-```http
-POST /auth/login
-```
-
-请求体：
-
-```json
-{
-  "email": "creator@example.com",
-  "password": "123456"
-}
-```
-
-期望响应同注册接口。
-
-### 当前用户
-
-```http
-GET /auth/me
-Authorization: Bearer <token>
-```
-
-期望响应：
-
-```json
-{
-  "id": 1,
-  "name": "林默",
-  "email": "creator@example.com"
-}
-```
-
-## 工作台接口
-
-前端工作台 API 封装在 `src/api/workbench.js`。
-
-### 项目列表
-
-```http
-GET /projects?limit=20&offset=0
-```
-
-前端“我的项目”页面进入时会调用该接口，并把返回的 `items` 映射为项目卡片、顶部统计和最近编辑记录。
-
-期望响应：
-
-```json
-{
-  "items": [],
-  "total": 0,
-  "limit": 20,
-  "offset": 0
-}
-```
-
-项目卡片会使用 `id`、`title`、`author`、`status`、`chapter_count`、`has_analysis`、`has_script`、`updated_at` 字段。点击“打开项目”后，前端会继续调用 `/projects/{project_id}/workbench` 同步工作台状态。
-
-### 导入预检
-
-```http
-POST /import/preview
-```
-
-请求体：
-
-```json
-{
-  "title": "chapter_demo",
-  "author": "创作者",
-  "text": "第1章 ...\n正文..."
-}
-```
-
-响应会返回 `chapter_count`、`can_create_project`、`issues` 和 `chapters`。每个章节必须包含 `title`、`content`、`char_count`、`excerpt`，前端创建项目时会直接使用 `chapters[].content`。
-
-### 项目看板数据
-
-```http
-GET /projects/dashboard
-```
-
-前端“我的项目”页面使用该接口读取统计卡片、项目卡片和最近活动。接口失败时页面显示空状态和错误提示，不再回退到本地 mock 项目。
-
-### 剧本库数据
-
-```http
-GET /scripts/library
-```
-
-前端“剧本库”页面使用该接口展示已生成剧本。条目需包含 `project_id`、`title`、`sourceNovel`、`type`、`chapters`、`scenes`、`dialogues`、`schemaStatus`、`status`、`updatedAt`、`tags`。
-
-### 创建项目
-
-```http
-POST /projects
-```
-
-请求体：
-
-```json
-{
-  "title": "星辰之下",
-  "author": "创作者",
-  "chapters": [
-    {
-      "title": "第一章 初入城市",
-      "content": "章节正文..."
-    }
-  ]
-}
-```
-
-前端要求至少识别出 3 个章节后才允许继续。
-
-### 启动 AI 解析任务
-
-```http
-POST /projects/{project_id}/analysis-jobs
-```
-
-期望响应：
-
-```json
-{
-  "id": 1,
-  "project_id": 1,
-  "type": "analysis",
-  "status": "queued",
-  "progress": 0,
-  "current_step": "等待开始",
-  "result_id": null,
-  "error_message": null
-}
-```
-
-### 查询任务状态
-
-```http
-GET /jobs/{job_id}
-```
-
-前端会根据 `status` 判断任务是否完成。
-
-常用状态：
-
-| status | 说明 |
-| --- | --- |
-| `queued` | 排队中 |
-| `running` | 执行中 |
-| `succeeded` | 成功 |
-| `failed` | 失败 |
-
-### 获取 AI 解析结果
-
-```http
-GET /projects/{project_id}/analysis
-```
-
-期望响应：
-
-```json
-{
-  "project_id": 1,
-  "analysis": {
-    "characters": [],
-    "locations": [],
-    "chapter_summaries": [],
-    "themes": [],
-    "conflicts": []
-  }
-}
-```
-
-### 获取工作台聚合数据
-
-```http
-GET /projects/{project_id}/workbench
-```
-
-用于一次性获取项目状态、流程步骤、分析概览和剧本结构。
-
-### 启动剧本生成任务
-
-```http
-POST /projects/{project_id}/script-jobs
-```
-
-前端在“生成设置”弹窗确认后调用该接口。当前后端接口不接收生成设置请求体，前端会先在本地保存设置，再按项目当前 AI 解析结果启动剧本生成任务。
-
-### 生成设置
-
-```http
-POST /projects/{project_id}/generation-settings
-```
-
-当前后端只做兼容接收，不落库，不影响生成逻辑。企业级版本可将模板、风格、内容选项持久化并传给 LLM prompt。
-
-### 获取剧本 YAML
-
-```http
-GET /projects/{project_id}/script
-```
-
-期望响应：
-
-```json
-{
-  "project_id": 1,
-  "yaml": "script:\n  metadata:\n    title: ..."
-}
-```
-
-前端会把 `yaml` 转换为编辑器行结构，并使用 `/workbench` 返回的 `script.structure` 更新章节/场景树。
+剧本库中点击「继续编辑」→ 前端切换到工作台 → 调用 `/workbench` 一次性恢复项目状态、剧本 YAML、场景树和诊断结果。
 
 ### 校验 YAML
 
-```http
-POST /projects/{project_id}/script/validate
-```
+编辑器中点击「校验格式」→ 同时调用 `POST /script/validate` 和 `POST /script/diagnosis` → 右侧面板显示校验结果、统计信息和质量等级。
 
-请求体：
+### 添加场景
 
-```json
-{
-  "yaml": "script:\n  metadata:\n    title: ..."
-}
-```
+「新增场景」弹窗选择目标章节、填写场景标题/地点/时间/人物/动作描述 → 后端拼接 scene 到 YAML → 校验通过后落库。
 
-期望响应：
+### 导出
 
-```json
-{
-  "valid": true,
-  "errors": []
-}
-```
+- YAML：前端本地 Blob 下载
+- Markdown / TXT：调用后端 `/script/export/markdown` 或 `/script/export/txt` 获得 Blob 后下载
+- PDF：打开浏览器打印窗口另存
 
-### 诊断 YAML 草稿
+## 后端联调清单
 
-```http
-POST /projects/{project_id}/script/diagnosis
-```
-
-前端在点击“校验格式”时会同时调用校验和诊断接口，并把 `summary.chapter_count`、`summary.scene_count`、`valid_schema`、`grade` 映射到右侧 Schema 校验面板。
-
-### 前端兼容操作接口
-
-```http
-GET /templates
-PATCH /projects/{project_id}
-POST /projects/{project_id}/clone
-POST /projects/{project_id}/analysis-jobs/rerun
-POST /projects/{project_id}/scenes
-GET /projects/{project_id}/script/export/txt
-GET /projects/{project_id}/script/export/markdown
-DELETE /projects/{project_id}
-```
-
-这些接口用于模板中心、项目重命名、复制为新版本、重新解析、添加场景、导出和删除等页面操作。
-
-## 前端路由
-
-| 路径 | 说明 |
-| --- | --- |
-| `/auth` | 登录注册页 |
-| `/workbench` | 小说转剧本工作台 |
-| `/projects` | 我的项目 |
-| `/templates` | 模板中心 |
-| `/library` | 剧本库 |
-| `/help` | 帮助文档 |
-| `/profile` | 重定向到工作台，个人中心通过顶部创作者菜单弹窗打开 |
-
-## 后端联调检查清单
-
-1. 后端启动在 `http://127.0.0.1:8000`。
-2. 后端统一前缀为 `/api/v1`。
-3. CORS 允许 `http://localhost:5173` 和 `http://127.0.0.1:5173`。
-4. 登录和注册响应需要返回 `access_token` 或 `token`。
-5. 登录和注册响应建议返回 `user` 对象，至少包含 `id`、`name`、`email`。
-6. 需要鉴权的接口请支持 `Authorization: Bearer <token>`。
-7. 错误响应推荐使用 FastAPI 默认结构：
-
-```json
-{
-  "detail": "错误说明"
-}
-```
-
-前端会优先展示 `detail` 字段。
+1. 后端运行在 `http://127.0.0.1:8000`，CORS 允许 `localhost:5173`。
+2. 所有接口统一前缀 `/api/v1`。
+3. 登录注册返回 `{access_token, token_type, user{id, name, email}}`。
+4. 错误响应使用 `{detail: "错误说明"}` 结构。
+5. 当前业务接口不需要鉴权，后续可通过 `Authorization: Bearer <token>` 保护。
