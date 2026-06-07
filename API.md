@@ -90,7 +90,11 @@
   - 验证失败返回 401。
 
 ### 4.3 获取当前用户
-- `GET /auth/me`：需要 `Authorization: Bearer <token>`，返回当前登录用户信息。
+- `GET /auth/me`：需要 `Authorization: Bearer <token>`，返回 `{ "id": 1, "name": "林默", "email": "creator@example.com" }`。
+
+### 4.4 个人中心概览
+- `GET /profile/summary`：需要 `Authorization: Bearer <token>`，返回当前用户的创作概览。
+  - 响应包含 `user`（个人信息）和 `stats`（工作区名、当前项目、进度、流程步骤、所选模板、剧本状态、剧本库数量、Schema 状态）。
 
 ---
 
@@ -103,8 +107,8 @@
 - `DELETE /projects/recycle-bin`：清空回收站，永久删除。
 
 ### 5.2 项目操作
-- `PATCH /projects/{id}`：重命名项目或修改作者。
-- `POST /projects/{id}/clone`：克隆项目（含章节和分析结果，不含 Job 记录）。
+- `PATCH /projects/{id}`：重命名项目或修改作者。请求体：`{ "title": "新名称" }`。
+- `POST /projects/{id}/clone`：克隆项目（含章节和分析结果）。
 
 ### 5.3 模板管理
 - `GET /templates`：获取所有剧本模板，支持 `q` 关键词和 `target_format` 筛选。
@@ -113,11 +117,18 @@
 - `PUT /templates/default`：设置默认模板，请求体 `{ "templateId": "short-drama" }`。
 
 ### 5.4 高级操作
-- `POST /projects/{id}/generation-settings`：保存生成配置偏好（templateId、scriptType、adaptationStyle、contentOptions）。
+- `POST /projects/{id}/generation-settings`：保存生成配置（templateId、scriptType、adaptationStyle、contentOptions）。
 - `POST /projects/{id}/analysis-jobs/rerun`：重新解析。
 - `POST /projects/{id}/script-jobs/rerun`：重新生成剧本。
-- `POST /projects/{id}/scenes`：添加单个场景到已有 YAML。
-- `GET /projects/{id}/script/export/markdown`、`/txt`：导出 Markdown 或纯文本格式。
+- `POST /projects/{id}/scenes`：添加单个场景。
+  - 请求体：`{ "chapterTitle": "...", "sceneTitle": "...", "location": "...", "time": "...", "characters": "...", "action": "..." }`
+  - 响应返回更新后的 YAML 和场景 ID。
+
+### 5.5 多格式导出
+- `GET /projects/{id}/script/export`：导出 YAML（`application/x-yaml`）。
+- `GET /projects/{id}/script/export/txt`：导出纯文本剧本。
+- `GET /projects/{id}/script/export/markdown`：导出 Markdown。
+- `GET /projects/{id}/script/export/pdf`：导出 PDF（`application/pdf`）。
 
 ---
 
