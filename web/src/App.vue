@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import yaml from 'js-yaml'
-import { clearAuthSession, getAuthSession } from './api/auth'
+import { clearAuthSession, fetchCurrentUser, getAuthSession } from './api/auth'
 import { getApiErrorMessage } from './api/http'
 import {
   createProject,
@@ -494,7 +494,19 @@ watch(
   },
 )
 
-onMounted(() => {
+onMounted(async () => {
+  const session = getAuthSession()
+  if (session.token && !session.user) {
+    try {
+      const user = await fetchCurrentUser()
+      currentUser.value = user
+    } catch {
+      // token expired or backend unreachable, keep existing session state
+    }
+  } else {
+    currentUser.value = session.user
+  }
+
   if (isWorkbenchRoute.value) {
     enterWorkbenchHome()
   }
@@ -844,8 +856,12 @@ const openCurrentProject = () => {
   enterWorkbenchHome()
 }
 
-const handleAuthenticated = () => {
-  currentUser.value = getAuthSession().user
+const handleAuthenticated = async () => {
+  try {
+    currentUser.value = await fetchCurrentUser()
+  } catch {
+    currentUser.value = getAuthSession().user
+  }
   router.push('/workbench')
 }
 
@@ -857,6 +873,7 @@ const openProfileCenter = () => {
 const logout = () => {
   isProfileCenterOpen.value = false
   clearAuthSession()
+  currentUser.value = null
   router.push('/auth')
 }
 
@@ -1467,7 +1484,7 @@ const handleFileUpload = async (event) => {
 
     <main class="main-wrapper" aria-label="工作区">
       <div class="page-content">
-        <WorkspaceHeader :description="pageDescription" :icon-paths="iconPaths" :title="pageTitle" @logout="logout"
+        <WorkspaceHeader :description="pageDescription" :icon-paths="iconPaths" :title="pageTitle" :user="currentUser" @logout="logout"
           @open-guide="openGuide" @open-profile="openProfileCenter" />
         <section class="workspace-body" aria-label="工作台内容">
         <TemplateCenterPage v-if="activeRoute.id === 'templates'" :icon-paths="iconPaths"

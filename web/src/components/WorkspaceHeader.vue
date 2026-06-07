@@ -5,12 +5,15 @@ const props = defineProps({
   description: { type: String, default: '从小说到剧本，只需几步' },
   iconPaths: { type: Object, required: true },
   title: { type: String, default: '小说转剧本工作台' },
+  user: { type: Object, default: null },
 })
 
 const emit = defineEmits(['logout', 'open-guide', 'open-profile'])
 const isProfileMenuOpen = ref(false)
 const profileMenuRef = ref(null)
 const showWorkflowBadge = computed(() => props.title.includes('工作台'))
+const displayName = computed(() => props.user?.name || '创作者')
+const avatarChar = computed(() => (props.user?.name || '创').slice(0, 1))
 
 const toggleProfileMenu = () => {
   isProfileMenuOpen.value = !isProfileMenuOpen.value
@@ -73,8 +76,8 @@ onBeforeUnmount(() => {
           aria-haspopup="menu"
           @click="toggleProfileMenu"
         >
-          <span class="avatar" aria-hidden="true">创</span>
-          <span>创作者</span>
+          <span class="avatar" aria-hidden="true">{{ avatarChar }}</span>
+          <span>{{ displayName }}</span>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path v-for="path in iconPaths.chevron" :key="path" :d="path" />
           </svg>
