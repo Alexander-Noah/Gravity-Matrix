@@ -167,10 +167,8 @@
   border: 1px solid var(--border);
   border-radius: 10px;
   color: var(--text);
-  background:
-    linear-gradient(90deg, var(--surface-muted) 0 42px, transparent 42px),
-    var(--surface-raised);
-  padding: 16px 16px 16px 56px;
+  background: var(--surface-raised);
+  padding: 16px 18px;
   font: 13px/1.8 "JetBrains Mono", "SFMono-Regular", Consolas, "Microsoft YaHei", monospace;
   outline: none;
   transition:
