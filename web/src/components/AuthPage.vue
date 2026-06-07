@@ -72,15 +72,18 @@ const submitAuth = async () => {
         email: email.value.trim(),
         password: password.value,
       })
-      notice.value = '账号已创建，正在进入工作台。'
-    } else {
-      await login({
-        email: email.value.trim(),
-        password: password.value,
-      })
-      notice.value = '登录成功，正在进入工作台。'
+      mode.value = 'login'
+      password.value = ''
+      agreeTerms.value = false
+      notice.value = '账号已创建，请使用刚才的邮箱和密码登录。'
+      return
     }
 
+    await login({
+      email: email.value.trim(),
+      password: password.value,
+    })
+    notice.value = '登录成功，正在进入工作台。'
     emit('authenticated')
   } catch (error) {
     notice.value = getApiErrorMessage(error)

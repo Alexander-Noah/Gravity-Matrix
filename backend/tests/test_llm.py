@@ -78,6 +78,153 @@ def test_generate_screenplay_falls_back_when_model_output_is_invalid(monkeypatch
     assert {line["speaker_id"] for line in scene["dialogue"]}.issubset(set(scene["characters"]))
 
 
+def test_generate_screenplay_rejects_schema_valid_but_wrong_project_chapters(monkeypatch) -> None:
+    _settings(monkeypatch, api_key="test-key", base_url="https://api.deepseek.com", model="deepseek-v4-flash")
+    monkeypatch.setattr(
+        llm,
+        "_call_deepseek",
+        lambda prompt: {
+            "script": {
+                "schema_version": "1.0",
+                "metadata": {
+                    "title": "错误小说",
+                    "original_novel": "错误小说",
+                    "author": "模型",
+                    "language": "zh-CN",
+                    "target_format": "screenplay",
+                    "total_chapters": 3,
+                },
+                "characters": [
+                    {
+                        "id": "char_001",
+                        "name": "陌生人",
+                        "role": "主角",
+                        "gender": "unknown",
+                        "age": None,
+                        "description": "不是当前小说的人物。",
+                    },
+                    {
+                        "id": "char_002",
+                        "name": "旁观者",
+                        "role": "配角",
+                        "gender": "unknown",
+                        "age": None,
+                        "description": "不是当前小说的人物。",
+                    },
+                ],
+                "locations": [{"id": "loc_001", "name": "陌生城市", "description": "不是当前小说的地点。"}],
+                "chapters": [
+                    {
+                        "id": "ch_001",
+                        "title": "错误章节",
+                        "source_chapter_numbers": [1, 2],
+                        "summary": "这是结构合法但来源章节错误的内容。",
+                        "scenes": [
+                            {
+                                "id": "sc_001_001",
+                                "title": "错误场景",
+                                "location_id": "loc_001",
+                                "time": "day",
+                                "characters": ["char_001", "char_002"],
+                                "synopsis": "这是结构合法但不对应当前小说章节的场景。",
+                                "stage_directions": ["陌生人站在陌生城市。"],
+                                "dialogue": [
+                                    {
+                                        "speaker_id": "char_001",
+                                        "speaker_name": "陌生人",
+                                        "line": "这不是当前导入的小说。",
+                                        "emotion": "calm",
+                                    },
+                                    {
+                                        "speaker_id": "char_002",
+                                        "speaker_name": "旁观者",
+                                        "line": "应该触发后端兜底。",
+                                        "emotion": "neutral",
+                                    },
+                                ],
+                            }
+                        ],
+                    },
+                    {
+                        "id": "ch_002",
+                        "title": "错误章节二",
+                        "source_chapter_numbers": [2],
+                        "summary": "第二个错误章节。",
+                        "scenes": [
+                            {
+                                "id": "sc_002_001",
+                                "title": "错误场景二",
+                                "location_id": "loc_001",
+                                "time": "day",
+                                "characters": ["char_001", "char_002"],
+                                "synopsis": "第二个错误场景。",
+                                "stage_directions": ["旁观者停下。"],
+                                "dialogue": [
+                                    {
+                                        "speaker_id": "char_001",
+                                        "speaker_name": "陌生人",
+                                        "line": "章节来源还是不对。",
+                                        "emotion": "calm",
+                                    },
+                                    {
+                                        "speaker_id": "char_002",
+                                        "speaker_name": "旁观者",
+                                        "line": "继续兜底。",
+                                        "emotion": "neutral",
+                                    },
+                                ],
+                            }
+                        ],
+                    },
+                    {
+                        "id": "ch_003",
+                        "title": "错误章节三",
+                        "source_chapter_numbers": [3],
+                        "summary": "第三个错误章节。",
+                        "scenes": [
+                            {
+                                "id": "sc_003_001",
+                                "title": "错误场景三",
+                                "location_id": "loc_001",
+                                "time": "day",
+                                "characters": ["char_001", "char_002"],
+                                "synopsis": "第三个错误场景。",
+                                "stage_directions": ["灯光暗下。"],
+                                "dialogue": [
+                                    {
+                                        "speaker_id": "char_001",
+                                        "speaker_name": "陌生人",
+                                        "line": "这个 JSON Schema 合法。",
+                                        "emotion": "calm",
+                                    },
+                                    {
+                                        "speaker_id": "char_002",
+                                        "speaker_name": "旁观者",
+                                        "line": "但不该被接受。",
+                                        "emotion": "neutral",
+                                    },
+                                ],
+                            }
+                        ],
+                    },
+                ],
+                "adaptation_notes": {
+                    "themes": ["错误主题"],
+                    "conflicts": ["错误冲突"],
+                    "omissions": ["错误省略"],
+                },
+            }
+        },
+    )
+
+    result = llm.generate_screenplay(_project())
+
+    assert result.provider == "deterministic_demo"
+    assert result.fallback_reason == "invalid_screenplay_response"
+    assert result.content["script"]["metadata"]["title"] == "三国演义"
+    assert [chapter["source_chapter_numbers"] for chapter in result.content["script"]["chapters"]] == [[1], [2], [3]]
+
+
 def test_analyze_project_normalizes_unknown_character_age(monkeypatch) -> None:
     _settings(monkeypatch, api_key="test-key", base_url="https://api.deepseek.com", model="deepseek-v4-flash")
     monkeypatch.setattr(

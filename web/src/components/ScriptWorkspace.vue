@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 
 const yamlEditorRef = ref(null)
 
@@ -18,11 +18,20 @@ const props = defineProps({
 
 defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'previous', 'select-chapter', 'select-scene', 'update:yaml-text', 'validate-yaml'])
 
-const yamlLineNumbers = computed(() => {
-  const count = Math.max(1, props.yamlText.split('\n').length)
-  return Array.from({ length: count }, (_, index) => index + 1)
+const yamlLineNumbers = computed(() => Array.from({ length: yamlTextLines.value.length }, (_, index) => index + 1))
+const yamlTextLines = computed(() => {
+  const lines = props.yamlText.split('\n')
+  return lines.length ? lines : ['']
 })
 const yamlEditorRows = computed(() => yamlLineNumbers.value.length)
+
+watch(
+  () => props.yamlText,
+  async () => {
+    await nextTick()
+    yamlEditorRef.value?.scrollTo({ top: 0, left: 0 })
+  },
+)
 
 const scrollToYamlLine = (lineNumber) => {
   const editor = yamlEditorRef.value
@@ -34,6 +43,7 @@ const scrollToYamlLine = (lineNumber) => {
   const lineHeight = Number.parseFloat(getComputedStyle(editor).getPropertyValue('--yaml-line-height')) || 21
   editor.scrollTo({
     top: Math.max(0, (lineNumber - 4) * lineHeight),
+    left: 0,
     behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
   })
 }
@@ -123,8 +133,16 @@ defineExpose({ scrollToYamlLine })
       </aside>
 
       <div ref="yamlEditorRef" class="yaml-editor yaml-editor-editable" aria-label="YAML 剧本文档">
-        <div class="yaml-line-gutter" aria-hidden="true">
-          <span v-for="lineNumber in yamlLineNumbers" :key="lineNumber" :class="{ 'is-jump-target': activeYamlLine === lineNumber }">{{ lineNumber }}</span>
+        <div class="yaml-code-layer" aria-hidden="true">
+          <div
+            v-for="(line, index) in yamlTextLines"
+            :key="`${index}-${line}`"
+            class="yaml-render-line"
+            :class="{ 'is-jump-target': activeYamlLine === index + 1 }"
+          >
+            <span class="yaml-render-line-number">{{ index + 1 }}</span>
+            <span class="yaml-render-line-content">{{ line || ' ' }}</span>
+          </div>
         </div>
         <textarea
           class="yaml-textarea"

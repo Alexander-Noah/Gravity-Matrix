@@ -51,8 +51,6 @@ export const register = async ({ name, email, password }) => {
     password,
   })
 
-  saveAuthSession(response.data)
-  markSessionAuthenticated()
   return response.data
 }
 

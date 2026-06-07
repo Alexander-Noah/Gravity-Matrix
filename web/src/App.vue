@@ -314,12 +314,13 @@ const scrollScriptYamlToLine = (lineNumber) => {
 
 const mapDiagnosisToSchemaValidation = (diagnosis, fallbackValid = true) => {
   const summary = diagnosis?.summary || {}
+  const yamlSummary = getScriptSummaryFromYaml(generatedYamlText.value || generatedScriptYaml.value)
 
   return {
     yamlValid: diagnosis?.valid_schema ?? fallbackValid,
     requiredFieldsValid: diagnosis?.valid_schema ?? fallbackValid,
-    chapterCount: summary.chapter_count ?? schemaValidationMock.chapterCount,
-    sceneCount: summary.scene_count ?? schemaValidationMock.sceneCount,
+    chapterCount: summary.chapter_count ?? yamlSummary?.chapterCount ?? 0,
+    sceneCount: summary.scene_count ?? yamlSummary?.sceneCount ?? 0,
     checkedAt: `刚刚校验 · ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`,
     message: diagnosis?.valid_schema === false
       ? '校验未通过：请根据后端返回的诊断建议修正 YAML。'
@@ -395,6 +396,79 @@ const getScriptBody = (yamlText) => {
   return parsed?.script || parsed
 }
 
+const getScriptSummaryFromYaml = (yamlText) => {
+  try {
+    const script = getScriptBody(yamlText)
+    const chapters = Array.isArray(script?.chapters) ? script.chapters : []
+    const sceneCount = chapters.reduce((total, chapter) => total + (chapter.scenes?.length || 0), 0)
+    const dialogueCount = chapters.reduce(
+      (total, chapter) => total + (chapter.scenes || []).reduce(
+        (sceneTotal, scene) => sceneTotal + ((scene.dialogue || scene.dialogues || []).length || 0),
+        0,
+      ),
+      0,
+    )
+
+    return {
+      chapterCount: chapters.length,
+      sceneCount,
+      dialogueCount,
+      characterCount: Array.isArray(script?.characters) ? script.characters.length : 0,
+      locationCount: Array.isArray(script?.locations) ? script.locations.length : 0,
+    }
+  } catch {
+    return null
+  }
+}
+
+const applyScriptMetricsFromYaml = (yamlText) => {
+  const summary = getScriptSummaryFromYaml(yamlText)
+
+  if (!summary) {
+    return
+  }
+
+  displayedAnalysisMetrics.value = [
+    { label: '人物', value: String(summary.characterCount), icon: 'users', tone: 'violet' },
+    { label: '剧本场景', value: String(summary.sceneCount), icon: 'scene', tone: 'blue' },
+    { label: '章节', value: String(summary.chapterCount), icon: 'chapter', tone: 'mint' },
+    { label: '对白', value: String(summary.dialogueCount), icon: 'message', tone: 'orange' },
+  ]
+}
+
+const formatScriptChapterTitle = (title, chapterIndex) => {
+  const normalizedTitle = String(title || '').trim()
+  if (/^第\s*[\d一二三四五六七八九十百千万零〇两]+\s*[章节回幕卷部集]/.test(normalizedTitle)) {
+    return normalizedTitle
+  }
+
+  return `第${chapterIndex + 1}章 ${normalizedTitle || '未命名章节'}`
+}
+
+const buildScriptChaptersFromYaml = (yamlText) => {
+  let script
+
+  try {
+    script = getScriptBody(yamlText)
+  } catch (error) {
+    console.error('YAML structure parsing error', error)
+    return []
+  }
+
+  if (!script?.chapters?.length) return []
+
+  return script.chapters.map((chapter, chapterIndex) => ({
+    id: chapter.id || `ch_${String(chapterIndex + 1).padStart(3, '0')}`,
+    title: formatScriptChapterTitle(chapter.title, chapterIndex),
+    open: chapterIndex === 0,
+    scenes: (chapter.scenes || []).map((scene, sceneIndex) => ({
+      id: scene.id || `${chapter.id || chapterIndex + 1}-${sceneIndex + 1}`,
+      label: `场景 ${chapterIndex + 1}-${sceneIndex + 1} ${scene.title || scene.label || '未命名场景'}`,
+      active: chapterIndex === 0 && sceneIndex === 0,
+    })),
+  }))
+}
+
 const buildScriptScenes = (yamlText) => {
   let script
 
@@ -449,8 +523,9 @@ const applyWorkbenchScript = (workbench) => {
     generatedScriptYaml.value = ''
   }
 
-  if (workbench?.script?.structure?.length) {
-    displayedScriptChapters.value = workbench.script.structure.map((chapter) => ({
+  const yamlStructure = buildScriptChaptersFromYaml(workbench?.script?.yaml)
+  const backendStructure = workbench?.script?.structure?.length
+    ? workbench.script.structure.map((chapter) => ({
       id: chapter.id,
       title: chapter.title || chapter.label,
       open: chapter.open,
@@ -460,9 +535,26 @@ const applyWorkbenchScript = (workbench) => {
         active: selectedSceneId.value ? scene.id === selectedSceneId.value : scene.active,
       })),
     }))
+    : []
+  const nextStructure = yamlStructure.length ? yamlStructure : backendStructure
+
+  if (nextStructure.length) {
+    const existingSceneIds = nextStructure.flatMap((chapter) => chapter.scenes.map((scene) => scene.id))
+    if (!selectedSceneId.value || !existingSceneIds.includes(selectedSceneId.value)) {
+      selectedSceneId.value = existingSceneIds[0] || null
+    }
+
+    displayedScriptChapters.value = nextStructure.map((chapter, chapterIndex) => ({
+      ...chapter,
+      open: chapter.open || chapter.scenes.some((scene) => scene.id === selectedSceneId.value) || chapterIndex === 0,
+      scenes: chapter.scenes.map((scene) => ({
+        ...scene,
+        active: scene.id === selectedSceneId.value,
+      })),
+    }))
 
     if (!selectedSceneId.value) {
-      selectedSceneId.value = workbench.script.structure[0]?.scenes?.[0]?.id || null
+      selectedSceneId.value = nextStructure[0]?.scenes?.[0]?.id || null
     }
   } else if (currentProjectId.value) {
     displayedScriptChapters.value = []
@@ -470,6 +562,10 @@ const applyWorkbenchScript = (workbench) => {
 
   if (workbench?.script?.diagnosis) {
     schemaValidation.value = mapDiagnosisToSchemaValidation(workbench.script.diagnosis)
+  }
+
+  if (workbench?.script?.yaml) {
+    applyScriptMetricsFromYaml(workbench.script.yaml)
   }
 }
 
@@ -720,6 +816,15 @@ const generatedYamlText = computed(() =>
 
 watch(generatedScriptYaml, (yamlText) => {
   editableScriptYaml.value = yamlText || ''
+  const summary = getScriptSummaryFromYaml(yamlText)
+
+  if (summary) {
+    schemaValidation.value = {
+      ...schemaValidation.value,
+      chapterCount: summary.chapterCount,
+      sceneCount: summary.sceneCount,
+    }
+  }
 })
 
 const handleYamlTextUpdate = (yamlText) => {
@@ -818,6 +923,22 @@ const waitForJob = async (jobId, onProgress, { timeoutMs = 180000, intervalMs = 
   throw new Error(lastJob?.current_step
     ? `任务仍在处理中：${lastJob.current_step}（${lastJob.progress ?? 0}%）。请稍后重试或刷新工作台查看结果。`
     : '任务仍在处理中，请稍后重试或刷新工作台查看结果。')
+}
+
+const syncCurrentWorkbench = async () => {
+  if (!currentProjectId.value) {
+    return null
+  }
+
+  const workbench = await getProjectWorkbench(currentProjectId.value)
+
+  if (workbench.analysis?.raw) {
+    applyAnalysisResult(workbench.analysis.raw)
+  }
+
+  applyWorkbenchScript(workbench)
+  applyWorkbenchProgress(workbench)
+  return workbench
 }
 
 const applyAnalysisResult = (analysis) => {
@@ -1012,14 +1133,7 @@ const openProject = async (project) => {
   }
 
   try {
-    const workbench = await getProjectWorkbench(currentProjectId.value)
-
-    if (workbench.analysis?.raw) {
-      applyAnalysisResult(workbench.analysis.raw)
-    }
-
-    applyWorkbenchScript(workbench)
-    applyWorkbenchProgress(workbench)
+    const workbench = await syncCurrentWorkbench()
 
     if (workbench.project.has_script) {
       activePage.value = 'script'
@@ -1096,9 +1210,7 @@ const editLibraryScript = async (script) => {
 
   if (currentProjectId.value) {
     try {
-      const workbench = await getProjectWorkbench(currentProjectId.value)
-      applyWorkbenchScript(workbench)
-      applyWorkbenchProgress(workbench)
+      await syncCurrentWorkbench()
     } catch (error) {
       editorNotice.value = getApiErrorMessage(error)
     }
@@ -1115,9 +1227,7 @@ const previewLibraryScript = async (script) => {
 
   if (currentProjectId.value) {
     try {
-      const workbench = await getProjectWorkbench(currentProjectId.value)
-      applyWorkbenchScript(workbench)
-      applyWorkbenchProgress(workbench)
+      await syncCurrentWorkbench()
     } catch (error) {
       previewNotice.value = getApiErrorMessage(error)
     }
@@ -1294,7 +1404,14 @@ const confirmGenerationSettings = async (settings) => {
   generatedSettings.value = normalizedSettings
   isGenerationSettingsOpen.value = false
   editorNotice.value = '正在启动剧本生成任务...'
-  schemaValidation.value = schemaValidationMock
+  schemaValidation.value = {
+    yamlValid: false,
+    requiredFieldsValid: false,
+    chapterCount: 0,
+    sceneCount: 0,
+    checkedAt: '等待后端生成',
+    message: '正在生成真实剧本 YAML，完成后会自动同步章节、场景和校验结果。',
+  }
   activePage.value = 'script'
   currentProjectStages.value = buildProjectStages('script')
   currentProjectProgress.value = Math.max(currentProjectProgress.value, 70)
@@ -1317,15 +1434,21 @@ const confirmGenerationSettings = async (settings) => {
       editorNotice.value = `${currentJob.current_step}（${currentJob.progress}%）`
     }, { timeoutMs: 300000, intervalMs: 1200 })
 
-    const script = await getProjectScript(currentProjectId.value)
-    generatedScriptYaml.value = script.yaml
-
-    const workbench = await getProjectWorkbench(currentProjectId.value)
-    applyWorkbenchScript(workbench)
-    applyWorkbenchProgress(workbench)
-    editorNotice.value = '剧本 YAML 已从后端生成并同步到编辑区。'
+    const workbench = await syncCurrentWorkbench()
+    if (workbench?.script?.yaml) {
+      editorNotice.value = '剧本 YAML 已从后端生成并同步到编辑区。'
+    } else {
+      editorNotice.value = '后端任务已结束，但尚未返回剧本 YAML；请稍后点击剧本库重新打开项目。'
+    }
   } catch (error) {
-    editorNotice.value = getApiErrorMessage(error)
+    try {
+      const workbench = await syncCurrentWorkbench()
+      editorNotice.value = workbench?.script?.yaml
+        ? '剧本已在后端生成完成，已重新同步到编辑区。'
+        : getApiErrorMessage(error)
+    } catch {
+      editorNotice.value = getApiErrorMessage(error)
+    }
   } finally {
     isScriptGenerating.value = false
   }

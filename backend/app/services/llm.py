@@ -35,8 +35,8 @@ def generate_screenplay(project: Project, analysis: dict | None = None) -> LLMRe
     generation_settings = _project_generation_settings(project)
     if _has_llm_config():
         result = _call_deepseek(_screenplay_prompt(project, analysis, generation_settings))
-        if isinstance(result, dict) and _is_valid_screenplay(result):
-            _apply_generation_metadata(result, generation_settings)
+        if isinstance(result, dict) and _is_valid_screenplay_for_project(result, project):
+            _apply_project_screenplay_guards(result, project, generation_settings)
             return LLMResult(provider=settings.llm_provider, content=result)
         return _demo_generate_screenplay(project, analysis, "invalid_screenplay_response")
 
@@ -184,6 +184,9 @@ def _screenplay_prompt(project: Project, analysis: dict, generation_settings: di
             "不得省略模板中的任何必填字段；未知 age 必须输出 null，不要输出“未知”。",
             "scene.location_id 必须引用 locations 中已有 id；scene.characters 和 dialogue.speaker_id 必须引用 characters 中已有 id。",
             "每章只生成 1 到 2 个核心场景，不要把每个自然段都拆成场景。",
+            f"必须为当前小说的 {len(project.chapters)} 个章节逐章生成，script.chapters 数量必须等于 {len(project.chapters)}。",
+            "每个 script.chapters[i].source_chapter_numbers 必须只引用对应的原文章节编号，不能新增、合并、跳过或改写为其他章节。",
+            "metadata.title、metadata.original_novel、metadata.author 和 metadata.total_chapters 必须与当前项目一致。",
             "每个场景保留 2 到 4 句关键对白，优先覆盖核心冲突和人物选择。",
             "如果原文很长，请压缩支线细节，输出可编辑的剧本初稿，而不是全文逐段改写。",
             f"当前生成模板：{template['name']}（target_format={template['target_format']}）。",
@@ -327,17 +330,35 @@ def _template_profile(template_id: str | None) -> dict[str, Any]:
     return profiles.get(template_id or "tv-drama", profiles["tv-drama"])
 
 
-def _apply_generation_metadata(result: dict[str, Any], generation_settings: dict[str, Any]) -> None:
+def _apply_project_screenplay_guards(
+    result: dict[str, Any],
+    project: Project,
+    generation_settings: dict[str, Any],
+) -> None:
     template = _template_profile(generation_settings.get("templateId"))
     script = result.get("script")
     if not isinstance(script, dict):
         return
+
     metadata = script.setdefault("metadata", {})
     if isinstance(metadata, dict):
+        metadata["title"] = project.title
+        metadata["original_novel"] = project.title
+        metadata["author"] = project.author
+        metadata["total_chapters"] = len(project.chapters)
         metadata["target_format"] = template["target_format"]
         metadata["template_id"] = template["id"]
         metadata["script_type"] = generation_settings.get("scriptType") or template["script_type"]
         metadata["adaptation_style"] = generation_settings.get("adaptationStyle")
+
+    chapters = script.get("chapters")
+    if isinstance(chapters, list):
+        for project_chapter, script_chapter in zip(project.chapters, chapters):
+            if not isinstance(script_chapter, dict):
+                continue
+            script_chapter["source_chapter_numbers"] = [project_chapter.number]
+            if not script_chapter.get("title"):
+                script_chapter["title"] = project_chapter.title
 
 
 def _chapters_for_prompt(project: Project, per_chapter_limit: int = 1200) -> str:
@@ -459,6 +480,26 @@ def _is_valid_screenplay(data: dict[str, Any]) -> bool:
         ScreenplayDocument.model_validate(data)
     except (ValidationError, ValueError):
         return False
+    return True
+
+
+def _is_valid_screenplay_for_project(data: dict[str, Any], project: Project) -> bool:
+    try:
+        document = ScreenplayDocument.model_validate(data)
+    except (ValidationError, ValueError):
+        return False
+
+    script = document.script
+    project_chapter_numbers = [chapter.number for chapter in project.chapters]
+    if script.metadata.total_chapters != len(project_chapter_numbers):
+        return False
+    if len(script.chapters) != len(project_chapter_numbers):
+        return False
+
+    for expected_number, script_chapter in zip(project_chapter_numbers, script.chapters):
+        if script_chapter.source_chapter_numbers != [expected_number]:
+            return False
+
     return True
 
 

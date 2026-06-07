@@ -429,16 +429,16 @@
   --yaml-line-height: 21px;
   min-width: 0;
   height: 100%;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   background:
     linear-gradient(180deg, oklch(19% 0.033 265), oklch(16.5% 0.028 265)),
     var(--editor-bg);
 }
 
 .yaml-editor-editable {
-  display: grid;
-  grid-template-columns: 58px minmax(820px, 1fr);
-  align-items: stretch;
+  position: relative;
+  display: block;
 }
 
 .yaml-editor pre {
@@ -478,41 +478,64 @@
   user-select: none;
 }
 
-.yaml-line-gutter {
-  display: grid;
-  align-content: start;
+.yaml-code-layer {
+  position: relative;
+  z-index: 1;
+  min-width: max-content;
   min-height: 100%;
-  padding: 14px 0 24px;
-  color: oklch(61% 0.025 260);
-  background: oklch(15.5% 0.025 265 / 0.42);
+  padding: 14px 24px 24px 0;
+  pointer-events: none;
+}
+
+.yaml-render-line {
+  display: grid;
+  grid-template-columns: 58px max-content;
+  min-height: var(--yaml-line-height);
   font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
   font-size: 13px;
   line-height: var(--yaml-line-height);
-  user-select: none;
+  white-space: pre;
 }
 
-.yaml-line-gutter span {
-  min-height: var(--yaml-line-height);
-  padding-right: 18px;
-  text-align: right;
+.yaml-render-line:nth-child(2n) {
+  background: oklch(15% 0.022 265 / 0.18);
 }
 
-.yaml-line-gutter span.is-jump-target {
-  color: oklch(82% 0.12 236);
-  background: oklch(48% 0.115 236 / 0.24);
+.yaml-render-line.is-jump-target {
+  background:
+    linear-gradient(90deg, oklch(48% 0.115 236 / 0.24), transparent 68%),
+    oklch(20% 0.035 265);
   box-shadow: inset 3px 0 0 var(--primary);
 }
 
+.yaml-render-line-number {
+  padding-right: 18px;
+  color: oklch(61% 0.025 260);
+  text-align: right;
+  background: oklch(15.5% 0.025 265 / 0.42);
+  user-select: none;
+}
+
+.yaml-render-line-content {
+  padding-left: 18px;
+  padding-right: 24px;
+  color: oklch(86% 0.04 255);
+}
+
 .yaml-textarea {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
   width: 100%;
-  min-width: 820px;
+  min-width: max-content;
   min-height: 100%;
-  padding: 14px 72px 24px 18px;
+  padding: 14px 24px 24px 76px;
   overflow: hidden;
   border: 0;
   border-radius: 0;
-  color: oklch(86% 0.04 255);
+  color: transparent;
   background: transparent;
+  caret-color: oklch(86% 0.04 255);
   font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
   font-size: 13px;
   line-height: var(--yaml-line-height);
@@ -520,9 +543,11 @@
   resize: none;
   tab-size: 2;
   white-space: pre;
+  overflow-wrap: normal;
 }
 
 .yaml-textarea::selection {
+  color: transparent;
   background: oklch(48% 0.115 236 / 0.34);
 }
 
