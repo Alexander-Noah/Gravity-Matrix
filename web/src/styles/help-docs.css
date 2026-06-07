@@ -139,6 +139,11 @@
   align-items: start;
 }
 
+.help-reasons-section {
+  grid-template-columns: minmax(360px, 0.9fr) minmax(420px, 1.1fr);
+  align-items: start;
+}
+
 .help-doc-section-copy {
   display: grid;
   gap: 10px;
@@ -164,6 +169,7 @@
 .help-check-list,
 .help-workflow-list,
 .help-required-list,
+.help-design-flow,
 .help-mini-grid ul {
   display: grid;
   gap: 10px;
@@ -179,6 +185,7 @@
 .help-check-list li,
 .help-workflow-list li,
 .help-required-list li,
+.help-design-flow li,
 .help-reason-grid p,
 .help-mini-grid > div,
 .help-mini-grid li,
@@ -408,17 +415,47 @@
   white-space: pre;
 }
 
+.help-design-flow {
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.help-design-flow li {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  padding: 12px 14px;
+  background: oklch(98.6% 0.006 235);
+  box-shadow: none;
+}
+
+.help-design-flow strong {
+  color: var(--primary-strong);
+  font-size: 13px;
+  font-weight: 820;
+  line-height: 1.5;
+}
+
+.help-design-flow p {
+  max-width: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.62;
+}
+
 .help-reason-grid {
   display: grid;
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .help-reason-grid p {
   margin: 0;
-  padding: 16px;
+  padding: 14px;
   color: var(--text-muted);
   font-size: 13px;
-  line-height: 1.7;
+  line-height: 1.65;
 }
 
 .help-faq-list {
@@ -440,6 +477,11 @@
 
   .help-workflow-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .help-reasons-section,
+  .help-reason-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -463,6 +505,7 @@
   }
 
   .help-doc-section-split,
+  .help-reasons-section,
   .help-check-list,
   .help-reason-grid,
   .help-mini-grid,

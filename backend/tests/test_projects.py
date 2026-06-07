@@ -53,6 +53,16 @@ def _payload(chapter_count: int = 3) -> dict:
     }
 
 
+def _register_and_auth_headers(client: TestClient) -> dict[str, str]:
+    response = client.post(
+        "/api/v1/auth/register",
+        json={"name": "测试创作者", "email": "creator@example.com", "password": "secret123"},
+    )
+    assert response.status_code == 201
+    token = response.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
 def test_create_project_requires_three_chapters() -> None:
     client = TestClient(app)
 
@@ -178,6 +188,68 @@ def test_template_center_backend_supports_filter_detail_and_default_template() -
     invalid_response = client.put("/api/v1/templates/default", json={"templateId": "missing-template"})
     assert invalid_response.status_code == 404
     assert "模板不存在" in invalid_response.text
+
+
+def test_profile_summary_requires_login() -> None:
+    client = TestClient(app)
+
+    response = client.get("/api/v1/profile/summary")
+
+    assert response.status_code == 403
+
+
+def test_profile_summary_returns_empty_workspace_for_new_user() -> None:
+    client = TestClient(app)
+    headers = _register_and_auth_headers(client)
+
+    response = client.get("/api/v1/profile/summary", headers=headers)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["user"] == {
+        "id": 1,
+        "name": "测试创作者",
+        "email": "creator@example.com",
+        "role": "创作者",
+    }
+    assert payload["stats"] == {
+        "workspaceName": "AI 小说转剧本",
+        "currentProject": "未创建项目",
+        "projectProgress": 0,
+        "workflowStep": "导入小说",
+        "selectedTemplate": "影视剧剧本模板",
+        "scriptStatus": "尚未生成剧本",
+        "libraryCount": 0,
+        "schemaStatus": "待校验",
+    }
+
+
+def test_profile_summary_uses_backend_project_script_and_template_data() -> None:
+    client = TestClient(app)
+    headers = _register_and_auth_headers(client)
+
+    template_response = client.put("/api/v1/templates/default", json={"templateId": "short-drama"})
+    assert template_response.status_code == 200
+
+    create_response = client.post("/api/v1/projects", json={**_payload(), "title": "后端个人中心"})
+    assert create_response.status_code == 201
+    project_id = create_response.json()["id"]
+
+    script_response = client.post(f"/api/v1/projects/{project_id}/script-jobs")
+    assert script_response.status_code == 202
+
+    response = client.get("/api/v1/profile/summary", headers=headers)
+
+    assert response.status_code == 200
+    stats = response.json()["stats"]
+    assert stats["workspaceName"] == "AI 小说转剧本"
+    assert stats["currentProject"] == "《后端个人中心》改编项目"
+    assert stats["projectProgress"] == 75
+    assert stats["workflowStep"] == "编辑与导出"
+    assert stats["selectedTemplate"] == "短剧剧本模板"
+    assert stats["scriptStatus"] == "已有 YAML 草稿"
+    assert stats["libraryCount"] == 1
+    assert stats["schemaStatus"] == "校验通过"
 
 
 def test_list_projects_returns_recent_projects_with_pagination() -> None:

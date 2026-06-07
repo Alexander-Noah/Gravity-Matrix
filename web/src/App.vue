@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import yaml from 'js-yaml'
-import { clearAuthSession, fetchCurrentUser, getAuthSession } from './api/auth'
+import { clearAuthSession, fetchCurrentUser, getAuthSession, hasActiveAuthSession } from './api/auth'
 import { getApiErrorMessage } from './api/http'
 import {
   createProject,
@@ -89,6 +89,7 @@ const isGenerationSettingsOpen = ref(false)
 const isAddSceneOpen = ref(false)
 const generatedSettings = ref(null)
 const generatedScriptYaml = ref('')
+const editableScriptYaml = ref('')
 const schemaValidation = ref(schemaValidationMock)
 const editorNotice = ref('')
 const previewNotice = ref('')
@@ -123,6 +124,7 @@ const currentProjectStages = ref(projectStages)
 const scriptWorkspaceRef = ref(null)
 const activeYamlLine = ref(null)
 let isExplicitProjectOpen = false
+let scriptSaveTimeout = null
 
 const CURRENT_PROJECT_STORAGE_KEY = 'gravityMatrixCurrentProjectId'
 
@@ -552,15 +554,23 @@ watch(
 
 onMounted(async () => {
   const session = getAuthSession()
-  if (session.token && !session.user) {
-    try {
-      const user = await fetchCurrentUser()
-      currentUser.value = user
-    } catch {
-      // token expired or backend unreachable, keep existing session state
+  if (!session.token || !hasActiveAuthSession()) {
+    currentUser.value = null
+    if (!isAuthRoute.value) {
+      router.replace('/auth')
     }
-  } else {
-    currentUser.value = session.user
+    return
+  }
+
+  try {
+    currentUser.value = await fetchCurrentUser()
+  } catch {
+    clearAuthSession()
+    currentUser.value = null
+    if (!isAuthRoute.value) {
+      router.replace('/auth')
+    }
+    return
   }
 
   if (isWorkbenchRoute.value) {
@@ -702,10 +712,43 @@ const generatedYamlLines = computed(() => {
   ]
 })
 const generatedYamlText = computed(() =>
-  generatedScriptYaml.value || (!currentProjectId.value
+  editableScriptYaml.value || generatedScriptYaml.value || (!currentProjectId.value
     ? generatedYamlLines.value.map((line) => line.map((token) => token.text).join('')).join('\n')
     : ''),
 )
+
+watch(generatedScriptYaml, (yamlText) => {
+  editableScriptYaml.value = yamlText || ''
+})
+
+const handleYamlTextUpdate = (yamlText) => {
+  editableScriptYaml.value = yamlText
+  generatedScriptYaml.value = yamlText
+  schemaValidation.value = {
+    ...schemaValidation.value,
+    checkedAt: '等待重新校验',
+    message: 'YAML 已修改，请点击校验格式检查结构。',
+  }
+
+  if (scriptSaveTimeout) {
+    clearTimeout(scriptSaveTimeout)
+  }
+
+  if (!currentProjectId.value || isScriptGenerating.value) {
+    editorNotice.value = 'YAML 已在本地编辑。'
+    return
+  }
+
+  editorNotice.value = 'YAML 已修改，正在自动保存...'
+  scriptSaveTimeout = setTimeout(async () => {
+    try {
+      await saveProjectScript(currentProjectId.value, yamlText)
+      editorNotice.value = 'YAML 已自动保存。'
+    } catch (error) {
+      editorNotice.value = `自动保存失败：${getApiErrorMessage(error)}`
+    }
+  }, 900)
+}
 const displayedPreviewScenes = computed(() => {
   if (!generatedScriptYaml.value) {
     return currentProjectId.value ? [] : scriptPreviewScenes
@@ -921,8 +964,12 @@ const handleAuthenticated = async () => {
   router.push('/workbench')
 }
 
-const openProfileCenter = () => {
-  currentUser.value = getAuthSession().user
+const openProfileCenter = async () => {
+  try {
+    currentUser.value = await fetchCurrentUser()
+  } catch {
+    currentUser.value = getAuthSession().user
+  }
   isProfileCenterOpen.value = true
 }
 
@@ -1020,6 +1067,19 @@ const defaultGenerationSettings = computed(() => {
     contentOptions: generationSettingOptions.contentOptions.slice(0, 2),
   }
 })
+const selectedTemplateName = computed(() =>
+  displayedTemplates.value.find((template) => template.id === selectedTemplateId.value)?.name || '未选择模板',
+)
+const profileStats = computed(() => ({
+  workspaceName: pageTitle.value,
+  currentProject: currentProjectTitle.value,
+  projectProgress: currentProjectProgress.value,
+  workflowStep: currentWorkflowSteps.value.find((step) => step.status === 'active')?.label || activeRoute.value.title,
+  selectedTemplate: selectedTemplateName.value,
+  scriptStatus: generatedYamlText.value ? '已有 YAML 草稿' : '尚未生成剧本',
+  libraryCount: displayedLibraryItems.value.length,
+  schemaStatus: schemaValidation.value.yamlValid && schemaValidation.value.requiredFieldsValid ? '校验通过' : '待校验',
+}))
 
 const getScriptProjectId = (script) => script?.projectId || script?.project_id || script?.raw?.id || null
 
@@ -1613,10 +1673,10 @@ const handleFileUpload = async (event) => {
               :project-title="currentProjectTitle" @show-analysis="goBackToAnalysis" />
             <ScriptWorkspace ref="scriptWorkspaceRef" :active-yaml-line="activeYamlLine" :icon-paths="iconPaths" :preview-scene="selectedPreviewScene"
               :schema-validation="schemaValidation" :script-chapters="displayedScriptChapters"
-              :is-generating="isScriptGenerating" :status-notice="editorNotice" :yaml-lines="generatedYamlLines" @add-scene="openAddScene"
+              :is-generating="isScriptGenerating" :status-notice="editorNotice" :yaml-lines="generatedYamlLines" :yaml-text="generatedYamlText" @add-scene="openAddScene"
               @copy-yaml="copyYaml" @download-yaml="downloadYaml" @open-preview="goToPreview"
               @open-schema="goToSchemaHelp" @previous="goBackToAnalysis" @select-chapter="selectScriptChapter" @select-scene="selectScriptScene"
-              @validate-yaml="validateYaml" />
+              @update:yaml-text="handleYamlTextUpdate" @validate-yaml="validateYaml" />
           </div>
 
           <GenerationSettingsDialog v-model="isGenerationSettingsOpen" :initial-settings="generatedSettings || defaultGenerationSettings"
@@ -1627,7 +1687,7 @@ const handleFileUpload = async (event) => {
       </div>
     </main>
 
-    <ProfileCenterDialog v-model="isProfileCenterOpen" :icon-paths="iconPaths" :user="currentUser" @logout="logout" />
+    <ProfileCenterDialog v-model="isProfileCenterOpen" :icon-paths="iconPaths" :stats="profileStats" :user="currentUser" @logout="logout" />
 
     <Teleport to="body">
       <div v-if="isGuideOpen" class="dialog-backdrop" role="presentation" @click.self="closeGuide">

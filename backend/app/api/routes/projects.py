@@ -379,8 +379,12 @@ def restore_project(project_id: int, db: Session = Depends(get_db)) -> ProjectRe
 @router.patch("/projects/{project_id}", response_model=ProjectRead)
 def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depends(get_db)) -> ProjectRead:
     project = _require_project(db, project_id)
-    if payload.title is not None:
-        project.title = payload.title
+    next_title = payload.title if payload.title is not None else payload.name
+    if next_title is not None:
+        next_title = next_title.strip()
+        if not next_title:
+            raise HTTPException(status_code=422, detail="项目名称不能为空。")
+        project.title = next_title
     if payload.author is not None:
         project.author = payload.author
     db.commit()

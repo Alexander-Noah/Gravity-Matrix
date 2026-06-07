@@ -5,7 +5,9 @@ from app.api.deps import get_current_user
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.auth import AuthLoginRequest, AuthRegisterRequest, AuthResponse, UserRead
+from app.schemas.auth import AuthLoginRequest, AuthRegisterRequest, AuthResponse, ProfileSummaryRead, UserRead
+from app.services.frontend_data import build_profile_summary
+from app.api.routes.projects import FALLBACK_TEMPLATE_ID, SCRIPT_TEMPLATES
 
 router = APIRouter(tags=["auth"])
 
@@ -46,3 +48,14 @@ def login(payload: AuthLoginRequest, db: Session = Depends(get_db)) -> AuthRespo
 @router.get("/auth/me", response_model=UserRead)
 def get_me(current_user: User = Depends(get_current_user)) -> UserRead:
     return UserRead.model_validate(current_user)
+
+
+@router.get("/profile/summary", response_model=ProfileSummaryRead)
+def get_profile_summary(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ProfileSummaryRead:
+    template_names = {template.id: template.name for template in SCRIPT_TEMPLATES}
+    return ProfileSummaryRead.model_validate(
+        build_profile_summary(db, current_user, FALLBACK_TEMPLATE_ID, template_names)
+    )

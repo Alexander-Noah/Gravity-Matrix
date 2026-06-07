@@ -2,6 +2,7 @@ import { http } from './http'
 
 const TOKEN_KEY = 'gm_auth_token'
 const USER_KEY = 'gm_auth_user'
+const ACTIVE_SESSION_KEY = 'gm_active_auth_session'
 
 export const saveAuthSession = (payload) => {
   const token = payload.access_token || payload.token
@@ -15,6 +16,12 @@ export const saveAuthSession = (payload) => {
     localStorage.setItem(USER_KEY, JSON.stringify(user))
   }
 }
+
+export const markSessionAuthenticated = () => {
+  sessionStorage.setItem(ACTIVE_SESSION_KEY, '1')
+}
+
+export const hasActiveAuthSession = () => sessionStorage.getItem(ACTIVE_SESSION_KEY) === '1'
 
 export const getAuthSession = () => {
   let user = null
@@ -34,6 +41,7 @@ export const getAuthSession = () => {
 export const clearAuthSession = () => {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_KEY)
+  sessionStorage.removeItem(ACTIVE_SESSION_KEY)
 }
 
 export const register = async ({ name, email, password }) => {
@@ -44,6 +52,7 @@ export const register = async ({ name, email, password }) => {
   })
 
   saveAuthSession(response.data)
+  markSessionAuthenticated()
   return response.data
 }
 
@@ -54,6 +63,7 @@ export const login = async ({ email, password }) => {
   })
 
   saveAuthSession(response.data)
+  markSessionAuthenticated()
   return response.data
 }
 

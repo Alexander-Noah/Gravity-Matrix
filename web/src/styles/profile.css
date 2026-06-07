@@ -1,7 +1,7 @@
 .profile-dialog {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  width: min(480px, 100%);
+  width: min(560px, 100%);
   max-height: min(680px, calc(100vh - 48px));
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -64,6 +64,7 @@
 }
 
 .profile-info-grid div {
+  min-width: 0;
   padding: 13px 14px;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -78,9 +79,12 @@
 
 .profile-info-grid dd {
   margin: 6px 0 0;
+  overflow: hidden;
   color: var(--text);
   font-size: 14px;
   font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .profile-preference-panel {

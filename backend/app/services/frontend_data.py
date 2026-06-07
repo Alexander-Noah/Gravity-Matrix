@@ -11,7 +11,8 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.project import Job, JobStatus, JobType, Project
+from app.models.project import AppSetting, Job, JobStatus, JobType, Project
+from app.models.user import User
 from app.schemas.screenplay import ScreenplayDocument
 from app.services.script_diagnosis import diagnose_screenplay_yaml
 from app.services.workbench import build_project_workbench
@@ -121,6 +122,54 @@ def build_scripts_library(db: Session) -> dict[str, Any]:
             },
         ],
         "items": items,
+    }
+
+
+def build_profile_summary(
+    db: Session,
+    user: User,
+    default_template_id: str,
+    template_names: dict[str, str],
+) -> dict[str, Any]:
+    active_projects_query = db.query(Project).filter(Project.deleted_at.is_(None))
+    latest_project = active_projects_query.order_by(Project.updated_at.desc(), Project.id.desc()).first()
+    generated_scripts = active_projects_query.filter(Project.script_yaml.is_not(None)).all()
+    selected_template_id = _default_template_id(db, default_template_id)
+    if selected_template_id not in template_names:
+        selected_template_id = default_template_id
+    selected_template = template_names.get(selected_template_id, "影视剧剧本模板")
+
+    if latest_project is None:
+        current_project = "未创建项目"
+        project_progress = 0
+        workflow_step = "导入小说"
+        script_status = "尚未生成剧本"
+        schema_status = "待校验"
+    else:
+        workbench = build_project_workbench(latest_project)
+        current_project = f"《{latest_project.title}》改编项目"
+        project_progress = int(workbench["progress"]["percent"])
+        workflow_step = _profile_workflow_step(latest_project)
+        script_status = "已有 YAML 草稿" if latest_project.script_yaml else "尚未生成剧本"
+        schema_status = "校验通过" if latest_project.script_yaml and _script_valid(latest_project.script_yaml) else "待校验"
+
+    return {
+        "user": {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "role": "创作者",
+        },
+        "stats": {
+            "workspaceName": "AI 小说转剧本",
+            "currentProject": current_project,
+            "projectProgress": project_progress,
+            "workflowStep": workflow_step,
+            "selectedTemplate": selected_template,
+            "scriptStatus": script_status,
+            "libraryCount": len(generated_scripts),
+            "schemaStatus": schema_status,
+        },
     }
 
 
@@ -568,6 +617,19 @@ def _script_summary(yaml_text: str) -> dict[str, Any]:
 
 def _script_valid(yaml_text: str) -> bool:
     return bool(_script_summary(yaml_text)["valid_schema"])
+
+
+def _default_template_id(db: Session, fallback: str) -> str:
+    setting = db.get(AppSetting, "default_template_id")
+    return setting.value if setting is not None else fallback
+
+
+def _profile_workflow_step(project: Project) -> str:
+    if project.script_yaml:
+        return "编辑与导出"
+    if project.analysis_json:
+        return "生成剧本"
+    return "AI 解析"
 
 
 def _detect_title(text: str) -> str | None:

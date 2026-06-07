@@ -37,6 +37,13 @@ const docNavGroups = [
 
 const docNavLinks = computed(() => docNavGroups.flatMap((group) => group.links))
 const fieldCount = props.content.schemaFields.length
+const schemaDesignFlow = [
+  { label: '全局信息', detail: 'metadata 保存标题、作者、目标格式和生成模板，导出与预览都从这里读取。' },
+  { label: '引用库', detail: 'characters 与 locations 先统一建库，后续场景只引用 id，减少人物和地点写法漂移。' },
+  { label: '章节来源', detail: 'chapters 保留小说章节层级，source_chapter_numbers 让剧本内容可以追溯回原文。' },
+  { label: '场景单位', detail: 'scenes 承接地点、时间、人物、动作和对白，是编辑、预览和导出的最小工作单元。' },
+  { label: '可校验输出', detail: '统一字段命名后，前端可以做 Schema 校验，作者也能继续人工修改。' },
+]
 
 const setActiveSection = (sectionId, shouldUpdateHash = false) => {
   if (!docNavLinks.value.some((link) => link.id === sectionId)) {
@@ -202,11 +209,17 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <section id="reasons" class="help-doc-section help-doc-section-split" aria-labelledby="schema-reason-title">
+      <section id="reasons" class="help-doc-section help-reasons-section" aria-labelledby="schema-reason-title">
         <div class="help-doc-section-copy">
           <span>Schema 设计原因</span>
           <h3 id="schema-reason-title">按照剧本创作流程进行设计。</h3>
           <p>Schema 的目标是让 AI 输出足够结构化，同时让作者仍然能像修改文稿一样继续打磨。</p>
+          <ol class="help-design-flow">
+            <li v-for="item in schemaDesignFlow" :key="item.label">
+              <strong>{{ item.label }}</strong>
+              <p>{{ item.detail }}</p>
+            </li>
+          </ol>
         </div>
         <div class="help-reason-grid">
           <p v-for="reason in content.designReasons" :key="reason">{{ reason }}</p>

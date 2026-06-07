@@ -31,7 +31,7 @@ export const appRoutes = [
   },
 ]
 
-export const defaultRoute = appRoutes[1]
+export const defaultRoute = appRoutes[0]
 
 export const getRouteById = (id) => appRoutes.find((route) => route.id === id) || defaultRoute
 

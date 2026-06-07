@@ -1,10 +1,11 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 const yamlEditorRef = ref(null)
 
-defineProps({
+const props = defineProps({
   activeYamlLine: { type: Number, default: null },
+  yamlText: { type: String, default: '' },
   iconPaths: { type: Object, required: true },
   isGenerating: { type: Boolean, default: false },
   previewScene: { type: Object, default: null },
@@ -15,7 +16,13 @@ defineProps({
   saveStatus: { type: String, default: '' },
 })
 
-defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'previous', 'select-chapter', 'select-scene', 'validate-yaml'])
+defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'previous', 'select-chapter', 'select-scene', 'update:yaml-text', 'validate-yaml'])
+
+const yamlLineNumbers = computed(() => {
+  const count = Math.max(1, props.yamlText.split('\n').length)
+  return Array.from({ length: count }, (_, index) => index + 1)
+})
+const yamlEditorRows = computed(() => yamlLineNumbers.value.length)
 
 const scrollToYamlLine = (lineNumber) => {
   const editor = yamlEditorRef.value
@@ -24,18 +31,27 @@ const scrollToYamlLine = (lineNumber) => {
     return
   }
 
-  const target = editor.querySelector(`[data-yaml-line="${lineNumber}"]`)
+  const lineHeight = Number.parseFloat(getComputedStyle(editor).getPropertyValue('--yaml-line-height')) || 21
+  editor.scrollTo({
+    top: Math.max(0, (lineNumber - 4) * lineHeight),
+    behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+  })
+}
 
-  if (!target) {
+const handleEditorKeydown = (event) => {
+  if (event.key !== 'Tab') {
     return
   }
 
-  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  target.scrollIntoView({
-    block: 'center',
-    inline: 'nearest',
-    behavior: prefersReducedMotion ? 'auto' : 'smooth',
-  })
+  event.preventDefault()
+  const textarea = event.target
+  const start = textarea.selectionStart
+  const end = textarea.selectionEnd
+  const nextValue = `${textarea.value.slice(0, start)}  ${textarea.value.slice(end)}`
+
+  textarea.value = nextValue
+  textarea.setSelectionRange(start + 2, start + 2)
+  textarea.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
 defineExpose({ scrollToYamlLine })
@@ -106,8 +122,20 @@ defineExpose({ scrollToYamlLine })
         </button>
       </aside>
 
-      <div ref="yamlEditorRef" class="yaml-editor" aria-label="YAML 剧本文档">
-        <pre><code><span v-for="(line, index) in yamlLines" :key="index" class="code-line" :class="{ 'is-jump-target': activeYamlLine === index + 1 }" :data-yaml-line="index + 1"><span class="line-number">{{ index + 1 }}</span><span class="line-content"><template v-for="(token, tokenIndex) in line" :key="`${index}-${tokenIndex}`"><span :class="`yaml-${token.tone}`">{{ token.text }}</span></template></span></span></code></pre>
+      <div ref="yamlEditorRef" class="yaml-editor yaml-editor-editable" aria-label="YAML 剧本文档">
+        <div class="yaml-line-gutter" aria-hidden="true">
+          <span v-for="lineNumber in yamlLineNumbers" :key="lineNumber" :class="{ 'is-jump-target': activeYamlLine === lineNumber }">{{ lineNumber }}</span>
+        </div>
+        <textarea
+          class="yaml-textarea"
+          :disabled="isGenerating"
+          spellcheck="false"
+          :value="yamlText"
+          :rows="yamlEditorRows"
+          aria-label="可编辑 YAML 剧本文档"
+          @input="$emit('update:yaml-text', $event.target.value)"
+          @keydown="handleEditorKeydown"
+        ></textarea>
       </div>
 
       <aside class="validation-pane" aria-labelledby="schema-title">

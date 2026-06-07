@@ -1,7 +1,10 @@
 <script setup>
-defineProps({
+import { computed } from 'vue'
+
+const props = defineProps({
   iconPaths: { type: Object, required: true },
   modelValue: { type: Boolean, default: false },
+  stats: { type: Object, default: () => ({}) },
   user: { type: Object, default: null },
 })
 
@@ -14,6 +17,31 @@ const closeDialog = () => {
 const logout = () => {
   emit('logout')
 }
+
+const displayName = computed(() => props.user?.name || props.user?.username || '创作者')
+const displayEmail = computed(() => props.user?.email || '未绑定邮箱')
+const avatarChar = computed(() => displayName.value.slice(0, 1).toLowerCase())
+const roleLabel = computed(() => {
+  if (props.user?.is_admin || props.user?.role === 'admin') {
+    return '管理员'
+  }
+
+  if (props.user?.role) {
+    return props.user.role
+  }
+
+  return '创作者'
+})
+const profileCards = computed(() => [
+  { label: '账号状态', value: props.user ? '已登录' : '未登录' },
+  { label: '当前项目', value: props.stats.currentProject || '未创建项目' },
+  { label: '工作阶段', value: props.stats.workflowStep || '等待开始' },
+  { label: '项目进度', value: `${props.stats.projectProgress ?? 0}%` },
+  { label: '默认模板', value: props.stats.selectedTemplate || '未选择模板' },
+  { label: '剧本状态', value: props.stats.scriptStatus || '尚未生成剧本' },
+  { label: '剧本库条目', value: `${props.stats.libraryCount ?? 0} 个` },
+  { label: 'Schema 状态', value: props.stats.schemaStatus || '待校验' },
+])
 </script>
 
 <template>
@@ -29,29 +57,17 @@ const logout = () => {
 
       <div class="profile-dialog-body">
         <div class="profile-identity">
-          <div class="profile-avatar" aria-hidden="true">{{ user?.name?.slice(0, 1) || '创' }}</div>
+          <div class="profile-avatar" aria-hidden="true">{{ avatarChar }}</div>
           <div>
-            <strong>{{ user?.name || '创作者' }}</strong>
-            <span>{{ user?.email || '尚未同步邮箱' }}</span>
+            <strong>{{ displayName }}</strong>
+            <span>{{ displayEmail }}</span>
           </div>
         </div>
 
         <dl class="profile-info-grid">
-          <div>
-            <dt>账号状态</dt>
-            <dd>已登录</dd>
-          </div>
-          <div>
-            <dt>创作身份</dt>
-            <dd>{{ user?.role || '小说作者' }}</dd>
-          </div>
-          <div>
-            <dt>默认工作区</dt>
-            <dd>AI 小说转剧本</dd>
-          </div>
-          <div>
-            <dt>内容授权</dt>
-            <dd>本人有权处理</dd>
+          <div v-for="card in profileCards" :key="card.label">
+            <dt>{{ card.label }}</dt>
+            <dd>{{ card.value }}</dd>
           </div>
         </dl>
 
@@ -61,7 +77,7 @@ const logout = () => {
               <path v-for="path in iconPaths.spark" :key="path" :d="path" />
             </svg>
           </div>
-          <p>后续生成剧本时，将优先保留你的模板选择、剧本编辑状态和最近导出记录。</p>
+          <p>{{ roleLabel }}正在使用「{{ stats.workspaceName || 'AI 小说转剧本' }}」。后续生成剧本时，会优先保留当前模板、YAML 编辑状态和最近项目上下文。</p>
         </div>
       </div>
 
