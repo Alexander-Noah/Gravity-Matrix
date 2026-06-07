@@ -4,6 +4,8 @@ AI 小说转剧本工具 —— 将 3 章以上小说文本自动转换为结构
 
 面向小说作者、编剧和内容创作者，提供从小说导入、AI 解析、模板选择、剧本生成、在线编辑、校验诊断到多格式导出的完整创作链路。
 
+视频Demo链接：https://www.bilibili.com/video/BV1r5Eb6cEW6/?share_source=copy_web&vd_source=fc4d1d67662ee0db1436153e9cafbda5
+
 ## 项目亮点
 
 - 支持 3 章以上小说输入，自动识别章节结构。
@@ -216,16 +218,6 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 | `LLM_BASE_URL` | 无 | DeepSeek 示例：`https://api.deepseek.com` |
 | `LLM_MODEL` | 无 | 示例：`deepseek-v4-flash` |
 
-DeepSeek 配置示例：
-
-```env
-LLM_PROVIDER=deepseek
-LLM_API_KEY=your-api-key
-LLM_BASE_URL=https://api.deepseek.com
-LLM_MODEL=deepseek-v4-flash
-```
-
-不配置 LLM 时，后端从章节文本正则抽取人物名，自动生成场景、舞台说明和多句对白，保证零配置完整演示。
 
 ## 页面与路由
 
@@ -254,13 +246,9 @@ LLM_MODEL=deepseek-v4-flash
 ### 模板与素材
 `GET /templates` · `GET /templates/{id}` · `GET/PUT /templates/default` · `GET /scripts/library` · `POST /scripts/library/sources/{id}/import`
 
-完整接口文档见 [API.md](API.md)，后端细节见 [backend/README.md](backend/README.md)，前端细节见 [web/README.md](web/README.md)。
-
 ## 测试
 
 ```powershell
 cd backend
 pytest
 ```
-
-46 个测试通过，覆盖项目创建、导入预检、分析任务、剧本生成、校验、诊断、导出、回收站、模板中心全链路。
