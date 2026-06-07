@@ -1,89 +1,158 @@
 # Gravity-Matrix Backend
 
-Gravity-Matrix 后端服务负责把 3 个章节以上的小说文本转换为可编辑的结构化剧本 YAML。当前版本先搭建 FastAPI 基础骨架，为后续小说导入、AI 解析、剧本生成、YAML 校验和导出接口做准备。
+后端服务负责小说导入、AI 解析、剧本 YAML 生成、在线编辑保存、Schema 校验、质量诊断、多格式导出和用户认证。
 
 ## 环境要求
 
-- 推荐 Python 3.10.20，支持 Python 3.10-3.11。
-- 不推荐 Python 3.14：当前锁定的 SQLAlchemy 版本在本机 Python 3.14 测试时可能出现类型解析兼容问题。
-- 依赖清单见 `requirements.txt`，推荐运行环境版本见 `runtime.txt`。
+- Python 3.10-3.11
+- 数据库默认使用 SQLite（无需安装，启动即用）。可选切换 MySQL，见项目根目录 README。
+- 依赖见 `requirements.txt`
 
 ## 技术栈
 
-- Python 3.10-3.11
-- FastAPI
-- Uvicorn
-- Pydantic Settings
-- SQLAlchemy
-- PyYAML
+- FastAPI + Uvicorn
+- SQLAlchemy（MySQL + PyMySQL / SQLite）
+- Pydantic / Pydantic Settings
+- PyYAML（剧本解析与生成）
+- python-jose + bcrypt（JWT 认证）
+- OpenAI-compatible SDK（AI 调用，可选）
 - Pytest
-- SQLite
-- OpenAI-compatible 大模型 API 配置
-- Ollama 本地兜底配置
 
 ## 目录结构
 
-```text
+```
 backend/
   app/
     api/
+      deps.py           # 认证依赖（get_current_user）
       routes/
-        health.py
-        projects.py
+        auth.py          # 注册、登录、获取当前用户
+        health.py        # 健康检查
+        projects.py      # 所有业务接口
     core/
-      config.py
+      config.py          # 应用配置（环境变量 + 默认值）
+      security.py        # 密码哈希 + JWT 签发/解析
     db/
-      session.py
-      init_db.py
-    main.py
+      session.py         # 数据库连接与会话管理
+      init_db.py         # 自动建表
+    models/
+      __init__.py
+      project.py         # Project / Chapter / Job / AppSetting
+      user.py            # User
+    schemas/
+      auth.py            # 注册/登录/用户响应
+      project.py         # 请求与响应模型
+      screenplay.py      # 剧本 YAML Schema（Pydantic 校验）
+    services/
+      frontend_data.py   # 导入预检、看板、剧本库数据构建
+      jobs.py            # 分析与生成任务调度
+      llm.py             # 大模型调用 + 确定性 fallback
+      screenplay_yaml.py # YAML 结构校验
+      script_diagnosis.py # 剧本质量诊断
+      script_export.py   # TXT / Markdown 格式导出
+      workbench.py       # 工作台聚合数据
+    main.py              # 应用入口
+  data/
+    test_novels_by_book/ # 本地小说素材（剧本库可导入）
   docs/
-    screenplay-yaml-schema.md
-  tests/
-    test_health.py
-    test_projects.py
-  README.md
+    auth-api.md          # 认证接口文档
+    screenplay-yaml-schema.md # YAML Schema 文档
+  tests/                 # Pytest 测试
   requirements.txt
   runtime.txt
 ```
 
 ## 本地开发
 
-进入后端目录：
+### 1. 数据库准备
+
+```sql
+CREATE DATABASE gravity_matrix CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+### 2. 安装与启动
 
 ```powershell
 cd backend
-```
-
-创建虚拟环境：
-
-```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-```
-
-安装依赖：
-
-```powershell
 pip install -r requirements.txt
 ```
 
-复制环境变量模板：
+创建 `.env` 文件（可从项目根目录的 `.env.example` 复制），按需修改数据库连接：
 
-```powershell
-Copy-Item ..\.env.example .\.env
+```env
+DATABASE_URL=mysql+pymysql://root:root@127.0.0.1:3306/gravity_matrix
 ```
 
-启动开发服务：
+启动：
 
 ```powershell
 uvicorn app.main:app --reload
 ```
 
-健康检查接口：
+### 3. 使用 SQLite
 
-```text
+修改 `.env`：
+
+```env
+DATABASE_URL=sqlite:///./data/gravity_matrix.db
+```
+
+无需额外安装数据库服务。
+
+### 4. 健康检查
+
+```
 GET http://127.0.0.1:8000/api/v1/health
 ```
+
+API 文档：`http://127.0.0.1:8000/docs`
+
+## 配置说明
+
+`.env` 支持的完整字段（带默认值）：
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `DATABASE_URL` | `mysql+pymysql://root:root@127.0.0.1:3306/gravity_matrix` | 数据库连接串 |
+| `JWT_SECRET_KEY` | 内置开发密钥 | 生产环境务必修改 |
+| `JWT_ALGORITHM` | `HS256` | JWT 签名算法 |
+| `JWT_EXPIRE_MINUTES` | `1440`（24h） | Token 过期时间 |
+| `LLM_PROVIDER` | `openai_compatible` | 大模型提供商 |
+| `LLM_API_KEY` | 无 | API 密钥，不配则走确定性演示逻辑 |
+| `LLM_BASE_URL` | 无 | API 地址 |
+| `LLM_MODEL` | 无 | 模型名称 |
+| `LLM_TIMEOUT_SECONDS` | `120` | API 超时 |
+| `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Ollama 本地地址 |
+| `OLLAMA_MODEL` | `qwen3:4b` | Ollama 本地模型 |
+| `MIN_CHAPTERS` | `3` | 最少章节数 |
+| `MAX_CHAPTERS` | `30` | 最多章节数 |
+| `MAX_CHAPTER_CHARS` | `20000` | 单章最大字符数 |
+| `MAX_SCRIPT_YAML_CHARS` | `1000000` | YAML 最大字符数 |
+
+## 认证体系
+
+后端实现了完整的 JWT 认证：
+
+- 密码使用 bcrypt 哈希存储，不存明文。
+- 注册/登录成功后返回 `access_token`（JWT，24h 过期）和 `user` 对象。
+- 需要鉴权的接口通过 `Authorization: Bearer <token>` 访问。
+- `GET /auth/me` 返回当前登录用户信息。
+
+当前业务接口（项目 CRUD、生成任务等）暂未强制鉴权，后续可通过 `get_current_user` 依赖注入保护。
+
+## AI 调用与兜底
+
+配置 LLM 后，后端优先调用 DeepSeek / OpenAI-compatible Chat Completions，要求模型返回 JSON 对象，再由后端校验后转为剧本 YAML。
+
+未配置 LLM 时，自动使用确定性演示逻辑：从章节文本正则抽取人物名，为每章生成场景、舞台说明和多句对白，保证无 API Key 也能看到完整剧本结构。
+
+模型返回为空、非法 JSON 或不符合 Schema 时，自动回退。
+
+## 质量诊断
+
+诊断接口不额外调用大模型，基于现有 YAML Schema 和剧本结构输出 `score`（0-100）、`grade`（A/B/C/D）、`summary`（章节数/场景数/对白数/问题数）、`strengths` 和 `findings`，方便作者定位需打磨之处。
 
 ## 测试
 
@@ -91,87 +160,6 @@ GET http://127.0.0.1:8000/api/v1/health
 pytest
 ```
 
-## 当前接口
+## 测试数据种子
 
-- `GET /api/v1/health`：健康检查。
-- `GET /api/v1/projects`：分页获取项目列表。
-- `POST /api/v1/projects`：创建小说改编项目，至少需要 3 个章节。
-- `GET /api/v1/projects/{project_id}`：获取项目详情。
-- `DELETE /api/v1/projects/{project_id}`：将项目移动到回收站。
-- `GET /api/v1/projects/recycle-bin`：获取回收站项目列表。
-- `POST /api/v1/projects/{project_id}/restore`：从回收站恢复项目。
-- `DELETE /api/v1/projects/recycle-bin`：清空回收站并永久删除项目。
-- `GET /api/v1/templates`：获取剧本生成模板，支持关键词和目标格式筛选。
-- `GET /api/v1/templates/{template_id}`：获取单个模板详情。
-- `GET /api/v1/templates/default`：获取当前默认模板。
-- `PUT /api/v1/templates/default`：保存当前默认模板。
-- `GET /api/v1/projects/{project_id}/readiness`：获取项目下一步操作和可用能力。
-- `POST /api/v1/projects/{project_id}/analysis-jobs`：启动 AI 解析任务。
-- `GET /api/v1/projects/{project_id}/analysis`：获取 AI 解析结果。
-- `GET /api/v1/projects/{project_id}/workbench`：获取前端工作台接入数据。
-- `POST /api/v1/projects/{project_id}/script-jobs`：启动剧本生成任务。
-- `GET /api/v1/jobs/{job_id}`：查询任务状态。
-- `GET /api/v1/projects/{project_id}/script`：获取剧本 YAML。
-- `PUT /api/v1/projects/{project_id}/script`：保存作者编辑后的剧本 YAML。
-- `POST /api/v1/projects/{project_id}/script/validate`：校验剧本 YAML。
-- `GET /api/v1/projects/{project_id}/script/diagnosis`：诊断当前已生成或已保存的剧本 YAML 质量。
-- `POST /api/v1/projects/{project_id}/script/diagnosis`：诊断请求体中的剧本 YAML 草稿。
-- `GET /api/v1/projects/{project_id}/script/export`：导出剧本 YAML。
-
-如果没有配置大模型 API，后端会使用确定性的演示生成逻辑，保证评委本地可以跑通完整流程。配置 `LLM_API_KEY`、`LLM_BASE_URL` 和 `LLM_MODEL` 后，后端会优先调用 DeepSeek/OpenAI-compatible Chat Completions，并要求模型返回 JSON 对象，再由后端校验后转成剧本 YAML。模型返回为空、不是合法 JSON 或不符合剧本 Schema 时，会自动回退到确定性演示生成逻辑。
-
-确定性演示生成逻辑会从章节文本中尽量抽取人物名，并为每个章节生成场景、舞台说明和多句对白，确保无 API Key 的评审环境也能看到完整的剧本结构。
-
-质量诊断接口不会额外调用大模型，会基于现有 YAML Schema 和剧本结构输出 `score`、`grade`、`summary`、`strengths`、`findings` 等原始结构化结果，方便前端或作者继续判断需要打磨的位置。
-
-## 前端工作台接入点
-
-`GET /api/v1/projects/{project_id}/workbench` 用于给前端工作台一次性读取项目状态和可展示内容。项目存在时即使还没有分析结果或剧本，也会返回 200；对应字段使用空概览或 `null`，方便前端逐步接入。
-
-返回顶层字段：
-
-- `project`：项目基础信息，结构与 `ProjectRead` 一致。
-- `workflow_steps`：导入小说、AI 解析、生成剧本、编辑与导出四步状态。
-- `progress`：项目完成百分比和阶段列表。
-- `analysis.raw`：已有 AI 分析原始 JSON；没有分析时为 `null`。
-- `analysis.overview`：人物数、地点数、章节摘要数、冲突数、主题和冲突列表。
-- `script.yaml`：已有剧本 YAML；没有剧本时为 `null`。
-- `script.structure`：从合法剧本 YAML 解析出的章节/场景树。
-- `script.diagnosis`：已有剧本的质量诊断结果；没有剧本时为 `null`。
-
-## 配置说明
-
-`.env` 用于本地私密配置，不提交 GitHub。`.env.example` 提供字段模板：
-
-- `APP_NAME`：后端应用名。
-- `API_PREFIX`：接口统一前缀，默认 `/api/v1`。
-- `DATABASE_URL`：SQLite 数据库地址，后续 PR 使用。
-- `FRONTEND_ORIGINS`：允许访问后端的前端地址，默认包含 Vite 本地地址。
-- `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`：DeepSeek/OpenAI-compatible 大模型平台配置。
-- `OLLAMA_BASE_URL`、`OLLAMA_MODEL`：本地模型兜底配置，后续 PR 使用。
-- `MIN_CHAPTERS`：小说最少章节数，比赛要求至少 3 章。
-- `MAX_SCRIPT_YAML_CHARS`：用户提交的剧本 YAML 最大字符数，默认 1000000。
-
-DeepSeek 配置示例：
-
-```env
-LLM_PROVIDER=deepseek
-LLM_API_KEY=your-deepseek-api-key
-LLM_BASE_URL=https://api.deepseek.com
-LLM_MODEL=deepseek-v4-flash
-```
-
-## PR 开发节奏
-
-后端按小 PR 分步提交：
-
-1. 搭建 FastAPI 后端骨架。
-2. 增加配置、数据库和小说项目存储。
-3. 增加小说导入接口。
-4. 增加 YAML Schema 文档和校验服务。
-5. 增加大模型调用抽象。
-6. 增加 AI 解析任务。
-7. 增加剧本生成任务。
-8. 增加剧本导出接口。
-
-每个 PR 只做一个功能，PR 描述需要包含功能描述、实现思路、测试方式和依赖说明。
+可通过后端 API 正常走完导入→创建→分析→生成流程来产生数据，也可以直接操作数据库插入测试项目——scripts/library 接口会扫描 `data/test_novels_by_book/` 目录下的小说素材作为可导入条目。

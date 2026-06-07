@@ -76,33 +76,52 @@
 
 ---
 
-## 4. 待补齐的边缘功能与暂无接口预留 (待实现)
+## 4. 认证模块 (Auth) — 已实现
 
-后端同学已明确以下功能暂不提供或接不上，属于后续迭代范畴，前端需增加 mock 或特定页面状态流转：
+### 4.1 注册
+- `POST /auth/register`：注册新账号，密码 bcrypt 哈希存储。
+  - 请求体：`{ "name": "林默", "email": "creator@example.com", "password": "123456" }`
+  - 响应：`{ "access_token": "...", "token_type": "bearer", "user": { "id": 1, "name": "林默", "email": "creator@example.com" } }`
+  - 邮箱重复时返回 409。
 
-### 4.1 认证模块 (Auth)
-- `POST /auth/register`、`POST /auth/login`、`GET /auth/me` **当前后端全部没有路由**。
-- **应对方案**：前端可直接绕过或允许在无 `Authorization` 头时使用 mock session。
+### 4.2 登录
+- `POST /auth/login`：验证邮箱和密码，返回 JWT token。
+  - 请求体：`{ "email": "creator@example.com", "password": "123456" }`
+  - 验证失败返回 401。
 
-### 4.2 高级文档导入
-- **Docx 等文件上传**：当前无后端接口，前端只应允许上传 TXT 或直接粘贴，随后转字符串喂给 `POST /import/preview`。
+### 4.3 获取当前用户
+- `GET /auth/me`：需要 `Authorization: Bearer <token>`，返回当前登录用户信息。
 
-### 4.3 基础模板数据获取
-- `GET /templates`：获取可用剧本模板，支持 `q` 关键词和 `target_format` 格式筛选。
+---
+
+## 5. 项目管理二次操作 — 已实现
+
+### 5.1 回收站
+- `DELETE /projects/{id}`：软删除，项目移入回收站（deleted_at 标记）。
+- `GET /projects/recycle-bin`：获取回收站列表，返回 `items` 和 `total`。
+- `POST /projects/{id}/restore`：恢复项目，deleted_at 置空。
+- `DELETE /projects/recycle-bin`：清空回收站，永久删除。
+
+### 5.2 项目操作
+- `PATCH /projects/{id}`：重命名项目或修改作者。
+- `POST /projects/{id}/clone`：克隆项目（含章节和分析结果，不含 Job 记录）。
+
+### 5.3 模板管理
+- `GET /templates`：获取所有剧本模板，支持 `q` 关键词和 `target_format` 筛选。
 - `GET /templates/{template_id}`：获取单个模板详情和 YAML 示例。
-- `GET /templates/default`：获取当前默认生成模板。
-- `PUT /templates/default`：保存当前默认生成模板，请求体为 `{ "templateId": "short-drama" }`。
+- `GET /templates/default`：获取当前默认模板。
+- `PUT /templates/default`：设置默认模板，请求体 `{ "templateId": "short-drama" }`。
 
-### 4.4 项目管理二次操作
-- `DELETE /projects/{id}`：将项目移动到回收站，常规列表、详情、工作台和生成接口不再返回该项目。
-- `GET /projects/recycle-bin`：获取回收站项目列表，返回 `items` 和 `total`。
-- `POST /projects/{id}/restore`：从回收站恢复项目，恢复后项目重新出现在常规列表。
-- `DELETE /projects/recycle-bin`：清空回收站，永久删除回收站内项目及其关联章节、任务等数据。
-- `PATCH /projects/{id}`：重命名项目。
-- `POST /projects/{id}/clone`：克隆项目。
+### 5.4 高级操作
+- `POST /projects/{id}/generation-settings`：保存生成配置偏好（templateId、scriptType、adaptationStyle、contentOptions）。
+- `POST /projects/{id}/analysis-jobs/rerun`：重新解析。
+- `POST /projects/{id}/script-jobs/rerun`：重新生成剧本。
+- `POST /projects/{id}/scenes`：添加单个场景到已有 YAML。
+- `GET /projects/{id}/script/export/markdown`、`/txt`：导出 Markdown 或纯文本格式。
 
-### 4.5 高级生成与多格式导出
-- `POST /projects/{id}/generation-settings`：保存用户剧本生成时的配置偏好。
-- `POST /projects/{id}/analysis-jobs/rerun`：覆盖原分析并重跑大模型。
-- `POST /projects/{id}/scenes`：添加右侧单场景编辑入库。
-- `GET /projects/{id}/script/export/markdown`、`/txt`：导出特定格式附件。
+---
+
+## 6. 待补齐 (后续迭代)
+
+- **Docx 等文件上传**：当前仅支持 TXT 或直接粘贴文本。
+- **业务接口鉴权**：当前项目 CRUD 接口未强制校验 JWT，后续可通过 get_current_user 依赖保护。
