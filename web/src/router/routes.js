@@ -27,7 +27,7 @@ export const appRoutes = [
     id: 'help',
     path: '/help',
     title: '帮助文档',
-    description: '题目三说明、AI 小说转剧本流程与剧本 YAML Schema 定义',
+    description: 'AI 小说转剧本流程与剧本 YAML Schema 定义',
   },
 ]
 
