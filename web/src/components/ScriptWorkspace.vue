@@ -1,5 +1,10 @@
 <script setup>
+import { ref } from 'vue'
+
+const yamlEditorRef = ref(null)
+
 defineProps({
+  activeYamlLine: { type: Number, default: null },
   iconPaths: { type: Object, required: true },
   isGenerating: { type: Boolean, default: false },
   previewScene: { type: Object, default: null },
@@ -10,12 +15,35 @@ defineProps({
   saveStatus: { type: String, default: '' },
 })
 
-defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'previous', 'select-scene', 'validate-yaml'])
+defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'previous', 'select-chapter', 'select-scene', 'validate-yaml'])
+
+const scrollToYamlLine = (lineNumber) => {
+  const editor = yamlEditorRef.value
+
+  if (!editor || !lineNumber) {
+    return
+  }
+
+  const target = editor.querySelector(`[data-yaml-line="${lineNumber}"]`)
+
+  if (!target) {
+    return
+  }
+
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  target.scrollIntoView({
+    block: 'center',
+    inline: 'nearest',
+    behavior: prefersReducedMotion ? 'auto' : 'smooth',
+  })
+}
+
+defineExpose({ scrollToYamlLine })
 </script>
 
 <template>
   <section class="script-console" aria-labelledby="script-title">
-    <header class="console-toolbar">
+    <header class="console-toolbar toolbar-v1">
       <div class="console-title">
         <span>YAML 草稿</span>
         <h2 id="script-title">生成的剧本</h2>
@@ -24,39 +52,21 @@ defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-sc
 
       <div class="console-actions" aria-label="剧本操作">
         <button class="toolbar-button" type="button" :disabled="isGenerating" @click="$emit('previous')">
-          <svg class="reverse-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
-          </svg>
           <span>上一步</span>
         </button>
         <button class="toolbar-button" type="button" @click="$emit('open-schema')">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path v-for="path in iconPaths.help" :key="path" :d="path" />
-          </svg>
           <span>Schema</span>
         </button>
         <button class="toolbar-button is-success" type="button" :disabled="isGenerating" @click="$emit('validate-yaml')">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path v-for="path in iconPaths.shield" :key="path" :d="path" />
-          </svg>
           <span>校验格式</span>
         </button>
         <button class="toolbar-button" type="button" :disabled="isGenerating" @click="$emit('copy-yaml')">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path v-for="path in iconPaths.copy" :key="path" :d="path" />
-          </svg>
           <span>复制 YAML</span>
         </button>
         <button class="toolbar-button" type="button" :disabled="isGenerating" @click="$emit('download-yaml')">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path v-for="path in iconPaths.download" :key="path" :d="path" />
-          </svg>
           <span>下载 YAML</span>
         </button>
         <button class="toolbar-button is-primary" type="button" :disabled="isGenerating" @click="$emit('open-preview')">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path v-for="path in iconPaths.eye" :key="path" :d="path" />
-          </svg>
           <span>完整预览</span>
         </button>
       </div>
@@ -71,16 +81,16 @@ defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-sc
 
         <ol class="chapter-tree">
           <li v-for="chapter in scriptChapters" :key="chapter.title" :class="{ 'is-open': chapter.open }">
-            <button class="chapter-row" type="button">
+            <button class="chapter-row" type="button" @click="$emit('select-chapter', chapter)">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path v-for="path in iconPaths.chevron" :key="path" :d="path" />
               </svg>
               <span>{{ chapter.title }}</span>
             </button>
 
-            <ol v-if="chapter.scenes.length" class="scene-list">
+            <ol v-if="chapter.open && chapter.scenes.length" class="scene-list">
               <li v-for="scene in chapter.scenes" :key="scene.id || scene.label">
-                <button class="scene-row" :class="{ 'is-active': scene.active }" type="button" @click="$emit('select-scene', scene.id)">
+                <button class="scene-row" :class="{ 'is-active': scene.active }" type="button" @click="$emit('select-scene', scene)">
                   {{ scene.label }}
                 </button>
               </li>
@@ -96,8 +106,8 @@ defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-sc
         </button>
       </aside>
 
-      <div class="yaml-editor" aria-label="YAML 剧本文档">
-        <pre><code><span v-for="(line, index) in yamlLines" :key="index" class="code-line"><span class="line-number">{{ index + 1 }}</span><span class="line-content"><template v-for="(token, tokenIndex) in line" :key="`${index}-${tokenIndex}`"><span :class="`yaml-${token.tone}`">{{ token.text }}</span></template></span></span></code></pre>
+      <div ref="yamlEditorRef" class="yaml-editor" aria-label="YAML 剧本文档">
+        <pre><code><span v-for="(line, index) in yamlLines" :key="index" class="code-line" :class="{ 'is-jump-target': activeYamlLine === index + 1 }" :data-yaml-line="index + 1"><span class="line-number">{{ index + 1 }}</span><span class="line-content"><template v-for="(token, tokenIndex) in line" :key="`${index}-${tokenIndex}`"><span :class="`yaml-${token.tone}`">{{ token.text }}</span></template></span></span></code></pre>
       </div>
 
       <aside class="validation-pane" aria-labelledby="schema-title">

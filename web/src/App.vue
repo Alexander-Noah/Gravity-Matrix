@@ -120,6 +120,8 @@ const isScriptGenerating = ref(false)
 const currentProjectTitle = ref('未创建项目')
 const currentProjectProgress = ref(0)
 const currentProjectStages = ref(projectStages)
+const scriptWorkspaceRef = ref(null)
+const activeYamlLine = ref(null)
 let isExplicitProjectOpen = false
 
 const CURRENT_PROJECT_STORAGE_KEY = 'gravityMatrixCurrentProjectId'
@@ -252,6 +254,60 @@ const yamlTextToLines = (yamlText) =>
       { text: value, tone: valueTone },
     ]
   })
+
+const normalizeYamlSearchValue = (value) =>
+  String(value || '')
+    .replace(/^['"]|['"]$/g, '')
+    .trim()
+
+const getGeneratedYamlPlainLines = () => generatedYamlLines.value.map((line) => line.map((token) => token.text).join(''))
+
+const findYamlLineByFieldValue = (fieldName, value) => {
+  const targetValue = normalizeYamlSearchValue(value)
+
+  if (!targetValue) {
+    return null
+  }
+
+  const lines = getGeneratedYamlPlainLines()
+  const targetIndex = lines.findIndex((line) => {
+    const match = line.match(new RegExp(`^\\s*-?\\s*${fieldName}:\\s*(.+?)\\s*$`))
+    return match && normalizeYamlSearchValue(match[1]) === targetValue
+  })
+
+  return targetIndex >= 0 ? targetIndex + 1 : null
+}
+
+const findYamlLineByText = (text) => {
+  const targetText = normalizeYamlSearchValue(text)
+
+  if (!targetText) {
+    return null
+  }
+
+  const lines = getGeneratedYamlPlainLines()
+  const targetIndex = lines.findIndex((line) => normalizeYamlSearchValue(line).includes(targetText))
+
+  return targetIndex >= 0 ? targetIndex + 1 : null
+}
+
+const getSceneSearchTexts = (scene) => {
+  const label = scene?.label || scene?.title || ''
+  const shortLabel = label.replace(/^场景\s*\d+\s*-\s*\d+\s*/, '').trim()
+
+  return [...new Set([label, shortLabel].filter(Boolean))]
+}
+
+const scrollScriptYamlToLine = (lineNumber) => {
+  if (!lineNumber) {
+    return
+  }
+
+  activeYamlLine.value = lineNumber
+  requestAnimationFrame(() => {
+    scriptWorkspaceRef.value?.scrollToYamlLine(lineNumber)
+  })
+}
 
 const mapDiagnosisToSchemaValidation = (diagnosis, fallbackValid = true) => {
   const summary = diagnosis?.summary || {}
@@ -1220,15 +1276,40 @@ const openAddScene = () => {
   isAddSceneOpen.value = true
 }
 
-const selectScriptScene = (sceneId) => {
-  selectedSceneId.value = sceneId
+const selectScriptScene = (scenePayload) => {
+  const sceneId = typeof scenePayload === 'object' ? scenePayload?.id : scenePayload
+  const selectedScene = displayedScriptChapters.value
+    .flatMap((chapter) => chapter.scenes)
+    .find((scene) => scene.id === sceneId || scene.label === scenePayload?.label)
+    || (typeof scenePayload === 'object' ? scenePayload : null)
+  const lineNumber = findYamlLineByFieldValue('id', sceneId)
+    || getSceneSearchTexts(selectedScene).map(findYamlLineByText).find(Boolean)
+
+  selectedSceneId.value = sceneId || selectedScene?.label || null
   displayedScriptChapters.value = displayedScriptChapters.value.map((chapter) => ({
     ...chapter,
+    open: chapter.open || chapter.scenes.some((scene) => scene.id === sceneId || scene.label === selectedScene?.label),
     scenes: chapter.scenes.map((scene) => ({
       ...scene,
-      active: scene.id === sceneId,
+      active: scene.id === sceneId || scene.label === selectedScene?.label,
     })),
   }))
+  scrollScriptYamlToLine(lineNumber)
+}
+
+const selectScriptChapter = (selectedChapter) => {
+  const chapterId = selectedChapter?.id
+  const chapterKey = chapterId || selectedChapter?.title
+  const firstSceneId = selectedChapter?.scenes?.[0]?.id
+  const lineNumber = findYamlLineByFieldValue('id', chapterId)
+    || findYamlLineByText(selectedChapter?.title)
+    || findYamlLineByFieldValue('id', firstSceneId)
+
+  displayedScriptChapters.value = displayedScriptChapters.value.map((chapter) => ({
+    ...chapter,
+    open: (chapter.id || chapter.title) === chapterKey ? !chapter.open : chapter.open,
+  }))
+  scrollScriptYamlToLine(lineNumber)
 }
 
 const confirmAddScene = async (sceneDraft) => {
@@ -1530,11 +1611,11 @@ const handleFileUpload = async (event) => {
               :analysis-metrics="displayedAnalysisMetrics" :icon-paths="iconPaths" :insight-items="displayedInsightItems"
               :project-progress="currentProjectProgress" :project-stages="currentProjectStages"
               :project-title="currentProjectTitle" @show-analysis="goBackToAnalysis" />
-            <ScriptWorkspace :icon-paths="iconPaths" :preview-scene="selectedPreviewScene"
+            <ScriptWorkspace ref="scriptWorkspaceRef" :active-yaml-line="activeYamlLine" :icon-paths="iconPaths" :preview-scene="selectedPreviewScene"
               :schema-validation="schemaValidation" :script-chapters="displayedScriptChapters"
               :is-generating="isScriptGenerating" :status-notice="editorNotice" :yaml-lines="generatedYamlLines" @add-scene="openAddScene"
               @copy-yaml="copyYaml" @download-yaml="downloadYaml" @open-preview="goToPreview"
-              @open-schema="goToSchemaHelp" @previous="goBackToAnalysis" @select-scene="selectScriptScene"
+              @open-schema="goToSchemaHelp" @previous="goBackToAnalysis" @select-chapter="selectScriptChapter" @select-scene="selectScriptScene"
               @validate-yaml="validateYaml" />
           </div>
 

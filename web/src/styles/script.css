@@ -137,6 +137,52 @@
     0 12px 26px oklch(38% 0.105 238 / 0.28);
 }
 
+.toolbar-v1 {
+  min-height: 64px;
+  padding: 10px 12px 10px 18px;
+  border-color: var(--border);
+  background: linear-gradient(180deg, var(--surface-raised), oklch(98.2% 0.004 235));
+  box-shadow: 0 1px 2px oklch(28% 0.025 250 / 0.08);
+}
+
+.toolbar-v1 .console-actions {
+  gap: 6px;
+}
+
+.toolbar-v1 .toolbar-button {
+  min-height: 38px;
+  gap: 0;
+  padding: 0 14px;
+  border-color: oklch(86.5% 0.012 236);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.toolbar-v1 .toolbar-button:hover {
+  border-color: oklch(76% 0.05 236);
+  background: var(--primary-faint);
+  color: var(--primary-strong);
+  box-shadow: 0 2px 6px oklch(28% 0.025 250 / 0.08);
+  transform: translateY(-1px);
+}
+
+.toolbar-v1 .toolbar-button.is-success {
+  border-color: oklch(82% 0.055 156);
+  color: oklch(35% 0.09 156);
+  background: oklch(98% 0.012 156);
+}
+
+.toolbar-v1 .toolbar-button.is-primary {
+  border-color: var(--primary);
+  color: var(--surface);
+  background: var(--primary);
+  box-shadow: 0 2px 6px oklch(38% 0.105 238 / 0.18);
+}
+
 .editor-tool {
   position: relative;
   display: inline-flex;
@@ -409,6 +455,13 @@
 
 .code-line:nth-child(2n) {
   background: oklch(15% 0.022 265 / 0.24);
+}
+
+.code-line.is-jump-target {
+  background:
+    linear-gradient(90deg, oklch(48% 0.115 236 / 0.24), transparent 68%),
+    oklch(20% 0.035 265);
+  box-shadow: inset 3px 0 0 var(--primary);
 }
 
 .line-number {

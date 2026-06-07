@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_name: str = "Gravity-Matrix Backend"
     api_prefix: str = "/api/v1"
-    database_url: str = "mysql+pymysql://root:root@127.0.0.1:3306/gravity_matrix"
+    database_url: str = "mysql+pymysql://root:123456@127.0.0.1:3306/gravity_matrix"
     frontend_origins: str = (
         "http://localhost:5173,http://127.0.0.1:5173,"
         "http://localhost:5174,http://127.0.0.1:5174"
