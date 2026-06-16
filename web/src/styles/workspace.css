@@ -364,7 +364,7 @@
 
 .content-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+  grid-template-columns: minmax(220px, clamp(240px, 14vw, 300px)) minmax(0, 1fr);
   gap: 20px;
   width: 100%;
   max-width: none;

@@ -1,4 +1,5 @@
 .script-console {
+  container-type: inline-size;
   display: grid;
   gap: 18px;
   min-width: 0;
@@ -8,6 +9,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 16px;
   min-width: 0;
   min-height: 56px;
@@ -52,6 +54,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
   flex: 1 1 auto;
@@ -257,9 +260,14 @@
 
 .console-grid {
   display: grid;
-  grid-template-columns: minmax(230px, 270px) minmax(620px, 1fr) minmax(235px, 280px);
-  min-height: 620px;
-  max-height: calc(100vh - 286px);
+  grid-template-areas: "outline editor validation";
+  grid-template-columns:
+    minmax(168px, clamp(180px, 14cqw, 240px))
+    minmax(0, 1fr)
+    minmax(168px, clamp(180px, 14cqw, 240px));
+  height: clamp(560px, calc(100svh - 286px), 760px);
+  min-height: 0;
+  max-height: none;
   overflow: hidden;
   border: 1px solid var(--border);
   border-top: 0;
@@ -273,16 +281,18 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: 16px;
+  padding: 14px;
   background: oklch(98.2% 0.006 275);
   overflow-y: auto;
 }
 
 .outline-pane {
+  grid-area: outline;
   border-right: 1px solid var(--border);
 }
 
 .validation-pane {
+  grid-area: validation;
   border-left: 1px solid var(--border);
 }
 
@@ -426,10 +436,11 @@
 }
 
 .yaml-editor {
+  grid-area: editor;
   --yaml-line-height: 21px;
   min-width: 0;
   height: 100%;
-  overflow-x: hidden;
+  overflow-x: auto;
   overflow-y: auto;
   background:
     linear-gradient(180deg, oklch(19% 0.033 265), oklch(16.5% 0.028 265)),
@@ -590,16 +601,20 @@
   justify-content: space-between;
   gap: 12px;
   min-height: 40px;
-  padding: 0 12px;
+  padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: 7px;
   background: oklch(96.5% 0.008 275);
 }
 
 .validation-list dt {
+  min-width: 0;
+  overflow: hidden;
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .validation-list dd {
@@ -635,4 +650,94 @@
   background: oklch(96.5% 0.008 275);
   font-size: 13px;
   line-height: 1.5;
+}
+
+@container (max-width: 760px) {
+  .console-grid {
+    grid-template-areas:
+      "outline editor"
+      "validation validation";
+    grid-template-columns: minmax(168px, 220px) minmax(0, 1fr);
+    grid-template-rows: minmax(520px, calc(100svh - 360px)) auto;
+    height: auto;
+    overflow: visible;
+  }
+
+  .outline-pane {
+    border-right: 1px solid var(--border);
+    border-bottom: 0;
+  }
+
+  .validation-pane {
+    display: grid;
+    grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+    align-items: start;
+    gap: 14px 18px;
+    max-height: none;
+    border-top: 1px solid var(--border);
+    border-left: 0;
+    overflow: visible;
+  }
+
+  .validation-pane .pane-heading,
+  .validation-pane .validation-list {
+    margin: 0;
+  }
+
+  .validation-message,
+  .validation-time,
+  .validation-notice {
+    margin-top: 0;
+  }
+}
+
+@container (max-width: 620px) {
+  .console-toolbar {
+    align-items: stretch;
+  }
+
+  .console-title,
+  .console-actions {
+    flex: 1 1 100%;
+  }
+
+  .console-actions {
+    justify-content: stretch;
+  }
+
+  .toolbar-v1 .toolbar-button {
+    flex: 1 1 140px;
+  }
+
+  .console-grid {
+    grid-template-areas:
+      "outline"
+      "editor"
+      "validation";
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(480px, 62svh) auto;
+  }
+
+  .outline-pane,
+  .validation-pane {
+    max-height: none;
+    border-right: 0;
+    border-left: 0;
+    overflow: visible;
+  }
+
+  .outline-pane {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .chapter-tree {
+    max-height: 320px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+
+  .validation-pane {
+    display: flex;
+    border-top: 1px solid var(--border);
+  }
 }

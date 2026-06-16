@@ -25,3 +25,5 @@ build/
 *.egg-info/
 
 *.log
+.idea/workspace.xml
+/.idea
