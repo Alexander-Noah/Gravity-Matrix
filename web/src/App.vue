@@ -40,6 +40,7 @@ import AuthPage from './components/AuthPage.vue'
 import GenerationSettingsDialog from './components/GenerationSettingsDialog.vue'
 import HelpDocsPage from './components/HelpDocsPage.vue'
 import NovelImportPage from './components/NovelImportPage.vue'
+import NovelToYaml from './components/NovelToYaml.vue'
 import ProductRoutePage from './components/ProductRoutePage.vue'
 import ProfileCenterDialog from './components/ProfileCenterDialog.vue'
 import SchemaHelpPage from './components/SchemaHelpPage.vue'
@@ -1964,6 +1965,8 @@ const handleFileUpload = async (event) => {
           @rename-script="renameLibraryScript" @clone-script="cloneLibraryScript" />
 
         <HelpDocsPage v-else-if="activeRoute.id === 'help'" :content="productHelpDocs" :icon-paths="iconPaths" />
+
+        <NovelToYaml v-else-if="activeRoute.id === 'novel-to-yaml'" />
 
         <ProductRoutePage v-else-if="!isWorkbenchRoute" :icon-paths="iconPaths" :route="activeRoute" />
 

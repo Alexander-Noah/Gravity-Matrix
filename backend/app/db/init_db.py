@@ -1,5 +1,5 @@
 from app.db.session import Base, engine
-from app.models import project, user  # noqa: F401
+from app.models import novel_script, project, user  # noqa: F401
 from sqlalchemy import inspect, text
 
 

@@ -12,6 +12,12 @@ export const appRoutes = [
     description: '按流程完成小说导入、AI解析、剧本编辑与导出',
   },
   {
+    id: 'novel-to-yaml',
+    path: '/novel-to-yaml',
+    title: '小说转 YAML 剧本',
+    description: '按人物确认、场景识别、逐场景生成和 Schema 校验流程生成可编辑 YAML',
+  },
+  {
     id: 'templates',
     path: '/templates',
     title: '模板中心',

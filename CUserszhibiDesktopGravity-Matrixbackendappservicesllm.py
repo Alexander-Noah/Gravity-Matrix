@@ -11,7 +11,6 @@ from pydantic import ValidationError
 from app.core.config import settings
 from app.models.project import Chapter, Project
 from app.schemas.screenplay import ScreenplayDocument
-from app.services.character_filter import canonicalize_character_list
 
 
 @dataclass(frozen=True)
@@ -25,14 +24,14 @@ def analyze_project(project: Project) -> LLMResult:
     if _has_llm_config():
         result = _call_deepseek(_analysis_prompt(project))
         if isinstance(result, dict) and _is_valid_analysis(result):
-            return LLMResult(provider=settings.llm_provider, content=_normalize_analysis(result, _project_text(project)))
+            return LLMResult(provider=settings.llm_provider, content=_normalize_analysis(result))
         return _demo_analyze_project(project, "invalid_analysis_response")
 
     return _demo_analyze_project(project, "missing_config")
 
 
 def generate_screenplay(project: Project, analysis: dict | None = None) -> LLMResult:
-    analysis = _normalize_analysis(analysis or analyze_project(project).content, _project_text(project))
+    analysis = _normalize_analysis(analysis or analyze_project(project).content)
     generation_settings = _project_generation_settings(project)
     if _has_llm_config():
         result = _call_deepseek(_screenplay_prompt(project, analysis, generation_settings))
@@ -81,7 +80,7 @@ def _demo_generate_screenplay(
     analysis: dict | None = None,
     fallback_reason: str | None = None,
 ) -> LLMResult:
-    analysis = _normalize_analysis(analysis or _demo_analyze_project(project).content, _project_text(project))
+    analysis = _normalize_analysis(analysis or _demo_analyze_project(project).content)
     generation_settings = _project_generation_settings(project)
     template = _template_profile(generation_settings.get("templateId"))
     characters = analysis.get("characters") or _demo_characters(project)
@@ -482,9 +481,9 @@ def _is_valid_analysis(data: dict[str, Any]) -> bool:
     return all(isinstance(data.get(key), list) for key in required_lists)
 
 
-def _normalize_analysis(data: dict[str, Any], source_text: str | None = None) -> dict[str, Any]:
+def _normalize_analysis(data: dict[str, Any]) -> dict[str, Any]:
     return {
-        "characters": _normalize_characters(data.get("characters", []), source_text),
+        "characters": _normalize_characters(data.get("characters", [])),
         "locations": _normalize_locations(data.get("locations", [])),
         "chapter_summaries": data.get("chapter_summaries", []),
         "themes": _normalize_string_list(data.get("themes", [])),
@@ -492,23 +491,9 @@ def _normalize_analysis(data: dict[str, Any], source_text: str | None = None) ->
     }
 
 
-def _normalize_characters(characters: Any, source_text: str | None = None) -> list[dict[str, Any]]:
+def _normalize_characters(characters: Any) -> list[dict[str, Any]]:
     if not isinstance(characters, list):
         return []
-
-    if source_text:
-        filtered = canonicalize_character_list(characters, source_text)
-        return [
-            {
-                "id": character["id"],
-                "name": character["name"],
-                "role": character.get("role") or ("主角" if index == 1 else "配角"),
-                "gender": "unknown",
-                "age": None,
-                "description": character.get("description") or "由小说章节自动识别出的人物。",
-            }
-            for index, character in enumerate(filtered, start=1)
-        ]
 
     normalized = []
     for index, character in enumerate(characters, start=1):
@@ -653,100 +638,6 @@ def _extract_character_names(project: Project) -> list[str]:
         seen.add(candidate)
         names.append(candidate)
     return names
-
-
-def _demo_characters(project: Project) -> list[dict[str, Any]]:
-    source_text = "\n".join(chapter.content for chapter in project.chapters)
-    names = _extract_character_names(project)
-    if not names:
-        names = ["\u4e3b\u89d2", "\u91cd\u8981\u89d2\u8272"]
-    elif len(names) == 1:
-        names.append("\u91cd\u8981\u89d2\u8272")
-
-    roles = ["\u4e3b\u89d2", "\u91cd\u8981\u89d2\u8272", "\u91cd\u8981\u89d2\u8272", "\u91cd\u8981\u89d2\u8272", "\u91cd\u8981\u89d2\u8272", "\u91cd\u8981\u89d2\u8272"]
-    return [
-        {
-            "id": f"char_{index:03d}",
-            "name": name,
-            "role": roles[min(index - 1, len(roles) - 1)],
-            "gender": "unknown",
-            "age": None,
-            "description": _character_description(name, source_text),
-        }
-        for index, name in enumerate(names[:6], start=1)
-    ]
-
-
-def _extract_character_names(project: Project) -> list[str]:
-    text = "\n".join(chapter.content for chapter in project.chapters)
-    candidates: dict[str, int] = {}
-
-    def add_candidate(name: str, weight: int = 1) -> None:
-        cleaned = re.sub(r"\s+", "", name.strip(" \t\r\n，,、。：:；;（）()《》“”\"'"))
-        if _is_likely_character_name(cleaned):
-            candidates[cleaned] = candidates.get(cleaned, 0) + weight
-
-    label_pattern = r"(?:\u4e3b\u89d2|\u4e3b\u8981\u4eba\u7269|\u6838\u5fc3\u4eba\u7269|\u4eba\u7269|\u89d2\u8272)[:\uff1a]\s*([^\n]+)"
-    for match in re.finditer(label_pattern, text):
-        for name in re.findall(r"[\u4e00-\u9fff]{2,4}", match.group(1)):
-            add_candidate(name, 4)
-
-    list_pattern = r"[\u4e00-\u9fff]{2,4}(?:\u3001\s*[\u4e00-\u9fff]{2,4})+"
-    for match in re.finditer(list_pattern, text):
-        for name in re.findall(r"[\u4e00-\u9fff]{2,4}", match.group(0)):
-            add_candidate(name, 2)
-
-    name_action_pattern = (
-        r"(?<![\u4e00-\u9fff])([\u4e00-\u9fff]{2,4})\s*"
-        r"(?:\u63e1\u7740|\u8bf4|\u4f4e\u58f0\u9053|\u558a\u9053|\u95ee\u9053|\u7b54\u9053|\u56de\u7b54\u9053|\u8bf4\u9053|\u63d0\u9192|\u770b\u7740|\u542c\u89c1|\u70b9\u5934|\u6447\u5934|\u79bb\u5f00|\u8f6c\u8eab|\u8d70\u8fdb|\u8d70\u6765|\u8d70\u8fc7\u6765|\u8d77\u8eab|\u5750\u4e0b|\u7ad9\u8d77|\u63e1\u7d27|\u653e\u4e0b|\u63a8\u5f00|\u53d1\u73b0|\u627f\u8ba4|\u51fa\u73b0)"
-    )
-    for match in re.finditer(name_action_pattern, text):
-        add_candidate(match.group(1), 3)
-
-    for match in re.finditer(r"(?:^|[\u3002\uff01\uff1f\n])\s*([\u4e00-\u9fff]{2,4})(?:[\uff0c\u3002\uff01\uff1f\u201c\"'\s]|$)", text):
-        add_candidate(match.group(1), 1)
-
-    ranked = sorted(candidates.items(), key=lambda item: (-item[1], text.find(item[0]), item[0]))
-    filtered = canonicalize_character_list([{"name": name} for name, _score in ranked], text)
-    return [character["name"] for character in filtered[:12]]
-
-
-def _is_likely_character_name(name: str) -> bool:
-    if not (2 <= len(name) <= 4):
-        return False
-    if not re.fullmatch(r"[\u4e00-\u9fff]+", name):
-        return False
-
-    stopwords = {
-        "\u5c0f\u8bf4", "\u7ae0\u8282", "\u6b63\u6587", "\u4eba\u7269", "\u89d2\u8272", "\u4e3b\u89d2", "\u6545\u4e8b", "\u5267\u60c5",
-        "\u4e8b\u60c5", "\u8868\u9762", "\u56e0\u4e3a", "\u6240\u4ee5", "\u4f46\u662f", "\u53ea\u662f", "\u7136\u540e", "\u63a5\u7740",
-        "\u8fd9\u91cc", "\u90a3\u91cc", "\u4ed6\u4eec", "\u5979\u4eec", "\u6211\u4eec", "\u4f60\u4eec", "\u4f17\u4eba", "\u6240\u6709\u4eba",
-        "\u542c\u89c1", "\u770b\u89c1", "\u53d1\u73b0", "\u77e5\u9053", "\u89c9\u5f97", "\u60f3\u5230", "\u660e\u767d", "\u7acb\u523b",
-        "\u73b0\u5728", "\u5f53\u65f6", "\u5ffd\u7136", "\u7a81\u7136", "\u7ec8\u4e8e", "\u8fdc\u5904", "\u591c\u8272", "\u98ce\u5728",
-        "\u4eca\u5929", "\u660e\u5929", "\u6628\u5929", "\u660e\u5929\u5c31", "\u4eca\u5929\u5c31", "\u6628\u5929\u5c31",
-        "\u6863\u6848", "\u8bb0\u5fc6", "\u57ce\u4e2d", "\u95e8\u524d", "\u95e8\u5916", "\u534a\u679a", "\u94dc\u94b1", "\u949f\u58f0",
-        "\u4e00\u4e2a", "\u4e00\u58f0", "\u4e00\u9635", "\u4e00\u773c", "\u4e00\u5207", "\u4e00\u8d77",
-    }
-    if name in stopwords:
-        return False
-    if name.startswith(("\u4eca\u5929", "\u660e\u5929", "\u6628\u5929")):
-        return False
-    if name.endswith(("\u4e4b\u4e2d", "\u65f6\u5019")):
-        return False
-    return True
-
-
-def _character_description(name: str, text: str) -> str:
-    index = text.find(name)
-    if index < 0:
-        return "\u4ece\u5c0f\u8bf4\u6587\u672c\u4e2d\u8bc6\u522b\u7684\u4eba\u7269\uff0c\u5f85\u5728\u751f\u6210\u9636\u6bb5\u7ee7\u7eed\u8865\u5145\u5176\u52a8\u673a\u4e0e\u5173\u7cfb\u3002"
-
-    start = max(0, index - 28)
-    end = min(len(text), index + len(name) + 72)
-    snippet = _brief(text[start:end], 96)
-    if snippet:
-        return f"\u539f\u6587\u7247\u6bb5\uff1a{snippet}"
-    return "\u4ece\u5c0f\u8bf4\u6587\u672c\u4e2d\u8bc6\u522b\u7684\u4eba\u7269\u3002"
 
 
 def _chapter_to_script(chapter: Chapter, locations: list[dict], characters: list[dict]) -> dict:
