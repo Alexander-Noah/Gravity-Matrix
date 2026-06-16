@@ -1,3 +1,4 @@
+import copy
 from types import SimpleNamespace
 
 from app.models.project import Chapter, Project
@@ -76,6 +77,18 @@ def test_generate_screenplay_falls_back_when_model_output_is_invalid(monkeypatch
     assert len(result.content["script"]["characters"]) >= 2
     assert len(scene["dialogue"]) >= 2
     assert {line["speaker_id"] for line in scene["dialogue"]}.issubset(set(scene["characters"]))
+
+
+def test_demo_generate_screenplay_varies_fallback_dialogue(monkeypatch) -> None:
+    _settings(monkeypatch)
+
+    result = llm.generate_screenplay(_project())
+
+    chapters = result.content["script"]["chapters"]
+    first_lines = [chapter["scenes"][0]["dialogue"][0]["line"] for chapter in chapters]
+    support_lines = [chapter["scenes"][0]["dialogue"][1]["line"] for chapter in chapters]
+    assert len(set(first_lines)) == len(chapters)
+    assert len(set(support_lines)) == len(chapters)
 
 
 def test_generate_screenplay_rejects_schema_valid_but_wrong_project_chapters(monkeypatch) -> None:
@@ -223,6 +236,32 @@ def test_generate_screenplay_rejects_schema_valid_but_wrong_project_chapters(mon
     assert result.fallback_reason == "invalid_screenplay_response"
     assert result.content["script"]["metadata"]["title"] == "三国演义"
     assert [chapter["source_chapter_numbers"] for chapter in result.content["script"]["chapters"]] == [[1], [2], [3]]
+
+
+def test_generate_screenplay_repairs_repeated_model_chapters(monkeypatch) -> None:
+    _settings(monkeypatch, api_key="test-key", base_url="https://api.deepseek.com", model="deepseek-v4-flash")
+    project = _project()
+    model_output = copy.deepcopy(llm._demo_generate_screenplay(project).content)
+    repeated_chapter = copy.deepcopy(model_output["script"]["chapters"][0])
+    for index in range(1, len(model_output["script"]["chapters"])):
+        replacement = copy.deepcopy(repeated_chapter)
+        replacement["source_chapter_numbers"] = [index + 1]
+        model_output["script"]["chapters"][index] = replacement
+
+    monkeypatch.setattr(llm, "_call_deepseek", lambda prompt: model_output)
+
+    result = llm.generate_screenplay(project)
+
+    chapters = result.content["script"]["chapters"]
+    assert result.provider == "deepseek"
+    assert [chapter["id"] for chapter in chapters] == ["ch_001", "ch_002", "ch_003"]
+    assert [chapter["title"] for chapter in chapters] == [chapter.title for chapter in project.chapters]
+    assert [chapter["source_chapter_numbers"] for chapter in chapters] == [[1], [2], [3]]
+    assert chapters[1]["summary"] == llm._brief(project.chapters[1].content, 180)
+    assert chapters[2]["summary"] == llm._brief(project.chapters[2].content, 180)
+    assert [chapter["scenes"][0]["id"] for chapter in chapters] == ["sc_001_001", "sc_002_001", "sc_003_001"]
+    signatures = [llm._generated_chapter_signature(chapter) for chapter in chapters]
+    assert len(set(signatures)) == len(signatures)
 
 
 def test_analyze_project_normalizes_unknown_character_age(monkeypatch) -> None:

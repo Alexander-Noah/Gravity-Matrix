@@ -1,6 +1,7 @@
 .support-column {
   display: grid;
   align-content: start;
+  container-type: inline-size;
   gap: 18px;
   min-width: 0;
 }
@@ -221,6 +222,7 @@
   grid-template-columns: auto 1fr;
   align-items: center;
   gap: 8px 12px;
+  min-width: 0;
   min-height: 78px;
   padding: 15px;
   border-radius: 7px;
@@ -242,13 +244,18 @@
 
 .metric-tile span:not(.metric-icon) {
   align-self: end;
+  min-width: 0;
+  overflow: hidden;
   color: var(--text);
   font-size: 13px;
   font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .metric-tile strong {
   align-self: start;
+  min-width: 0;
   color: var(--text);
   font-size: 21px;
   font-weight: 820;
@@ -316,4 +323,52 @@
 
 .insight-list dd {
   margin: 0;
+}
+
+@container (max-width: 310px) {
+  .progress-card,
+  .analysis-card {
+    padding: 16px;
+  }
+
+  .side-panel-title {
+    gap: 10px;
+  }
+
+  .side-link {
+    padding: 0 10px;
+  }
+
+  .metric-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 16px 0 18px;
+  }
+
+  .metric-tile {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 10px;
+    min-height: 54px;
+    padding: 10px 12px;
+  }
+
+  .metric-icon {
+    width: 32px;
+    height: 32px;
+    grid-row: auto;
+  }
+
+  .metric-tile span:not(.metric-icon),
+  .metric-tile strong {
+    align-self: center;
+  }
+
+  .metric-tile strong {
+    font-size: 20px;
+  }
+
+  .insight-list div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
 }

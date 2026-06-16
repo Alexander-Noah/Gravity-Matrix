@@ -516,6 +516,166 @@ const buildScriptScenes = (yamlText) => {
   return scenes
 }
 
+const findScriptSceneRecord = (script, sceneId) => {
+  if (!script?.chapters?.length) return null
+
+  let firstRecord = null
+  for (const chapter of script.chapters) {
+    for (const scene of chapter.scenes || []) {
+      const record = { chapter, scene }
+      if (!firstRecord) {
+        firstRecord = record
+      }
+      if (sceneId && scene.id === sceneId) {
+        return record
+      }
+    }
+  }
+
+  return firstRecord
+}
+
+const selectedCorrectionScene = computed(() => {
+  let script
+  try {
+    script = getScriptBody(generatedYamlText.value || generatedScriptYaml.value)
+  } catch {
+    return null
+  }
+
+  const record = findScriptSceneRecord(script, selectedSceneId.value)
+  if (!record?.scene) return null
+
+  const { scene } = record
+  const characters = Array.isArray(script.characters) ? script.characters : []
+  const locations = Array.isArray(script.locations) ? script.locations : []
+  const location = locations.find((item) => item.id === scene.location_id) || null
+  const sceneCharacterIds = new Set(scene.characters || [])
+  const sceneCharacters = characters.filter((character) => sceneCharacterIds.has(character.id))
+  const dialogue = scene.dialogue || scene.dialogues || []
+
+  return {
+    id: scene.id,
+    title: scene.title || '',
+    time: scene.time || '',
+    synopsis: scene.synopsis || scene.action || '',
+    stageDirections: (scene.stage_directions || []).join('\n'),
+    locationId: scene.location_id || '',
+    locationName: location?.name || scene.location || scene.location_id || '',
+    locationDescription: location?.description || '',
+    characters: sceneCharacters.map((character) => ({
+      id: character.id,
+      name: character.name || '',
+      role: character.role || '',
+      description: character.description || '',
+    })),
+    characterOptions: characters.map((character) => ({
+      id: character.id,
+      name: character.name || character.id,
+    })),
+    dialogues: dialogue.map((line, index) => ({
+      index,
+      speakerId: line.speaker_id || '',
+      speakerName: line.speaker_name || line.speaker || '',
+      emotion: line.emotion || line.note || '',
+      line: line.line || '',
+    })),
+  }
+})
+
+const updateScriptYamlDocument = (mutator) => {
+  const yamlText = generatedYamlText.value || generatedScriptYaml.value
+  if (!yamlText?.trim()) return
+
+  let parsed
+  try {
+    parsed = yaml.load(yamlText)
+  } catch (error) {
+    editorNotice.value = `YAML 解析失败：${error.message}`
+    return
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    editorNotice.value = 'YAML 顶层必须是对象，暂不能写入校正内容。'
+    return
+  }
+
+  const document = parsed.script ? parsed : { script: parsed }
+  mutator(document.script)
+  handleYamlTextUpdate(yaml.dump(document, { lineWidth: -1, noRefs: true, sortKeys: false }))
+}
+
+const updateSelectedSceneField = ({ field, value }) => {
+  updateScriptYamlDocument((script) => {
+    const record = findScriptSceneRecord(script, selectedCorrectionScene.value?.id || selectedSceneId.value)
+    if (!record?.scene) return
+
+    const scene = record.scene
+    if (field === 'title') scene.title = value
+    if (field === 'time') scene.time = value
+    if (field === 'synopsis') scene.synopsis = value
+    if (field === 'stageDirections') {
+      scene.stage_directions = value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean)
+    }
+    if (field === 'locationName' || field === 'locationDescription') {
+      const location = (script.locations || []).find((item) => item.id === scene.location_id)
+      if (location) {
+        if (field === 'locationName') location.name = value
+        if (field === 'locationDescription') location.description = value
+      }
+    }
+  })
+}
+
+const updateSelectedSceneDialogue = ({ index, field, value }) => {
+  updateScriptYamlDocument((script) => {
+    const record = findScriptSceneRecord(script, selectedCorrectionScene.value?.id || selectedSceneId.value)
+    const scene = record?.scene
+    if (!scene) return
+
+    const dialogue = scene.dialogue || scene.dialogues || []
+    const line = dialogue[index]
+    if (!line) return
+
+    if (field === 'speaker_id') {
+      line.speaker_id = value
+      if (!Array.isArray(scene.characters)) {
+        scene.characters = []
+      }
+      if (value && !scene.characters.includes(value)) {
+        scene.characters.push(value)
+      }
+      const character = (script.characters || []).find((item) => item.id === value)
+      if (character) line.speaker_name = character.name
+      return
+    }
+
+    if (field === 'speaker_name') line.speaker_name = value
+    if (field === 'emotion') line.emotion = value
+    if (field === 'line') line.line = value
+  })
+}
+
+const updateScriptCharacter = ({ characterId, field, value }) => {
+  updateScriptYamlDocument((script) => {
+    const character = (script.characters || []).find((item) => item.id === characterId)
+    if (!character) return
+
+    character[field] = value
+    if (field === 'name') {
+      for (const chapter of script.chapters || []) {
+        for (const scene of chapter.scenes || []) {
+          for (const line of scene.dialogue || scene.dialogues || []) {
+            if (line.speaker_id === characterId) {
+              line.speaker_name = value
+            }
+          }
+        }
+      }
+    }
+  })
+}
+
 const applyWorkbenchScript = (workbench) => {
   if (workbench?.script?.yaml) {
     generatedScriptYaml.value = workbench.script.yaml
@@ -854,6 +1014,33 @@ const handleYamlTextUpdate = (yamlText) => {
       editorNotice.value = `自动保存失败：${getApiErrorMessage(error)}`
     }
   }, 900)
+}
+
+const saveYamlNow = async () => {
+  const yamlText = generatedYamlText.value
+  if (!yamlText?.trim()) {
+    editorNotice.value = '当前没有可保存的 YAML 草稿。'
+    return
+  }
+
+  if (scriptSaveTimeout) {
+    clearTimeout(scriptSaveTimeout)
+    scriptSaveTimeout = null
+  }
+
+  if (!currentProjectId.value) {
+    editorNotice.value = 'YAML 已在本地修改，创建项目后可保存到后端。'
+    return
+  }
+
+  try {
+    await saveProjectScript(currentProjectId.value, yamlText)
+    generatedScriptYaml.value = yamlText
+    editableScriptYaml.value = yamlText
+    editorNotice.value = '修改已保存，可继续导出 YAML 或剧本文档。'
+  } catch (error) {
+    editorNotice.value = `保存失败：${getApiErrorMessage(error)}`
+  }
 }
 const displayedPreviewScenes = computed(() => {
   if (!generatedScriptYaml.value) {
@@ -1809,12 +1996,13 @@ const handleFileUpload = async (event) => {
               :analysis-metrics="displayedAnalysisMetrics" :icon-paths="iconPaths" :insight-items="displayedInsightItems"
               :project-progress="currentProjectProgress" :project-stages="currentProjectStages"
               :project-title="currentProjectTitle" @show-analysis="goBackToAnalysis" />
-            <ScriptWorkspace ref="scriptWorkspaceRef" :active-yaml-line="activeYamlLine" :icon-paths="iconPaths" :preview-scene="selectedPreviewScene"
+            <ScriptWorkspace ref="scriptWorkspaceRef" :active-yaml-line="activeYamlLine" :correction-scene="selectedCorrectionScene" :icon-paths="iconPaths" :preview-scene="selectedPreviewScene"
               :schema-validation="schemaValidation" :script-chapters="displayedScriptChapters"
               :is-generating="isScriptGenerating" :status-notice="editorNotice" :yaml-lines="generatedYamlLines" :yaml-text="generatedYamlText" @add-scene="openAddScene"
               @copy-yaml="copyYaml" @download-yaml="downloadYaml" @open-preview="goToPreview"
               @open-schema="goToSchemaHelp" @previous="goBackToAnalysis" @select-chapter="selectScriptChapter" @select-scene="selectScriptScene"
-              @update:yaml-text="handleYamlTextUpdate" @validate-yaml="validateYaml" />
+              @save-yaml="saveYamlNow" @update:character="updateScriptCharacter" @update:dialogue="updateSelectedSceneDialogue"
+              @update:scene-field="updateSelectedSceneField" @update:yaml-text="handleYamlTextUpdate" @validate-yaml="validateYaml" />
           </div>
 
           <GenerationSettingsDialog v-model="isGenerationSettingsOpen" :initial-settings="generatedSettings || defaultGenerationSettings"

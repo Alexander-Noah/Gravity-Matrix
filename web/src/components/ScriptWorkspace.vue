@@ -1,10 +1,12 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
+import { Collection, Document, Plus } from '@element-plus/icons-vue'
 
 const yamlEditorRef = ref(null)
 
 const props = defineProps({
   activeYamlLine: { type: Number, default: null },
+  correctionScene: { type: Object, default: null },
   yamlText: { type: String, default: '' },
   iconPaths: { type: Object, required: true },
   isGenerating: { type: Boolean, default: false },
@@ -16,7 +18,7 @@ const props = defineProps({
   saveStatus: { type: String, default: '' },
 })
 
-defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'previous', 'select-chapter', 'select-scene', 'update:yaml-text', 'validate-yaml'])
+const emit = defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'previous', 'save-yaml', 'select-chapter', 'select-scene', 'update:character', 'update:dialogue', 'update:scene-field', 'update:yaml-text', 'validate-yaml'])
 
 const yamlLineNumbers = computed(() => Array.from({ length: yamlTextLines.value.length }, (_, index) => index + 1))
 const yamlTextLines = computed(() => {
@@ -24,10 +26,42 @@ const yamlTextLines = computed(() => {
   return lines.length ? lines : ['']
 })
 const yamlEditorRows = computed(() => yamlLineNumbers.value.length)
+const outlineTree = computed(() =>
+  props.scriptChapters.map((chapter, chapterIndex) => ({
+    id: `chapter-${chapter.id || chapter.title || chapterIndex}`,
+    label: chapter.title,
+    type: 'chapter',
+    open: chapter.open,
+    source: chapter,
+    children: (chapter.scenes || []).map((scene, sceneIndex) => ({
+      id: `scene-${scene.id || scene.label || `${chapterIndex}-${sceneIndex}`}`,
+      label: scene.label,
+      type: 'scene',
+      active: scene.active,
+      source: scene,
+    })),
+  })),
+)
+const outlineExpandedKeys = computed(() => outlineTree.value.filter((chapter) => chapter.open).map((chapter) => chapter.id))
+
+const handleOutlineNodeClick = (node) => {
+  if (node.type === 'chapter') {
+    emit('select-chapter', node.source)
+    return
+  }
+
+  emit('select-scene', node.source)
+}
 
 watch(
   () => props.yamlText,
-  async () => {
+  async (nextYaml, previousYaml) => {
+    const isInitialLoad = !previousYaml
+    const isDocumentReplace = Math.abs((nextYaml || '').length - (previousYaml || '').length) > 500
+    if (!isInitialLoad && !isDocumentReplace) {
+      return
+    }
+
     await nextTick()
     yamlEditorRef.value?.scrollTo({ top: 0, left: 0 })
   },
@@ -86,6 +120,9 @@ defineExpose({ scrollToYamlLine })
         <button class="toolbar-button is-success" type="button" :disabled="isGenerating" @click="$emit('validate-yaml')">
           <span>校验格式</span>
         </button>
+        <button class="toolbar-button" type="button" :disabled="isGenerating" @click="$emit('save-yaml')">
+          <span>保存修改</span>
+        </button>
         <button class="toolbar-button" type="button" :disabled="isGenerating" @click="$emit('copy-yaml')">
           <span>复制 YAML</span>
         </button>
@@ -105,31 +142,38 @@ defineExpose({ scrollToYamlLine })
           <strong>{{ scriptChapters.length }} 章</strong>
         </div>
 
-        <ol class="chapter-tree">
-          <li v-for="chapter in scriptChapters" :key="chapter.title" :class="{ 'is-open': chapter.open }">
-            <button class="chapter-row" type="button" @click="$emit('select-chapter', chapter)">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path v-for="path in iconPaths.chevron" :key="path" :d="path" />
-              </svg>
-              <span>{{ chapter.title }}</span>
-            </button>
+        <el-scrollbar class="chapter-scroll">
+          <el-tree
+            class="chapter-tree"
+            :data="outlineTree"
+            node-key="id"
+            :default-expanded-keys="outlineExpandedKeys"
+            :expand-on-click-node="false"
+            :highlight-current="false"
+            @node-click="handleOutlineNodeClick"
+          >
+            <template #default="{ data }">
+              <span class="outline-node" :class="[`is-${data.type}`, { 'is-active': data.active }]">
+                <el-icon aria-hidden="true">
+                  <Collection v-if="data.type === 'chapter'" />
+                  <Document v-else />
+                </el-icon>
+                <span class="outline-node-label">{{ data.label }}</span>
+              </span>
+            </template>
+          </el-tree>
+        </el-scrollbar>
 
-            <ol v-if="chapter.open && chapter.scenes.length" class="scene-list">
-              <li v-for="scene in chapter.scenes" :key="scene.id || scene.label">
-                <button class="scene-row" :class="{ 'is-active': scene.active }" type="button" @click="$emit('select-scene', scene)">
-                  {{ scene.label }}
-                </button>
-              </li>
-            </ol>
-          </li>
-        </ol>
-
-        <button class="add-scene-button" type="button" :disabled="isGenerating" @click="$emit('add-scene')">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path v-for="path in iconPaths.plus" :key="path" :d="path" />
-          </svg>
+        <el-button
+          class="add-scene-button"
+          type="primary"
+          plain
+          :icon="Plus"
+          :disabled="isGenerating"
+          @click="$emit('add-scene')"
+        >
           <span>添加场景</span>
-        </button>
+        </el-button>
       </aside>
 
       <div ref="yamlEditorRef" class="yaml-editor yaml-editor-editable" aria-label="YAML 剧本文档">
@@ -186,6 +230,146 @@ defineExpose({ scrollToYamlLine })
         <p v-if="statusNotice" class="validation-notice">{{ statusNotice }}</p>
       </aside>
     </div>
+
+    <section class="correction-panel" aria-labelledby="correction-title">
+      <header class="correction-header">
+        <div>
+          <span>人工校正</span>
+          <h2 id="correction-title">{{ correctionScene?.title || '选择场景后编辑' }}</h2>
+        </div>
+        <p>{{ statusNotice || '修改会同步写回 YAML，可保存后导出最终稿。' }}</p>
+      </header>
+
+      <div v-if="correctionScene" class="correction-grid">
+        <fieldset class="correction-section">
+          <legend>场景描述</legend>
+          <label>
+            <span>场景标题</span>
+            <input
+              type="text"
+              :disabled="isGenerating"
+              :value="correctionScene.title"
+              @input="$emit('update:scene-field', { field: 'title', value: $event.target.value })"
+            />
+          </label>
+          <div class="correction-pair">
+            <label>
+              <span>地点</span>
+              <input
+                type="text"
+                :disabled="isGenerating"
+                :value="correctionScene.locationName"
+                @input="$emit('update:scene-field', { field: 'locationName', value: $event.target.value })"
+              />
+            </label>
+            <label>
+              <span>时间</span>
+              <input
+                type="text"
+                :disabled="isGenerating"
+                :value="correctionScene.time"
+                @input="$emit('update:scene-field', { field: 'time', value: $event.target.value })"
+              />
+            </label>
+          </div>
+          <label>
+            <span>场景概述</span>
+            <textarea
+              :disabled="isGenerating"
+              :value="correctionScene.synopsis"
+              rows="4"
+              @input="$emit('update:scene-field', { field: 'synopsis', value: $event.target.value })"
+            ></textarea>
+          </label>
+          <label>
+            <span>动作描写</span>
+            <textarea
+              :disabled="isGenerating"
+              :value="correctionScene.stageDirections"
+              rows="4"
+              @input="$emit('update:scene-field', { field: 'stageDirections', value: $event.target.value })"
+            ></textarea>
+          </label>
+        </fieldset>
+
+        <fieldset class="correction-section">
+          <legend>角色信息</legend>
+          <div v-for="character in correctionScene.characters" :key="character.id" class="character-editor">
+            <div class="correction-pair">
+              <label>
+                <span>姓名</span>
+                <input
+                  type="text"
+                  :disabled="isGenerating"
+                  :value="character.name"
+                  @input="$emit('update:character', { characterId: character.id, field: 'name', value: $event.target.value })"
+                />
+              </label>
+              <label>
+                <span>身份</span>
+                <input
+                  type="text"
+                  :disabled="isGenerating"
+                  :value="character.role"
+                  @input="$emit('update:character', { characterId: character.id, field: 'role', value: $event.target.value })"
+                />
+              </label>
+            </div>
+            <label>
+              <span>角色备注</span>
+              <textarea
+                :disabled="isGenerating"
+                :value="character.description"
+                rows="3"
+                @input="$emit('update:character', { characterId: character.id, field: 'description', value: $event.target.value })"
+              ></textarea>
+            </label>
+          </div>
+          <p v-if="!correctionScene.characters.length" class="correction-empty">当前场景还没有关联角色。</p>
+        </fieldset>
+
+        <fieldset class="correction-section dialogue-correction-section">
+          <legend>对白内容</legend>
+          <article v-for="dialogue in correctionScene.dialogues" :key="dialogue.index" class="dialogue-editor">
+            <div class="correction-pair">
+              <label>
+                <span>说话人</span>
+                <select
+                  :disabled="isGenerating"
+                  :value="dialogue.speakerId"
+                  @change="$emit('update:dialogue', { index: dialogue.index, field: 'speaker_id', value: $event.target.value })"
+                >
+                  <option v-for="character in correctionScene.characterOptions" :key="character.id" :value="character.id">
+                    {{ character.name }}
+                  </option>
+                </select>
+              </label>
+              <label>
+                <span>情绪</span>
+                <input
+                  type="text"
+                  :disabled="isGenerating"
+                  :value="dialogue.emotion"
+                  @input="$emit('update:dialogue', { index: dialogue.index, field: 'emotion', value: $event.target.value })"
+                />
+              </label>
+            </div>
+            <label>
+              <span>台词</span>
+              <textarea
+                :disabled="isGenerating"
+                :value="dialogue.line"
+                rows="3"
+                @input="$emit('update:dialogue', { index: dialogue.index, field: 'line', value: $event.target.value })"
+              ></textarea>
+            </label>
+          </article>
+          <p v-if="!correctionScene.dialogues.length" class="correction-empty">当前场景还没有对白。</p>
+        </fieldset>
+      </div>
+
+      <p v-else class="correction-empty">生成剧本后，在左侧结构里选择一个场景即可校正角色、场景、动作和对白。</p>
+    </section>
 
     <section class="script-preview-strip" aria-labelledby="preview-title">
       <header class="preview-strip-header">

@@ -90,34 +90,37 @@ def _demo_generate_screenplay(
 
     chapters = [_chapter_to_script(chapter, locations, characters) for chapter in project.chapters]
 
+    content = {
+        "script": {
+            "schema_version": "1.0",
+            "metadata": {
+                "title": project.title,
+                "original_novel": project.title,
+                "author": project.author,
+                "language": "zh-CN",
+                "target_format": template["target_format"],
+                "template_id": template["id"],
+                "script_type": generation_settings.get("scriptType") or template["script_type"],
+                "adaptation_style": generation_settings.get("adaptationStyle"),
+                "total_chapters": len(project.chapters),
+            },
+            "characters": characters,
+            "locations": locations,
+            "chapters": chapters,
+            "adaptation_notes": {
+                "themes": analysis.get("themes", ["成长"]),
+                "conflicts": analysis.get("conflicts", ["角色目标与现实阻碍之间的冲突"]),
+                "omissions": ["当前版本保留章节主线，细节对白可由作者继续编辑打磨。"],
+                "template_rules": template["rules"],
+            },
+        }
+    }
+    _apply_project_screenplay_guards(content, project, generation_settings)
+
     return LLMResult(
         provider="deterministic_demo",
         fallback_reason=fallback_reason,
-        content={
-            "script": {
-                "schema_version": "1.0",
-                "metadata": {
-                    "title": project.title,
-                    "original_novel": project.title,
-                    "author": project.author,
-                    "language": "zh-CN",
-                    "target_format": template["target_format"],
-                    "template_id": template["id"],
-                    "script_type": generation_settings.get("scriptType") or template["script_type"],
-                    "adaptation_style": generation_settings.get("adaptationStyle"),
-                    "total_chapters": len(project.chapters),
-                },
-                "characters": characters,
-                "locations": locations,
-                "chapters": chapters,
-                "adaptation_notes": {
-                    "themes": analysis.get("themes", ["成长"]),
-                    "conflicts": analysis.get("conflicts", ["角色目标与现实阻碍之间的冲突"]),
-                    "omissions": ["当前版本保留章节主线，细节对白可由作者继续编辑打磨。"],
-                    "template_rules": template["rules"],
-                },
-            }
-        },
+        content=content,
     )
 
 
@@ -353,12 +356,78 @@ def _apply_project_screenplay_guards(
 
     chapters = script.get("chapters")
     if isinstance(chapters, list):
+        locations = script.get("locations") if isinstance(script.get("locations"), list) else []
+        characters = script.get("characters") if isinstance(script.get("characters"), list) else []
+        if not locations:
+            locations = [
+                {
+                    "id": "loc_001",
+                    "name": "Primary location",
+                    "description": _brief(project.chapters[0].content, 80),
+                }
+            ]
+            script["locations"] = locations
+        if not characters:
+            characters = _demo_characters(project)
+            script["characters"] = characters
+        seen_signatures: set[str] = set()
+        normalized_chapters = []
+
         for project_chapter, script_chapter in zip(project.chapters, chapters):
             if not isinstance(script_chapter, dict):
+                normalized_chapters.append(_chapter_to_script(project_chapter, locations, characters))
                 continue
+
+            script_chapter["id"] = f"ch_{project_chapter.number:03d}"
             script_chapter["source_chapter_numbers"] = [project_chapter.number]
-            if not script_chapter.get("title"):
-                script_chapter["title"] = project_chapter.title
+            script_chapter["title"] = project_chapter.title
+
+            signature = _generated_chapter_signature(script_chapter)
+            if signature and signature in seen_signatures:
+                script_chapter = _chapter_to_script(project_chapter, locations, characters)
+            else:
+                _normalize_scene_ids(script_chapter, project_chapter)
+
+            updated_signature = _generated_chapter_signature(script_chapter)
+            if updated_signature:
+                seen_signatures.add(updated_signature)
+            normalized_chapters.append(script_chapter)
+
+        script["chapters"] = normalized_chapters
+
+
+def _normalize_scene_ids(script_chapter: dict[str, Any], project_chapter: Chapter) -> None:
+    scenes = script_chapter.get("scenes")
+    if not isinstance(scenes, list):
+        return
+
+    for scene_index, scene in enumerate(scenes, start=1):
+        if isinstance(scene, dict):
+            scene["id"] = f"sc_{project_chapter.number:03d}_{scene_index:03d}"
+
+
+def _generated_chapter_signature(script_chapter: dict[str, Any]) -> str:
+    parts: list[str] = [str(script_chapter.get("summary") or "")]
+    scenes = script_chapter.get("scenes")
+
+    if isinstance(scenes, list):
+        for scene in scenes:
+            if not isinstance(scene, dict):
+                continue
+            parts.append(str(scene.get("synopsis") or scene.get("action") or ""))
+            stage_directions = scene.get("stage_directions")
+            if isinstance(stage_directions, list):
+                parts.extend(str(item) for item in stage_directions if item is not None)
+            dialogue = scene.get("dialogue") or scene.get("dialogues")
+            if isinstance(dialogue, list):
+                parts.extend(
+                    str(line.get("line") or "")
+                    for line in dialogue
+                    if isinstance(line, dict)
+                )
+
+    signature = re.sub(r"\s+", "", " ".join(part for part in parts if part).lower())
+    return signature[:500] if len(signature) >= 24 else ""
 
 
 def _chapters_for_prompt(project: Project, per_chapter_limit: int = 1200) -> str:
@@ -575,6 +644,8 @@ def _chapter_to_script(chapter: Chapter, locations: list[dict], characters: list
     location = locations[min(chapter.number - 1, len(locations) - 1)]
     character = characters[0]
     supporting_character = characters[1] if len(characters) > 1 else character
+    scene_title = f"{chapter.title} - 核心场景"
+    chapter_hint = _brief(chapter.content, 36)
 
     return {
         "id": f"ch_{chapter.number:03d}",
@@ -584,26 +655,26 @@ def _chapter_to_script(chapter: Chapter, locations: list[dict], characters: list
         "scenes": [
             {
                 "id": f"sc_{chapter.number:03d}_001",
-                "title": f"{chapter.title} - 核心场景",
+                "title": scene_title,
                 "location_id": location["id"],
                 "time": "day",
                 "characters": list(dict.fromkeys([character["id"], supporting_character["id"]])),
                 "synopsis": _brief(chapter.content, 140),
                 "stage_directions": [
-                    "镜头跟随主要人物进入场景，环境细节烘托本章情绪。",
-                    "角色的动作和停顿表现出内心变化。",
+                    f"镜头跟随第 {chapter.number} 章的主要人物进入“{chapter.title}”，环境细节烘托本章情绪。",
+                    f"角色围绕“{chapter_hint}”推进选择，动作和停顿体现内心变化。",
                 ],
                 "dialogue": [
                     {
                         "speaker_id": character["id"],
                         "speaker_name": character["name"],
-                        "line": "这一刻，我必须做出选择。",
+                        "line": f"第 {chapter.number} 章的线索已经很清楚，我必须做出选择。",
                         "emotion": "determined",
                     },
                     {
                         "speaker_id": supporting_character["id"],
                         "speaker_name": supporting_character["name"],
-                        "line": "那就一起面对眼前的阻碍。",
+                        "line": f"那就从“{chapter.title}”继续追下去，别让证据断在这里。",
                         "emotion": "supportive",
                     }
                 ],

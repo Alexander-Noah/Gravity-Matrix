@@ -6,6 +6,10 @@
   <component name="ChangeListManager">
     <list default="true" id="f217d95d-4d98-41e5-b563-7e337f9319ef" name="更改" comment="前端项目初始化">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+<<<<<<< Updated upstream
+=======
+      <change beforePath="$PROJECT_DIR$/backend/app/core/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/core/config.py" afterDir="false" />
+>>>>>>> Stashed changes
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -13,7 +17,11 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
+<<<<<<< Updated upstream
     <option name="cachedIndexableFilesCount" value="115" />
+=======
+    <option name="cachedIndexableFilesCount" value="125" />
+>>>>>>> Stashed changes
     <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
   </component>
   <component name="Git.Settings">
@@ -37,6 +45,7 @@
   </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
+<<<<<<< Updated upstream
       <entry key="MS100" value="1.0233570195129034" />
       <entry key="MS500" value="1.4864177090498214" />
       <entry key="S2" value="3.2993943695547436" />
@@ -54,6 +63,25 @@
       <entry key="H4" value="17.35683474750204" />
       <entry key="D1" value="17.843779079788614" />
       <entry key="W1" value="17.976052080207666" />
+=======
+      <entry key="MS100" value="1.0467140390201841" />
+      <entry key="MS500" value="1.5450767298619061" />
+      <entry key="S2" value="2.1280649051680496" />
+      <entry key="S5" value="2.756234644052994" />
+      <entry key="S10" value="3.2227468917238653" />
+      <entry key="S30" value="3.6935819711217164" />
+      <entry key="S60" value="3.8398138166938423" />
+      <entry key="M2" value="3.918070642841453" />
+      <entry key="M5" value="3.9667751896098533" />
+      <entry key="M10" value="3.9833110275612653" />
+      <entry key="M15" value="3.988857019977892" />
+      <entry key="M30" value="3.9947293022796764" />
+      <entry key="H1" value="4.014797773488351" />
+      <entry key="H2" value="4.131230553614284" />
+      <entry key="H4" value="4.363481708464029" />
+      <entry key="D1" value="4.844940657531147" />
+      <entry key="W1" value="4.976220110650585" />
+>>>>>>> Stashed changes
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
@@ -75,6 +103,7 @@
       <entry key="W1" value="0.0" />
     </decayedSelected>
     <decayedShown>
+<<<<<<< Updated upstream
       <entry key="MS100" value="0.9818255130081553" />
       <entry key="MS500" value="1.474744524591218" />
       <entry key="S2" value="3.2920450980622777" />
@@ -92,6 +121,25 @@
       <entry key="H4" value="17.356814057770727" />
       <entry key="D1" value="17.8437749507856" />
       <entry key="W1" value="17.976051463836733" />
+=======
+      <entry key="MS100" value="0.09090821284432483" />
+      <entry key="MS500" value="1.0809280049896606" />
+      <entry key="S2" value="1.982823704725229" />
+      <entry key="S5" value="2.6945737912674583" />
+      <entry key="S10" value="3.19106375942264" />
+      <entry key="S30" value="3.6827768344407175" />
+      <entry key="S60" value="3.8343758127518184" />
+      <entry key="M2" value="3.9153423358443917" />
+      <entry key="M5" value="3.965681572733988" />
+      <entry key="M10" value="3.982763831539115" />
+      <entry key="M15" value="3.988492136092935" />
+      <entry key="M30" value="3.9945467960134717" />
+      <entry key="H1" value="4.0147059239162335" />
+      <entry key="H2" value="4.1311826769808055" />
+      <entry key="H4" value="4.363455807801082" />
+      <entry key="D1" value="4.844935661676148" />
+      <entry key="W1" value="4.976219370494418" />
+>>>>>>> Stashed changes
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
@@ -172,7 +220,11 @@
       <option name="presentableId" value="Default" />
       <updated>1780602212273</updated>
       <workItem from="1780602213384" duration="7394000" />
+<<<<<<< Updated upstream
       <workItem from="1780801785789" duration="3021000" />
+=======
+      <workItem from="1780965346875" duration="30000" />
+>>>>>>> Stashed changes
     </task>
     <task id="LOCAL-00001" summary="前端项目初始化">
       <option name="closed" value="true" />
