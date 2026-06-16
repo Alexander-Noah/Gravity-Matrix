@@ -12,6 +12,7 @@ from app.schemas.novel_script import (
     CharactersSaveRequest,
     NovelCreateRequest,
     NovelCreateResponse,
+    SceneContentRead,
     SceneContentResponse,
     SceneContentSaveRequest,
     SceneRead,

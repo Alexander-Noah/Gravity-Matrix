@@ -29,7 +29,7 @@ class Location(BaseModel):
 
 
 class DialogueLine(BaseModel):
-    speaker_id: str
+    speaker_id: str | None = None
     speaker_name: str
     line: str
     emotion: str = "neutral"
@@ -89,7 +89,7 @@ class ScriptBody(BaseModel):
                     )
 
                 for line in scene.dialogue:
-                    if line.speaker_id not in character_ids:
+                    if line.speaker_id is not None and line.speaker_id not in character_ids:
                         raise ValueError(
                             f"Dialogue in scene {scene.id} references missing speaker {line.speaker_id}."
                         )

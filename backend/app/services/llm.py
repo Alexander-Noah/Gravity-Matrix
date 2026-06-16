@@ -11,7 +11,29 @@ from pydantic import ValidationError
 from app.core.config import settings
 from app.models.project import Chapter, Project
 from app.schemas.screenplay import ScreenplayDocument
-from app.services.character_filter import canonicalize_character_list
+from app.services.character_filter import aliases_for, canonicalize_character_list, normalize_character_name
+
+
+FORBIDDEN_TEMPLATE_PHRASES = [
+    "必须做出选择",
+    "别让证据断在这里",
+    "核心场景",
+    "环境细节烘托",
+    "第 X 章的线索已经很清楚",
+    "线索已经很清楚",
+]
+
+KNOWN_CHARACTER_DESCRIPTIONS = {
+    "许七安": "原为现代警校毕业生，穿越成大奉捕快，因税银案被牵连入狱，依靠推理能力自救。",
+    "李玉春": "打更人组织成员，参与调查税银失踪案，重视线索与逻辑推理。",
+    "褚采薇": "司天监弟子，擅长术士能力，性格活泼好吃，参与辅助查案。",
+    "陈汉光": "京兆府府尹，负责审理和处置税银案相关人犯。",
+    "许平志": "许七安的二叔，因税银案牵连许家命运。",
+    "许新年": "许家二郎，许七安的堂弟，读书人身份，与许家案件相关。",
+    "李茹": "许家女眷，因税银案受到牵连。",
+    "狱卒": "京兆府监牢中的差役，负责看守犯人和传递讯息。",
+    "衙役": "京兆府衙门差役，参与押送、看守和办案流程。",
+}
 
 
 @dataclass(frozen=True)
@@ -38,7 +60,8 @@ def generate_screenplay(project: Project, analysis: dict | None = None) -> LLMRe
         result = _call_deepseek(_screenplay_prompt(project, analysis, generation_settings))
         if isinstance(result, dict) and _is_valid_screenplay_for_project(result, project):
             _apply_project_screenplay_guards(result, project, generation_settings)
-            return LLMResult(provider=settings.llm_provider, content=result)
+            if _is_usable_screenplay(result):
+                return LLMResult(provider=settings.llm_provider, content=result)
         return _demo_generate_screenplay(project, analysis, "invalid_screenplay_response")
 
     return _demo_generate_screenplay(project, analysis, "missing_config")
@@ -46,14 +69,7 @@ def generate_screenplay(project: Project, analysis: dict | None = None) -> LLMRe
 
 def _demo_analyze_project(project: Project, fallback_reason: str | None = None) -> LLMResult:
     characters = _demo_characters(project)
-    locations = [
-        {
-            "id": f"loc_{chapter.number:03d}",
-            "name": f"第 {chapter.number} 章主要场景",
-            "description": _brief(chapter.content, 80),
-        }
-        for chapter in project.chapters
-    ]
+    locations = _locations_from_project(project)
     chapter_summaries = [
         {
             "chapter_number": chapter.number,
@@ -85,9 +101,7 @@ def _demo_generate_screenplay(
     generation_settings = _project_generation_settings(project)
     template = _template_profile(generation_settings.get("templateId"))
     characters = analysis.get("characters") or _demo_characters(project)
-    locations = analysis.get("locations") or [
-        {"id": "loc_001", "name": "主要场景", "description": "由小说内容概括出的主要空间。"}
-    ]
+    locations = _locations_from_project(project)
 
     chapters = [_chapter_to_script(chapter, locations, characters) for chapter in project.chapters]
 
@@ -187,7 +201,7 @@ def _screenplay_prompt(project: Project, analysis: dict, generation_settings: di
             "必须输出顶层包含 script 字段的 JSON 对象，所有字段名必须使用下方模板中的英文 snake_case 字段名。",
             "不得省略模板中的任何必填字段；未知 age 必须输出 null，不要输出“未知”。",
             "scene.location_id 必须引用 locations 中已有 id；scene.characters 和 dialogue.speaker_id 必须引用 characters 中已有 id。",
-            "每章只生成 1 到 2 个核心场景，不要把每个自然段都拆成场景。",
+            "每章只生成 1 到 2 个关键分场，不要把每个自然段都拆成场景。",
             f"必须为当前小说的 {len(project.chapters)} 个章节逐章生成，script.chapters 数量必须等于 {len(project.chapters)}。",
             "每个 script.chapters[i].source_chapter_numbers 必须只引用对应的原文章节编号，不能新增、合并、跳过或改写为其他章节。",
             "metadata.title、metadata.original_novel、metadata.author 和 metadata.total_chapters 必须与当前项目一致。",
@@ -360,13 +374,7 @@ def _apply_project_screenplay_guards(
         locations = script.get("locations") if isinstance(script.get("locations"), list) else []
         characters = script.get("characters") if isinstance(script.get("characters"), list) else []
         if not locations:
-            locations = [
-                {
-                    "id": "loc_001",
-                    "name": "Primary location",
-                    "description": _brief(project.chapters[0].content, 80),
-                }
-            ]
+            locations = _locations_from_project(project)
             script["locations"] = locations
         if not characters:
             characters = _demo_characters(project)
@@ -384,10 +392,16 @@ def _apply_project_screenplay_guards(
             script_chapter["title"] = project_chapter.title
 
             signature = _generated_chapter_signature(script_chapter)
-            if signature and signature in seen_signatures:
+            if (
+                signature
+                and signature in seen_signatures
+                or _chapter_contains_forbidden_template(script_chapter)
+                or not script_chapter.get("scenes")
+            ):
                 script_chapter = _chapter_to_script(project_chapter, locations, characters)
             else:
                 _normalize_scene_ids(script_chapter, project_chapter)
+                _sanitize_script_chapter(script_chapter, project_chapter, locations, characters)
 
             updated_signature = _generated_chapter_signature(script_chapter)
             if updated_signature:
@@ -443,6 +457,10 @@ def _chapters_for_prompt(project: Project, per_chapter_limit: int = 1200) -> str
             )
         )
     return "\n\n".join(parts)
+
+
+def _project_text(project: Project) -> str:
+    return "\n".join(chapter.content or "" for chapter in project.chapters)
 
 
 def _compact_analysis_for_prompt(analysis: dict[str, Any]) -> dict[str, Any]:
@@ -505,7 +523,7 @@ def _normalize_characters(characters: Any, source_text: str | None = None) -> li
                 "role": character.get("role") or ("主角" if index == 1 else "配角"),
                 "gender": "unknown",
                 "age": None,
-                "description": character.get("description") or "由小说章节自动识别出的人物。",
+                "description": _summary_character_description(character["name"], character.get("description")),
             }
             for index, character in enumerate(filtered, start=1)
         ]
@@ -521,7 +539,7 @@ def _normalize_characters(characters: Any, source_text: str | None = None) -> li
                 "role": str(character.get("role") or "配角"),
                 "gender": str(character.get("gender") or "unknown"),
                 "age": _normalize_age(character.get("age")),
-                "description": str(character.get("description") or "由小说章节自动识别出的人物。"),
+                "description": _summary_character_description(str(character.get("name") or ""), character.get("description")),
             }
         )
     return normalized
@@ -663,7 +681,7 @@ def _demo_characters(project: Project) -> list[dict[str, Any]]:
     elif len(names) == 1:
         names.append("\u91cd\u8981\u89d2\u8272")
 
-    roles = ["\u4e3b\u89d2", "\u91cd\u8981\u89d2\u8272", "\u91cd\u8981\u89d2\u8272", "\u91cd\u8981\u89d2\u8272", "\u91cd\u8981\u89d2\u8272", "\u91cd\u8981\u89d2\u8272"]
+    roles = ["\u4e3b\u89d2", "\u91cd\u8981\u89d2\u8272", "\u91cd\u8981\u89d2\u8272", "\u91cd\u8981\u89d2\u8272", "\u91cd\u8981\u89d2\u8272", "\u91cd\u8981\u89d2\u8272", "\u91cd\u8981\u89d2\u8272", "\u91cd\u8981\u89d2\u8272", "\u91cd\u8981\u89d2\u8272"]
     return [
         {
             "id": f"char_{index:03d}",
@@ -673,7 +691,7 @@ def _demo_characters(project: Project) -> list[dict[str, Any]]:
             "age": None,
             "description": _character_description(name, source_text),
         }
-        for index, name in enumerate(names[:6], start=1)
+        for index, name in enumerate(names[:9], start=1)
     ]
 
 
@@ -749,46 +767,336 @@ def _character_description(name: str, text: str) -> str:
     return "\u4ece\u5c0f\u8bf4\u6587\u672c\u4e2d\u8bc6\u522b\u7684\u4eba\u7269\u3002"
 
 
+def _summary_character_description(name: str, source_description: Any = None) -> str:
+    if name in KNOWN_CHARACTER_DESCRIPTIONS:
+        return KNOWN_CHARACTER_DESCRIPTIONS[name]
+    text = re.sub(r"\s+", " ", str(source_description or "")).strip()
+    if not text:
+        return f"{name}是原文中出现的人物，具体身份与剧情作用需结合后续场景继续确认。"
+    text = re.sub(r"^原文片段[:：]\s*", "", text)
+    return _brief(text, 80)
+
+
+LOCATION_KEYWORDS = [
+    "京兆府监牢",
+    "京兆府后堂",
+    "京兆府内堂",
+    "京兆府衙门",
+    "京兆府后门",
+    "监牢",
+    "牢房",
+    "后堂",
+    "内堂",
+    "衙门",
+    "后门",
+    "府衙",
+    "公堂",
+]
+
+
+def _locations_from_project(project: Project) -> list[dict[str, str]]:
+    names: list[str] = []
+    for chapter in project.chapters:
+        for name in _location_names_in_text(chapter.content):
+            if name not in names:
+                names.append(name)
+
+    if not names:
+        names = ["未明确地点"]
+
+    return [
+        {
+            "id": f"loc_{index:03d}",
+            "name": name,
+            "description": f"{name}，由原文地点描写提取。",
+        }
+        for index, name in enumerate(names, start=1)
+    ]
+
+
+def _location_names_in_text(text: str) -> list[str]:
+    names = []
+    for keyword in LOCATION_KEYWORDS:
+        if keyword in text and keyword not in names:
+            names.append(_normalize_location_name(keyword))
+    return list(dict.fromkeys(names))
+
+
+def _normalize_location_name(name: str) -> str:
+    if name in {"监牢", "牢房"}:
+        return "京兆府监牢"
+    if name == "后堂":
+        return "京兆府后堂"
+    if name == "内堂":
+        return "京兆府内堂"
+    if name in {"衙门", "府衙", "公堂"}:
+        return "京兆府衙门"
+    if name == "后门":
+        return "京兆府后门"
+    return name
+
+
+def _ensure_location_for_text(locations: list[dict], text: str, index: int) -> dict:
+    names = _location_names_in_text(text)
+    target = names[0] if names else (locations[0]["name"] if locations else "未明确地点")
+    for location in locations:
+        if location.get("name") == target:
+            return location
+
+    location = {
+        "id": f"loc_{len(locations) + 1:03d}",
+        "name": target,
+        "description": f"{target}，由第 {index} 个场景文本提取。",
+    }
+    locations.append(location)
+    return location
+
+
+def _split_scene_chunks(text: str) -> list[str]:
+    paragraphs = [part.strip() for part in re.split(r"\n\s*\n", text) if part.strip()]
+    if not paragraphs:
+        paragraphs = [part.strip() for part in re.split(r"(?<=[。！？])", text) if part.strip()]
+
+    chunks: list[str] = []
+    current = ""
+    current_location = None
+    for paragraph in paragraphs:
+        location_names = _location_names_in_text(paragraph)
+        location = location_names[0] if location_names else current_location
+        should_split = bool(current and location and current_location and location != current_location)
+        if len(current) + len(paragraph) > 900 and current:
+            should_split = True
+        if should_split:
+            chunks.append(current.strip())
+            current = paragraph
+        else:
+            current = f"{current}\n{paragraph}".strip()
+        if location:
+            current_location = location
+    if current:
+        chunks.append(current.strip())
+    return chunks[:8]
+
+
+def _characters_in_text(text: str, characters: list[dict]) -> list[str]:
+    ids = []
+    for character in characters:
+        name = str(character.get("name") or "")
+        aliases = [name, *aliases_for(name)]
+        for alias in aliases:
+            if alias and alias in text:
+                ids.append(str(character["id"]))
+                break
+    return list(dict.fromkeys(ids))
+
+
+def _character_for_speaker(prefix: str, characters: list[dict]) -> dict | None:
+    for character in characters:
+        name = str(character.get("name") or "")
+        aliases = [name, *aliases_for(name)]
+        for alias in aliases:
+            if alias and alias in prefix:
+                return character
+    normalized = normalize_character_name(prefix[-5:])
+    if normalized:
+        for character in characters:
+            if character.get("name") == normalized:
+                return character
+    return None
+
+
+def _dialogue_from_text(text: str, characters: list[dict]) -> list[dict]:
+    dialogue = []
+    quote_pattern = re.compile(r"([^。！？\n]{0,28})[“\"]([^”\"]{1,120})[”\"]")
+    for match in quote_pattern.finditer(text):
+        quote_start = max(match.start(2) - 1, match.start())
+        boundary = max(text.rfind(mark, 0, quote_start) for mark in ["。", "！", "？", "\n"])
+        prefix = text[boundary + 1:quote_start]
+        line = match.group(2).strip()
+        character = _character_for_speaker(prefix, characters)
+        dialogue.append(
+            {
+                "speaker_id": character.get("id") if character else None,
+                "speaker_name": character.get("name") if character else "旁白",
+                "line": line,
+                "emotion": _emotion_from_text(prefix + line),
+            }
+        )
+
+    colon_pattern = re.compile(r"([^。！？\n]{2,12})[：:]\s*([^。！？\n]{1,120})")
+    for match in colon_pattern.finditer(text):
+        prefix = match.group(1)
+        line = match.group(2).strip().strip("“”\"'")
+        if any(_dialogue_key(existing["line"]) == _dialogue_key(line) for existing in dialogue):
+            continue
+        character = _character_for_speaker(prefix, characters)
+        dialogue.append(
+            {
+                "speaker_id": character.get("id") if character else None,
+                "speaker_name": character.get("name") if character else "旁白",
+                "line": line,
+                "emotion": _emotion_from_text(prefix + line),
+            }
+        )
+
+    return dialogue[:4]
+
+
+def _dialogue_key(line: str) -> str:
+    return re.sub(r"[。！？!?，,\s“”\"']", "", line or "")
+
+
+def _emotion_from_text(text: str) -> str:
+    if any(word in text for word in ["怒", "冷", "喝", "骂"]):
+        return "tense"
+    if any(word in text for word in ["笑", "莞尔"]):
+        return "light"
+    if any(word in text for word in ["惊", "愣", "怔"]):
+        return "surprised"
+    return "neutral"
+
+
+def _scene_title_from_text(text: str, location_name: str, index: int) -> str:
+    event = _synopsis_from_text(text)
+    title = event[:14].strip("，。！？；; ")
+    if title and location_name not in title:
+        return f"{location_name}：{title}"
+    return title or f"{location_name}场景{index}"
+
+
+def _time_from_text(text: str) -> str:
+    for marker in ["清晨", "早晨", "上午", "午后", "下午", "傍晚", "夜晚", "深夜", "翌日"]:
+        if marker in text:
+            return marker
+    return "未明确时间"
+
+
+def _synopsis_from_text(text: str) -> str:
+    sentences = [item.strip() for item in re.split(r"(?<=[。！？])", text) if item.strip()]
+    if not sentences:
+        return _brief(text, 120)
+    return _brief("".join(sentences[:2]), 140)
+
+
+def _stage_directions_from_text(text: str) -> list[str]:
+    sentences = [item.strip() for item in re.split(r"(?<=[。！？])", text) if item.strip()]
+    directions = []
+    for sentence in sentences:
+        if "“" in sentence or "\"" in sentence or "：" in sentence:
+            continue
+        directions.append(_brief(sentence, 100))
+        if len(directions) >= 2:
+            break
+    return directions
+
+
+def _chapter_contains_forbidden_template(script_chapter: dict[str, Any]) -> bool:
+    signature = _generated_chapter_signature(script_chapter)
+    return any(phrase in signature for phrase in FORBIDDEN_TEMPLATE_PHRASES)
+
+
+def _sanitize_script_chapter(
+    script_chapter: dict[str, Any],
+    project_chapter: Chapter,
+    locations: list[dict],
+    characters: list[dict],
+) -> None:
+    location_ids = {str(location.get("id")) for location in locations}
+    character_by_id = {str(character.get("id")): character for character in characters}
+    fallback_location = locations[0]["id"] if locations else "loc_001"
+    for scene_index, scene in enumerate(script_chapter.get("scenes") or [], start=1):
+        if not isinstance(scene, dict):
+            continue
+        if scene.get("location_id") not in location_ids:
+            location = _ensure_location_for_text(locations, str(scene.get("synopsis") or project_chapter.content), scene_index)
+            scene["location_id"] = location.get("id") or fallback_location
+        scene["synopsis"] = str(scene.get("synopsis") or _synopsis_from_text(project_chapter.content))
+        scene["characters"] = [
+            str(char_id) for char_id in scene.get("characters", []) if str(char_id) in character_by_id
+        ] or _characters_in_text(project_chapter.content, characters)
+        sanitized_dialogue = []
+        for line in scene.get("dialogue") or []:
+            if not isinstance(line, dict):
+                continue
+            if any(phrase in str(line.get("line") or "") for phrase in FORBIDDEN_TEMPLATE_PHRASES):
+                continue
+            speaker_id = str(line.get("speaker_id")) if line.get("speaker_id") is not None else None
+            if speaker_id not in character_by_id:
+                line["speaker_id"] = None
+                line["speaker_name"] = "旁白"
+            else:
+                line["speaker_id"] = speaker_id
+                line["speaker_name"] = character_by_id[str(speaker_id)].get("name") or line.get("speaker_name")
+            sanitized_dialogue.append(line)
+        scene["dialogue"] = sanitized_dialogue
+
+
+def _is_usable_screenplay(result: dict[str, Any]) -> bool:
+    script = result.get("script") if isinstance(result, dict) else None
+    if not isinstance(script, dict):
+        return False
+    chapters = script.get("chapters")
+    if not isinstance(chapters, list) or not chapters:
+        return False
+    scene_count = 0
+    for chapter in chapters:
+        if not isinstance(chapter, dict):
+            return False
+        scenes = chapter.get("scenes")
+        if not isinstance(scenes, list) or not scenes:
+            return False
+        for scene in scenes:
+            scene_count += 1
+            if not isinstance(scene, dict) or not scene.get("synopsis"):
+                return False
+            if _chapter_contains_forbidden_template({"scenes": [scene], "summary": scene.get("synopsis", "")}):
+                return False
+    return scene_count > 0
+
+
 def _chapter_to_script(chapter: Chapter, locations: list[dict], characters: list[dict]) -> dict:
-    location = locations[min(chapter.number - 1, len(locations) - 1)]
-    character = characters[0]
-    supporting_character = characters[1] if len(characters) > 1 else character
-    scene_title = f"{chapter.title} - 核心场景"
-    chapter_hint = _brief(chapter.content, 36)
+    scenes = []
+    chunks = _split_scene_chunks(chapter.content)
+    for scene_index, chunk in enumerate(chunks, start=1):
+        location = _ensure_location_for_text(locations, chunk, scene_index)
+        scene_characters = _characters_in_text(chunk, characters)
+        dialogue = _dialogue_from_text(chunk, characters)
+        scene_title = _scene_title_from_text(chunk, location["name"], scene_index)
+
+        scenes.append(
+            {
+                "id": f"sc_{chapter.number:03d}_{scene_index:03d}",
+                "title": scene_title,
+                "location_id": location["id"],
+                "time": _time_from_text(chunk),
+                "characters": scene_characters,
+                "synopsis": _synopsis_from_text(chunk),
+                "stage_directions": _stage_directions_from_text(chunk),
+                "dialogue": dialogue,
+            }
+        )
+
+    if not scenes:
+        location = _ensure_location_for_text(locations, chapter.content, 1)
+        scenes.append(
+            {
+                "id": f"sc_{chapter.number:03d}_001",
+                "title": _scene_title_from_text(chapter.content, location["name"], 1),
+                "location_id": location["id"],
+                "time": _time_from_text(chapter.content),
+                "characters": _characters_in_text(chapter.content, characters),
+                "synopsis": _synopsis_from_text(chapter.content),
+                "stage_directions": _stage_directions_from_text(chapter.content),
+                "dialogue": _dialogue_from_text(chapter.content, characters),
+            }
+        )
 
     return {
         "id": f"ch_{chapter.number:03d}",
         "title": chapter.title,
         "source_chapter_numbers": [chapter.number],
         "summary": _brief(chapter.content, 180),
-        "scenes": [
-            {
-                "id": f"sc_{chapter.number:03d}_001",
-                "title": scene_title,
-                "location_id": location["id"],
-                "time": "day",
-                "characters": list(dict.fromkeys([character["id"], supporting_character["id"]])),
-                "synopsis": _brief(chapter.content, 140),
-                "stage_directions": [
-                    f"镜头跟随第 {chapter.number} 章的主要人物进入“{chapter.title}”，环境细节烘托本章情绪。",
-                    f"角色围绕“{chapter_hint}”推进选择，动作和停顿体现内心变化。",
-                ],
-                "dialogue": [
-                    {
-                        "speaker_id": character["id"],
-                        "speaker_name": character["name"],
-                        "line": f"第 {chapter.number} 章的线索已经很清楚，我必须做出选择。",
-                        "emotion": "determined",
-                    },
-                    {
-                        "speaker_id": supporting_character["id"],
-                        "speaker_name": supporting_character["name"],
-                        "line": f"那就从“{chapter.title}”继续追下去，别让证据断在这里。",
-                        "emotion": "supportive",
-                    }
-                ],
-            }
-        ],
+        "scenes": scenes,
     }
 
 
