@@ -7,13 +7,8 @@ path = 'app/services/llm.py'
 with open(path, 'rb') as f:
     raw = f.read()
 
-# The file is UTF-8 encoded. Let's work with it.
-# Let's read it as text to find patterns, but use bytes for replacement
 text = raw.decode('utf-8')
 
-# 1. Replace name-list pattern
-# Find the exact pattern: for match in re.finditer(r"...", text):
-# where the pattern has exactly 3 groups of 2-char CJK separated by 、
 old_name_list = re.compile(
     r'(\s+)for match in re\.finditer\(r"\(\[\\u4e00-\\u9fff\]\{2\}\)、\(\[\\u4e00-\\u9fff\]\{2\}\)、\(\[\\u4e00-\\u9fff\]\{2\}\)", text\):'
 )
@@ -27,7 +22,7 @@ if m:
 else:
     print("FAIL: name-list pattern not found")
 
-# 2. Replace action verb pattern
+
 old_action = (
     r'name_action_pattern = \(\n'
     r'\s+r"\(\?\<\!\[\\\\u4e00-\\\\u9fff\]\)\(\[\\\\u4e00-\\\\u9fff\]\{2,4\}\)\\\\s\*"\n'
@@ -36,7 +31,7 @@ old_action = (
 m2 = re.search(old_action, text)
 if m2:
     idx = m2.start()
-    # Find the end of this block: the line after 'candidates.append(match.group(1))'
+
     end_marker = 'candidates.append(match.group(1))'
     end_idx = text.find(end_marker, idx)
     if end_idx >= 0:
@@ -58,18 +53,18 @@ if m2:
 else:
     print("FAIL: action pattern not found")
 
-# 3. Replace stopwords
+
 old_stopwords = (
     'stopwords = \{\n'
     '        "[一-鿿]\+",\n'
     '        "[一-鿿]\+",\n'
     '        "[一-鿿]\+",\n'
 )
-# Better: find by marker
+
 sw_marker = '    stopwords = {\n'
 sw_start = text.find(sw_marker)
 if sw_start >= 0:
-    # count braces to find end
+
     depth = 0
     found_open = False
     sw_end = sw_start

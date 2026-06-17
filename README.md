@@ -105,7 +105,7 @@ pip install -r requirements.txt
 **2.4 启动：**
 
 ```powershell
-uvicorn app.main:app --reload
+python -m uvicorn app.main:app --reload
 ```
 
 首次启动自动在 `backend/data/` 下创建 SQLite 数据库。

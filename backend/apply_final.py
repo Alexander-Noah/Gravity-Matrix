@@ -10,16 +10,6 @@ import os
 path = 'app/services/llm.py'
 with open(path, 'r', encoding='utf-8') as f:
     content = f.read()
-
-# All old/new blocks use only ASCII-safe programming text.
-# Chinese characters are referenced via their positions in the file.
-
-# ---------------------------------------------------------------------------
-# 1. REPLACE name-list pattern (currently lines 603-604)
-# OLD: for match in re.finditer(r"([一-鿿]{2})、([一-鿿]{2})、([一-鿿]{2})", text):
-#      /     candidates.extend(match.groups())
-# NEW: match runs of 2+ CJK names separated by 、or ，
-# ---------------------------------------------------------------------------
 old_name_list_start = '    for match in re.finditer(r"([\\u4e00-\\u9fff]{2})'
 old_name_list_end   = '        candidates.extend(match.groups())'
 
@@ -38,12 +28,6 @@ idx2 += len(old_name_list_end)
 content = content[:idx1] + new_name_list + content[idx2:]
 print("Replaced name-list pattern")
 
-# ---------------------------------------------------------------------------
-# 2. REPLACE action verb pattern (currently lines 606-611)
-# Remove 从/率/与/和/同/向 — these are NOT action verbs
-# Add more common dialogue/action verbs
-# Keep 没有 as it can catch character names in "XX没有..." pattern
-# ---------------------------------------------------------------------------
 old_action_start = '    name_action_pattern = ('
 old_action_end   = '        candidates.append(match.group(1))\n'  # must include newline
 
@@ -51,10 +35,10 @@ new_action = (
     '    name_action_pattern = (\n'
     '        r"(?<![\\u4e00-\\u9fff])([\\u4e00-\\u9fff]{2,4})\\s*"\n'
     '        r"(?:'
-    # action verbs with clear character-agent semantics:
+
     '握着|说|低声道|喊道|问道|答道|回答道|说道|提醒|看着|道|问|答|'
     '点头|摇头|离开|转身|走进|走了|来了|坐下|站起|挥|拔|举起|放下|推开|关上|'
-    # keep 没有 as it captures names in "XX没-有..." pattern
+
     '没有'
     ')"\n'
     '    )\n'
@@ -72,16 +56,10 @@ idx4 += len(old_action_end)
 content = content[:idx3] + new_action + content[idx4:]
 print("Replaced action verb pattern")
 
-# ---------------------------------------------------------------------------
-# 3. REPLACE stopwords set (currently lines 613-632)
-# Expand with common narrative/functional 2-char phrases that are never names
-# ---------------------------------------------------------------------------
 old_sw_start = '    stopwords = {'
-# Find the closing } of the set
 idx5 = content.find(old_sw_start)
 if idx5 < 0:
     raise SystemExit("FAIL: could not find stopwords start")
-# Count braces
 depth = 0
 found_open = False
 idx6 = idx5
@@ -114,13 +92,9 @@ new_stopwords = (
 content = content[:idx5] + new_stopwords + content[idx6:]
 print("Replaced stopwords")
 
-# ---------------------------------------------------------------------------
-# Write back
-# ---------------------------------------------------------------------------
 with open(path, 'w', encoding='utf-8', newline='') as f:
     f.write(content)
 
-# Verify syntax
 import py_compile
 try:
     py_compile.compile(path, doraise=True)

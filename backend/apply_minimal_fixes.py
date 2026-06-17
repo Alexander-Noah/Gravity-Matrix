@@ -20,7 +20,6 @@ new_list = '''    for match in re.finditer(r"[\\u4e00-\\u9fff]{2,4}(?:[、，]\\
 assert old_list in content, "old_list not found"
 content = content.replace(old_list, new_list)
 
-# Fix 2: Action verbs — remove 从/与/和/同, keep 没有, add more genuine action verbs
 old_action = r"""    name_action_pattern = (
         r"(?<![一-鿿])([一-鿿]{2,4})\s*"
         r"(?:握着|说|低声道|道|问|答|没有|从|提醒|看着|率|与|和|同|向)"

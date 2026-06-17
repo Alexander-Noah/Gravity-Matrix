@@ -7,7 +7,6 @@ target = 'app/services/llm.py'
 with open(target, 'r', encoding='utf-8') as f:
     content = f.read()
 
-# 1) Insert _looks_like_narrative helper before _extract_character_names
 helper = '''
 def _looks_like_narrative(word: str) -> bool:
     """Heuristic: filter narrative/functional phrases that look like names."""
@@ -24,7 +23,6 @@ old_fx = 'def _extract_character_names(project: Project) -> list[str]:'
 new_fx = helper + old_fx
 content = content.replace(old_fx, new_fx, 1)
 
-# 2) Replace name-list pattern: line 603-604
 old_name_list = '''    for match in re.finditer(r"([\\u4e00-\\u9fff]{2})、([\\u4e00-\\u9fff]{2})、([\\u4e00-\\u9fff]{2})", text):
         candidates.extend(match.groups())'''
 
@@ -40,7 +38,6 @@ else:
     snippet = content[idx:idx+200]
     print(f"Found: {repr(snippet[:100])}")
 
-# 3) Replace action pattern: the combo from name_action_pattern through candidates.append
 old_action = '''    name_action_pattern = (
         r"(?<![\\u4e00-\\u9fff])([\\u4e00-\\u9fff]{2,4})\\s*"
         r"(?:握着|说|低声道|道|问|答|没有|从|提醒|看着|率|与|和|同|向)"
@@ -65,7 +62,6 @@ if old_action in content:
 else:
     print("WARNING: old_action not found")
 
-# 4) Expand stopwords set
 old_stopwords = '''    stopwords = {
         "天下",
         "大势",
