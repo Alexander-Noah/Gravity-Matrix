@@ -19,7 +19,7 @@ from app.services.workbench import build_project_workbench
 
 
 def preview_import_text(title: str | None, author: str | None, text: str) -> dict[str, Any]:
-    cleaned_text = text.strip()
+    cleaned_text = _clean_import_text(text)
     chapters = _detect_chapters(cleaned_text)
     issues = _import_issues(cleaned_text, chapters)
     detected_title = title or _detect_title(cleaned_text) or "未命名小说"
@@ -318,23 +318,13 @@ def _detect_chapters(text: str) -> list[dict[str, Any]]:
     if not text:
         return []
 
-    pattern = re.compile(
-        r"(?m)^\s*(?P<title>(?:第[\d一二三四五六七八九十百千万零〇两]+[章节回卷幕部集][^\n]{0,80}|Chapter\s+\d+[^\n]{0,80}|CHAPTER\s+[IVXLCDM\d]+[^\n]{0,80}))\s*$",
-        re.IGNORECASE,
-    )
-    matches = list(pattern.finditer(text))
-    if not matches:
-        return []
-
     chapters = []
-    for index, match in enumerate(matches, start=1):
-        start = match.end()
-        end = matches[index].start() if index < len(matches) else len(text)
-        content = text[start:end].strip()
+    for index, chapter in enumerate(_simple_split_chapters(text), start=1):
+        content = chapter["content"].strip()
         chapters.append(
             {
                 "number": index,
-                "title": match.group("title").strip(),
+                "title": chapter["title"].strip(),
                 "content": content,
                 "char_count": len(content),
                 "excerpt": _brief(content, 80),
@@ -343,8 +333,33 @@ def _detect_chapters(text: str) -> list[dict[str, Any]]:
     return chapters
 
 
+def _clean_import_text(text: str) -> str:
+    return "\n".join(line.rstrip() for line in str(text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")).strip()
+
+
+def _simple_split_chapters(text: str) -> list[dict[str, str]]:
+    lines = _clean_import_text(text).splitlines()
+    chapters: list[dict[str, str]] = []
+    current_title: str | None = None
+    current_lines: list[str] = []
+    chapter_title_pattern = re.compile(r"^\s*(第[一二三四五六七八九十百千万零〇\d]+[章节回卷集].*|Chapter\s+\d+.*)\s*$", re.IGNORECASE)
+
+    for line in lines:
+        if chapter_title_pattern.match(line):
+            if current_title is not None or current_lines:
+                chapters.append({"title": current_title or "全文", "content": "\n".join(current_lines).strip()})
+            current_title = line.strip()
+            current_lines = []
+            continue
+        current_lines.append(line)
+
+    if current_title is not None or current_lines:
+        chapters.append({"title": current_title or "全文", "content": "\n".join(current_lines).strip()})
+    return chapters or [{"title": "全文", "content": _clean_import_text(text)}]
+
+
 def _preprocess_import_text(chapters: list[dict[str, Any]], text: str) -> dict[str, Any]:
-    """Build a deterministic local outline before the expensive AI analysis step."""
+    """Return import metadata only; AI performs semantic parsing later."""
     source_units = chapters or [
         {
             "number": 1,
@@ -354,133 +369,26 @@ def _preprocess_import_text(chapters: list[dict[str, Any]], text: str) -> dict[s
             "excerpt": _brief(text, 80),
         }
     ]
-    character_names = _extract_character_names(text)
-    location_names = _extract_location_names(text)
 
     return {
-        "characters": [
-            {
-                "name": name,
-                "role": "人物候选" if index else "主要人物候选",
-                "description": _character_context(name, text),
-                "source": "local_preprocess",
-            }
-            for index, name in enumerate(character_names[:8])
-        ],
-        "locations": [
-            {
-                "name": name,
-                "description": "从小说文本中高频出现的地点或场景词。",
-                "source": "local_preprocess",
-            }
-            for name in location_names[:8]
-        ],
+        "characters": [],
+        "locations": [],
         "chapter_summaries": [
             {
                 "chapter_number": unit["number"],
                 "title": unit["title"],
-                "summary": _brief(unit.get("content", ""), 120),
+                "summary": "",
                 "char_count": unit.get("char_count", len(unit.get("content", ""))),
-                "source": "local_preprocess",
+                "source": "import_structure",
             }
             for unit in source_units
         ],
-        "themes": _detect_themes(text),
-        "conflicts": _detect_conflicts(source_units),
-        "preparation_notes": _preparation_notes(source_units, character_names, location_names),
+        "themes": [],
+        "conflicts": [],
+        "preparation_notes": [
+            f"已保存 {len(source_units)} 个章节。人物、地点、事件、对白归属将在 AI 解析阶段完成。",
+        ],
     }
-
-
-def _extract_character_names(text: str) -> list[str]:
-    candidates: dict[str, int] = {}
-    common_words = {
-        "小说",
-        "章节",
-        "正文",
-        "时候",
-        "天下",
-        "将军",
-        "先生",
-        "夫人",
-        "众人",
-        "百姓",
-        "城中",
-        "门外",
-    }
-    for match in re.finditer(r"[\u4e00-\u9fa5]{2,4}", text):
-        word = match.group(0)
-        if word in common_words:
-            continue
-        if re.search(r"[说道问答曰喊叫笑哭望看想听走来去回入出]", word):
-            continue
-        candidates[word] = candidates.get(word, 0) + 1
-
-    ranked = sorted(candidates.items(), key=lambda item: (-item[1], len(item[0]), item[0]))
-    return [name for name, count in ranked if count >= 2][:12]
-
-
-def _extract_location_names(text: str) -> list[str]:
-    pattern = re.compile(r"([\u4e00-\u9fa5]{1,8}(?:城|府|宫|殿|门|山|河|江|营|寨|村|镇|街|院|房|屋|楼|阁|厅|店|站|场|桥|路|关|州|郡|县))")
-    counts: dict[str, int] = {}
-    for match in pattern.finditer(text):
-        location = match.group(1)
-        counts[location] = counts.get(location, 0) + 1
-    return [name for name, _count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:12]]
-
-
-def _character_context(name: str, text: str) -> str:
-    index = text.find(name)
-    if index < 0:
-        return "本地预处理识别的人物候选，等待 AI 解析补充身份与动机。"
-    start = max(0, index - 24)
-    end = min(len(text), index + len(name) + 48)
-    return _brief(text[start:end], 90)
-
-
-def _detect_themes(text: str) -> list[str]:
-    theme_rules = [
-        ("权谋", ["朝廷", "权", "谋", "帝", "王", "主公"]),
-        ("战争", ["战", "军", "兵", "营", "攻", "守"]),
-        ("成长", ["成长", "试炼", "第一次", "终于", "学会"]),
-        ("情感", ["喜欢", "爱", "恨", "朋友", "亲人", "误会"]),
-        ("悬疑", ["秘密", "真相", "线索", "疑", "夜"]),
-    ]
-    themes = [name for name, keywords in theme_rules if any(keyword in text for keyword in keywords)]
-    return themes[:4] or ["人物动机", "章节冲突"]
-
-
-def _detect_conflicts(chapters: list[dict[str, Any]]) -> list[str]:
-    conflicts = []
-    conflict_keywords = ["战", "争", "怒", "杀", "逃", "拒", "误会", "危", "破", "困", "逼", "敌"]
-    for chapter in chapters[:8]:
-        content = chapter.get("content", "")
-        sentence = _first_sentence_with_keywords(content, conflict_keywords) or _brief(content, 72)
-        if sentence:
-            conflicts.append(f"{chapter['title']}：{sentence}")
-    return conflicts
-
-
-def _first_sentence_with_keywords(text: str, keywords: list[str]) -> str | None:
-    for sentence in re.split(r"[。！？!?]\s*", text):
-        stripped = sentence.strip()
-        if stripped and any(keyword in stripped for keyword in keywords):
-            return _brief(stripped, 90)
-    return None
-
-
-def _preparation_notes(
-    chapters: list[dict[str, Any]],
-    character_names: list[str],
-    location_names: list[str],
-) -> list[str]:
-    notes = [
-        f"已本地整理 {len(chapters)} 个章节，后续 AI 解析将基于该章节结构继续提取人物关系和剧情事件。",
-        f"识别到 {len(character_names)} 个高频人物候选，AI 阶段需要进一步过滤误识别名词。",
-        f"识别到 {len(location_names)} 个地点/场景候选，可用于剧本分场初始化。",
-    ]
-    if chapters and min(chapter.get("char_count", 0) for chapter in chapters) < 20:
-        notes.append("存在正文较短章节，生成剧本前建议检查是否漏传章节内容。")
-    return notes
 
 
 def _import_issues(text: str, chapters: list[dict[str, Any]]) -> list[dict[str, str]]:

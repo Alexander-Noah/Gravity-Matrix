@@ -87,6 +87,13 @@
   font-weight: 760;
 }
 
+.setting-hint {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .segmented-grid,
 .checkbox-grid {
   display: grid;

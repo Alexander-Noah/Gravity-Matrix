@@ -11,6 +11,17 @@ class ScriptMetadata(BaseModel):
     script_type: str | None = None
     adaptation_style: str | None = None
     total_chapters: int = Field(ge=3)
+    adaptation_mode: str = "standard"
+    omitted_reason: str = ""
+    coverage: "CoverageInfo | None" = None
+
+
+class CoverageInfo(BaseModel):
+    source_chapters: int = 0
+    generated_scenes: int = 0
+    preserved_dialogues: int = 0
+    adaptation_mode: str = "standard"
+    omitted_reason: str = ""
 
 
 class Character(BaseModel):
@@ -33,6 +44,13 @@ class DialogueLine(BaseModel):
     speaker_name: str
     line: str
     emotion: str = "neutral"
+    line_type: str = "dialogue"
+
+
+class SourceRange(BaseModel):
+    chapter: int
+    start_hint: str
+    end_hint: str
 
 
 class Scene(BaseModel):
@@ -42,6 +60,7 @@ class Scene(BaseModel):
     time: str
     characters: list[str]
     synopsis: str
+    source_range: SourceRange | None = None
     stage_directions: list[str] = Field(default_factory=list)
     dialogue: list[DialogueLine] = Field(default_factory=list)
 
@@ -66,6 +85,7 @@ class ScriptBody(BaseModel):
     metadata: ScriptMetadata
     characters: list[Character]
     locations: list[Location]
+    organizations: list[Location] = Field(default_factory=list)
     chapters: list[ScriptChapter]
     adaptation_notes: AdaptationNotes = Field(default_factory=AdaptationNotes)
 

@@ -1,4 +1,4 @@
-export const navItems = [
+﻿export const navItems = [
   { id: 'workbench', label: '工作台', icon: 'home' },
   { id: 'novel-to-yaml', label: '小说转YAML', icon: 'format' },
   { id: 'templates', label: '模板中心', icon: 'grid' },
@@ -18,7 +18,7 @@ export const generationSettingOptions = {
   contentOptions: ['动作描写', '情绪提示', '镜头建议', '转场提示'],
 }
 
-export const schemaValidationMock = {
+export const schemaValidationDefault = {
   yamlValid: true,
   requiredFieldsValid: true,
   chapterCount: 5,
@@ -56,19 +56,19 @@ export const previewWorkflowSteps = [
 ]
 
 export const defaultNovelText = `第1章 初入城市
-林晓拖着行李箱走出地铁站，城市的傍晚像一层淡金色的雾。她背着旧吉他，低头确认地址，却发现手机只剩下百分之三的电。
+角色甲拖着行李箱走出地铁站，城市的傍晚像一层淡金色的雾。她背着旧吉他，低头确认地址，却发现手机只剩下百分之三的电。
 
 第2章 梦想启航
-苏晴在出租屋门口等她，两个人合租的第一晚并不宽裕，但窗外的灯光让林晓第一次觉得自己真的抵达了梦想开始的地方。
+角色乙在出租屋门口等她，两个人合租的第一晚并不宽裕，但窗外的灯光让角色甲第一次觉得自己真的抵达了梦想开始的地方。
 
 第3章 现实的挑战
-面试并不顺利，制作人只听了三十秒就打断了她。林晓把简历攥得很紧，仍然礼貌地说谢谢，走出写字楼后却忍不住红了眼眶。
+面试并不顺利，制作人只听了三十秒就打断了她。角色甲把简历攥得很紧，仍然礼貌地说谢谢，走出写字楼后却忍不住红了眼眶。
 
 第4章 友情的考验
-苏晴偷偷把林晓的 demo 发给小剧场导演，林晓知道后很生气。她以为好友不理解她的坚持，却没有发现苏晴已经替她跑了很多路。
+角色乙偷偷把角色甲的 音频片段 发给小剧场导演，角色甲知道后很生气。她以为好友不理解她的坚持，却没有发现角色乙已经替她跑了很多路。
 
 第5章 破茧成蝶
-小剧场的灯亮起，林晓站在舞台中央唱出第一句歌词。台下的掌声不算热烈，却足够让她重新相信，慢慢来也可以走到远方。`
+小剧场的灯亮起，角色甲站在舞台中央唱出第一句歌词。台下的掌声不算热烈，却足够让她重新相信，慢慢来也可以走到远方。`
 
 export const projectStages = [
   { label: '小说导入', status: 'done', note: '' },
@@ -140,7 +140,7 @@ export const scriptGenerationTemplates = [
       '  logline: 主线故事一句话概述',
       'characters:',
       '  - id: char_001',
-      '    name: 林晓',
+      '    name: 角色甲',
       '    role: 主角',
       'chapters:',
       '  - id: ch_001',
@@ -152,7 +152,7 @@ export const scriptGenerationTemplates = [
       '        time: 傍晚',
       '        action: 人群涌动，主角拖着行李走出站台。',
       '        dialogues:',
-      '          - speaker: 林晓',
+      '          - speaker: 角色甲',
       '            line: 这座城市，真的能实现我的梦想吗？',
     ],
   },
@@ -191,9 +191,9 @@ export const scriptGenerationTemplates = [
       '        - title: 出租屋夜谈',
       '          stage_direction: 灯光渐亮，桌上放着旧吉他。',
       '          entrances:',
-      '            - 林晓从舞台左侧入场',
+      '            - 角色甲从舞台左侧入场',
       '          dialogues:',
-      '            - speaker: 苏晴',
+      '            - speaker: 角色乙',
       '              line: 先把今晚安顿好。',
     ],
   },
@@ -209,7 +209,7 @@ export const scriptGenerationTemplates = [
       '  shots:',
       '    - shot_id: shot_001',
       '      camera: 中景，跟拍',
-      '      visual: 林晓拖着行李走出地铁站',
+      '      visual: 角色甲拖着行李走出地铁站',
       '      audio: 地铁广播与人群声',
       '      transition: 切至手机低电量特写',
     ],
@@ -227,11 +227,11 @@ export const scriptGenerationTemplates = [
       '  scenes:',
       '    - title: 地铁站出口',
       '      ambient: 人群脚步声，远处广播声',
-      '      narration: 林晓第一次站在这座城市的傍晚里。',
+      '      narration: 角色甲第一次站在这座城市的傍晚里。',
       '      sound_effects:',
       '        - 手机低电量提示音',
       '      dialogues:',
-      '        - speaker: 林晓',
+      '        - speaker: 角色甲',
       '          line: 这座城市，真的能实现我的梦想吗？',
     ],
   },
@@ -459,10 +459,10 @@ export const insightItems = [
 ]
 
 export const analysisCharacters = [
-  { name: '林晓', role: '主角', age: '24', trait: '怀揣音乐梦想，敏感但坚定' },
-  { name: '苏晴', role: '室友 / 盟友', age: '25', trait: '行动力强，习惯用实际帮助表达关心' },
-  { name: '周亦辰', role: '制作人', age: '32', trait: '克制冷静，代表行业门槛与现实压力' },
-  { name: '小剧场导演', role: '机会提供者', age: '38', trait: '关注真实表达，推动林晓完成转折' },
+  { name: '角色甲', role: '主角', age: '24', trait: '怀揣音乐梦想，敏感但坚定' },
+  { name: '角色乙', role: '室友 / 盟友', age: '25', trait: '行动力强，习惯用实际帮助表达关心' },
+  { name: '角色丙', role: '制作人', age: '32', trait: '克制冷静，代表行业门槛与现实压力' },
+  { name: '小剧场导演', role: '机会提供者', age: '38', trait: '关注真实表达，推动角色甲完成转折' },
 ]
 
 export const analysisScenes = [
@@ -473,23 +473,23 @@ export const analysisScenes = [
 ]
 
 export const plotEvents = [
-  { step: '01', chapter: '第1章', title: '抵达城市', detail: '林晓带着吉他来到陌生城市，建立主角目标和孤独感。' },
-  { step: '02', chapter: '第2章', title: '获得陪伴', detail: '苏晴接纳林晓，合租关系成为后续情感支点。' },
+  { step: '01', chapter: '第1章', title: '抵达城市', detail: '角色甲带着吉他来到陌生城市，建立主角目标和孤独感。' },
+  { step: '02', chapter: '第2章', title: '获得陪伴', detail: '角色乙接纳角色甲，合租关系成为后续情感支点。' },
   { step: '03', chapter: '第3章', title: '面试受挫', detail: '制作人的打断让主角第一次直面行业现实。' },
-  { step: '04', chapter: '第4章', title: '好友误会', detail: '苏晴越界帮忙，引发友情冲突，也埋下机会。' },
-  { step: '05', chapter: '第5章', title: '舞台试炼', detail: '林晓完成公开演出，故事进入阶段性成长。' },
+  { step: '04', chapter: '第4章', title: '好友误会', detail: '角色乙越界帮忙，引发友情冲突，也埋下机会。' },
+  { step: '05', chapter: '第5章', title: '舞台试炼', detail: '角色甲完成公开演出，故事进入阶段性成长。' },
 ]
 
 export const characterRelations = [
-  { source: '林晓', target: '苏晴', relation: '室友 / 朋友', note: '支持与误会并存，是情绪转折的主要关系。' },
-  { source: '林晓', target: '周亦辰', relation: '求职者 / 评审', note: '体现行业规则和主角自我怀疑。' },
-  { source: '苏晴', target: '小剧场导演', relation: '推荐人 / 导演', note: '推动林晓获得第一次舞台机会。' },
+  { source: '角色甲', target: '角色乙', relation: '室友 / 朋友', note: '支持与误会并存，是情绪转折的主要关系。' },
+  { source: '角色甲', target: '角色丙', relation: '求职者 / 评审', note: '体现行业规则和主角自我怀疑。' },
+  { source: '角色乙', target: '小剧场导演', relation: '推荐人 / 导演', note: '推动角色甲获得第一次舞台机会。' },
 ]
 
 export const dialogueExtracts = [
-  { speaker: '林晓', scene: '地铁站出口', line: '这座城市，真的能实现我的梦想吗？', intent: '表达不确定和核心目标' },
-  { speaker: '苏晴', scene: '出租屋', line: '先把今晚安顿好，梦想明天继续追。', intent: '缓和压力，建立陪伴感' },
-  { speaker: '周亦辰', scene: '面试间', line: '技巧不错，但我听不到你自己的声音。', intent: '制造打击，指出成长方向' },
+  { speaker: '角色甲', scene: '地铁站出口', line: '这座城市，真的能实现我的梦想吗？', intent: '表达不确定和核心目标' },
+  { speaker: '角色乙', scene: '出租屋', line: '先把今晚安顿好，梦想明天继续追。', intent: '缓和压力，建立陪伴感' },
+  { speaker: '角色丙', scene: '面试间', line: '技巧不错，但我听不到你自己的声音。', intent: '制造打击，指出成长方向' },
 ]
 
 export const scriptChapters = [
@@ -519,7 +519,7 @@ export const yamlLines = [
   [],
   [{ text: 'characters:', tone: 'key' }],
   [{ text: '  - id:', tone: 'key' }, { text: ' char_001', tone: 'value' }],
-  [{ text: '    name:', tone: 'key' }, { text: ' 林晓', tone: 'string' }],
+  [{ text: '    name:', tone: 'key' }, { text: ' 角色甲', tone: 'string' }],
   [{ text: '    role:', tone: 'key' }, { text: ' 主角', tone: 'value' }],
   [{ text: '    gender:', tone: 'key' }, { text: ' 女', tone: 'value' }],
   [{ text: '    age:', tone: 'key' }, { text: ' 24', tone: 'number' }],
@@ -528,7 +528,7 @@ export const yamlLines = [
   [{ text: 'chapters:', tone: 'key' }],
   [{ text: '  - id:', tone: 'key' }, { text: ' ch_001', tone: 'value' }],
   [{ text: '    title:', tone: 'key' }, { text: ' 初入城市', tone: 'string' }],
-  [{ text: '    summary:', tone: 'key' }, { text: ' 林晓来到大城市，开始新的生活与挑战', tone: 'string' }],
+  [{ text: '    summary:', tone: 'key' }, { text: ' 角色甲来到大城市，开始新的生活与挑战', tone: 'string' }],
   [{ text: '    scenes:', tone: 'key' }],
   [{ text: '      - id:', tone: 'key' }, { text: ' sc_001_001', tone: 'value' }],
   [{ text: '        title:', tone: 'key' }, { text: ' 地铁站相遇', tone: 'string' }],
@@ -541,12 +541,12 @@ export const yamlLines = [
 
 export const previewDialogues = [
   {
-    speaker: '林晓',
+    speaker: '角色甲',
     note: '（自言自语）',
     line: '这座城市，真的能实现我的梦想吗？',
   },
   {
-    speaker: '苏晴',
+    speaker: '角色乙',
     note: '（微笑）',
     line: '需要帮助吗？看起来你有点迷路了。',
   },
@@ -556,31 +556,31 @@ export const scriptPreviewScenes = [
   {
     title: '场景 1-1 地铁站相遇',
     meta: '内景 / 地铁站 / 傍晚',
-    characters: ['林晓', '苏晴'],
-    action: '人头攒动的地铁站，广播声回荡。林晓背着吉他包，低头看着手机，神情略显迷茫。手机电量只剩百分之三，她抬头望向出口指示牌。',
+    characters: ['角色甲', '角色乙'],
+    action: '人头攒动的地铁站，广播声回荡。角色甲背着吉他包，低头看着手机，神情略显迷茫。手机电量只剩百分之三，她抬头望向出口指示牌。',
     dialogues: [
-      { speaker: '林晓', line: '这座城市，真的能实现我的梦想吗？' },
-      { speaker: '苏晴', line: '需要帮忙吗？看起来你有点迷路了。' },
+      { speaker: '角色甲', line: '这座城市，真的能实现我的梦想吗？' },
+      { speaker: '角色乙', line: '需要帮忙吗？看起来你有点迷路了。' },
     ],
   },
   {
     title: '场景 1-2 出租屋夜谈',
     meta: '内景 / 出租屋 / 夜晚',
-    characters: ['林晓', '苏晴'],
-    action: '小小的出租屋里，纸箱还没拆完。窗外灯光落在旧吉他上，林晓终于松下一口气。',
+    characters: ['角色甲', '角色乙'],
+    action: '小小的出租屋里，纸箱还没拆完。窗外灯光落在旧吉他上，角色甲终于松下一口气。',
     dialogues: [
-      { speaker: '苏晴', line: '先把今晚安顿好，梦想明天继续追。' },
-      { speaker: '林晓', line: '我怕自己坚持不到被人看见的那一天。' },
+      { speaker: '角色乙', line: '先把今晚安顿好，梦想明天继续追。' },
+      { speaker: '角色甲', line: '我怕自己坚持不到被人看见的那一天。' },
     ],
   },
   {
     title: '场景 1-3 公司面试',
     meta: '内景 / 音乐公司面试间 / 下午',
-    characters: ['林晓', '周亦辰'],
-    action: '会议室的白光很亮。周亦辰合上简历，林晓攥紧背包带，努力保持礼貌的微笑。',
+    characters: ['角色甲', '角色丙'],
+    action: '会议室的白光很亮。角色丙合上简历，角色甲攥紧背包带，努力保持礼貌的微笑。',
     dialogues: [
-      { speaker: '周亦辰', line: '技巧不错，但我听不到你自己的声音。' },
-      { speaker: '林晓', line: '我可以再试一次，请给我一分钟。' },
+      { speaker: '角色丙', line: '技巧不错，但我听不到你自己的声音。' },
+      { speaker: '角色甲', line: '我可以再试一次，请给我一分钟。' },
     ],
   },
 ]
@@ -604,7 +604,7 @@ export const schemaHelpContent = {
     '    total_chapters: 5',
     '  characters:',
     '    - id: char_001',
-    '      name: 林晓',
+    '      name: 角色甲',
     '      role: 主角',
     '  locations:',
     '    - id: loc_001',
@@ -624,7 +624,7 @@ export const schemaHelpContent = {
     '            - 林默拖着行李箱走出地铁站。',
     '          dialogue:',
     '            - speaker_id: char_001',
-    '              speaker_name: 林晓',
+    '              speaker_name: 角色甲',
     '              emotion: 自言自语',
     '              line: 这座城市，真的能实现我的梦想吗？',
   ],

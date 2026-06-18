@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
@@ -6,6 +7,8 @@ from sqlalchemy.orm import Session
 from app.models.project import Job, JobStatus, JobType, Project
 from app.services.llm import analyze_project, generate_screenplay
 from app.services.screenplay_yaml import dump_screenplay_yaml
+
+logger = logging.getLogger(__name__)
 
 
 def run_analysis_job(db: Session, job_id: int) -> None:
@@ -16,6 +19,15 @@ def run_analysis_job(db: Session, job_id: int) -> None:
     try:
         _mark_running(db, job, "正在读取小说章节", 10)
         project = _get_project(db, job.project_id)
+        text_chars = sum(len(chapter.content or "") for chapter in project.chapters)
+        logger.info(
+            "analysis_job input project_id=%s text_chars=%s chapters=%s real_ai=%s mock_fallback=%s",
+            project.id,
+            text_chars,
+            len(project.chapters),
+            True,
+            False,
+        )
 
         _mark_running(db, job, "正在分析人物、场景和冲突", 45)
         result = analyze_project(project)
@@ -23,6 +35,18 @@ def run_analysis_job(db: Session, job_id: int) -> None:
         _mark_running(db, job, "正在整理 AI 解析结果", 85)
         project.analysis_json = json.dumps(result.content, ensure_ascii=False)
         project.status = "analysis_completed"
+        scene_count = sum(
+            len(item.get("analysis", {}).get("events", []) or [])
+            for item in result.content.get("chapter_analyses", []) or []
+            if isinstance(item, dict)
+        )
+        logger.info(
+            "analysis_job output project_id=%s characters=%s scenes=%s mock_fallback=%s",
+            project.id,
+            len(result.content.get("characters", []) or []),
+            scene_count,
+            False,
+        )
         _mark_succeeded(db, job, "AI 解析完成", 100, project.id)
     except Exception as exc:  # pragma: no cover - defensive boundary for background tasks
         _mark_failed(db, job, str(exc))
@@ -39,13 +63,26 @@ def run_script_generation_job(db: Session, job_id: int) -> None:
 
         _mark_running(db, job, "正在整理章节结构", 30)
         analysis = json.loads(project.analysis_json) if project.analysis_json else None
+        if analysis is None:
+            raise ValueError("请先完成第 2 步 AI 解析，再生成剧本 YAML。")
 
         _mark_running(db, job, "正在生成场景和对白", 65)
+        logger.info(
+            "script_job input project_id=%s analysis_characters=%s analysis_locations=%s real_ai=%s mock_fallback=%s",
+            project.id,
+            len(analysis.get("characters", []) or []),
+            len(analysis.get("locations", []) or []),
+            True,
+            False,
+        )
         result = generate_screenplay(project, analysis)
 
         _mark_running(db, job, "正在校验并保存剧本 YAML", 90)
         project.script_yaml = dump_screenplay_yaml(result.content)
         project.status = "script_completed"
+        script = result.content.get("script", {}) if isinstance(result.content, dict) else {}
+        scene_count = sum(len(chapter.get("scenes", []) or []) for chapter in script.get("chapters", []) or [])
+        logger.info("script_job output project_id=%s scenes=%s mock_fallback=%s", project.id, scene_count, False)
         _mark_succeeded(db, job, "剧本生成完成", 100, project.id)
     except Exception as exc:  # pragma: no cover - defensive boundary for background tasks
         _mark_failed(db, job, str(exc))

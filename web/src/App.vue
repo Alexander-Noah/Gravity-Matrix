@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import yaml from 'js-yaml'
@@ -52,28 +52,17 @@ import TemplateCenterPage from './components/TemplateCenterPage.vue'
 import WorkflowStepper from './components/WorkflowStepper.vue'
 import WorkspaceHeader from './components/WorkspaceHeader.vue'
 import {
-  analysisCharacters,
-  analysisMetrics,
-  analysisScenes,
   analysisWorkflowSteps,
-  characterRelations,
-  dialogueExtracts,
   generationSettingOptions,
   iconPaths,
   importWorkflowSteps,
-  insightItems,
   navItems,
-  plotEvents,
   previewWorkflowSteps,
   projectStages,
   productHelpDocs,
   schemaHelpContent,
-  schemaValidationMock,
-  scriptGenerationTemplates as mockTemplates,
-  scriptChapters,
-  scriptPreviewScenes,
+  scriptGenerationTemplates as localTemplates,
   workflowSteps,
-  yamlLines,
 } from './data/workbench'
 import { getRouteById } from './router/routes'
 
@@ -92,21 +81,29 @@ const isAddSceneOpen = ref(false)
 const generatedSettings = ref(null)
 const generatedScriptYaml = ref('')
 const editableScriptYaml = ref('')
-const schemaValidation = ref(schemaValidationMock)
+const defaultSchemaValidation = {
+  yamlValid: false,
+  requiredFieldsValid: false,
+  chapterCount: 0,
+  sceneCount: 0,
+  checkedAt: '尚未校验',
+  message: '等待真实剧本 YAML。',
+}
+const schemaValidation = ref(defaultSchemaValidation)
 const editorNotice = ref('')
 const previewNotice = ref('')
 const selectedTemplateId = ref(localStorage.getItem('gravityMatrixSelectedTemplate') || 'tv-drama')
 const currentUser = ref(getAuthSession().user)
 const isProfileCenterOpen = ref(false)
 const isGuideOpen = ref(false)
-const displayedAnalysisCharacters = ref(analysisCharacters)
-const displayedAnalysisMetrics = ref(analysisMetrics)
-const displayedAnalysisScenes = ref(analysisScenes)
-const displayedPlotEvents = ref(plotEvents)
-const displayedCharacterRelations = ref(characterRelations)
-const displayedDialogueExtracts = ref(dialogueExtracts)
-const displayedInsightItems = ref(insightItems)
-const displayedScriptChapters = ref(scriptChapters)
+const displayedAnalysisCharacters = ref([])
+const displayedAnalysisMetrics = ref([])
+const displayedAnalysisScenes = ref([])
+const displayedPlotEvents = ref([])
+const displayedCharacterRelations = ref([])
+const displayedDialogueExtracts = ref([])
+const displayedInsightItems = ref([])
+const displayedScriptChapters = ref([])
 const displayedLibraryItems = ref([])
 const displayedLibraryStats = ref([
   { label: '全部剧本', value: '0', note: '等待读取真实剧本库', tone: 'violet' },
@@ -114,7 +111,7 @@ const displayedLibraryStats = ref([
   { label: '已完成', value: '0', note: '等待读取真实剧本库', tone: 'mint' },
   { label: '素材库', value: '0', note: '等待读取真实剧本库', tone: 'orange' },
 ])
-const displayedTemplates = ref(mockTemplates)
+const displayedTemplates = ref(localTemplates)
 const selectedSceneId = ref(null)
 const libraryNotice = ref('')
 const isLibraryLoading = ref(false)
@@ -170,7 +167,7 @@ const fetchTemplates = async () => {
       getScriptTemplates(),
       getDefaultTemplate(),
     ])
-    displayedTemplates.value = templates?.length ? templates : mockTemplates
+    displayedTemplates.value = templates?.length ? templates : localTemplates
     if (defaultTemplate?.templateId) {
       selectedTemplateId.value = defaultTemplate.templateId
       localStorage.setItem('gravityMatrixSelectedTemplate', defaultTemplate.templateId)
@@ -849,7 +846,7 @@ const resetWorkbenchFlow = () => {
   currentProjectProgress.value = 0
   currentProjectStages.value = buildProjectStages('import')
   displayedScriptChapters.value = []
-  schemaValidation.value = schemaValidationMock
+  schemaValidation.value = defaultSchemaValidation
 }
 
 const enterWorkbenchHome = () => {
@@ -947,27 +944,18 @@ const generatedYamlLines = computed(() => {
     return yamlTextToLines(generatedScriptYaml.value)
   }
 
-  if (currentProjectId.value) {
-    return yamlTextToLines('# 剧本 YAML 尚未生成。\n# 请等待后端任务完成，完成后这里会显示真实 YAML。')
-  }
-
   if (!generatedSettings.value) {
-    return yamlLines
+    return yamlTextToLines('# 剧本 YAML 尚未生成。\n# 请先完成 AI 解析并生成剧本。')
   }
 
-  return [
-    ...yamlLines.slice(0, 6),
-    [{ text: 'generation_settings:', tone: 'key' }],
-    [{ text: '  script_type:', tone: 'key' }, { text: ` ${generatedSettings.value.scriptType}`, tone: 'string' }],
-    [{ text: '  adaptation_style:', tone: 'key' }, { text: ` ${generatedSettings.value.adaptationStyle}`, tone: 'string' }],
-    [{ text: '  content_options:', tone: 'key' }],
-    ...generatedSettings.value.contentOptions.map((option) => [
-      { text: '    -', tone: 'key' },
-      { text: ` ${option}`, tone: 'value' },
-    ]),
-    [],
-    ...yamlLines.slice(6),
-  ]
+  return yamlTextToLines([
+    '# 剧本 YAML 尚未生成。',
+    '# 当前生成设置已保存，等待后端 AI 生成真实 YAML。',
+    'generation_settings:',
+    `  script_type: ${generatedSettings.value.scriptType || ''}`,
+    `  adaptation_style: ${generatedSettings.value.adaptationStyle || ''}`,
+    `  detail_level: ${generatedSettings.value.detail_level || 'standard'}`,
+  ].join('\n'))
 })
 const generatedYamlText = computed(() =>
   editableScriptYaml.value || generatedScriptYaml.value || (!currentProjectId.value
@@ -1045,11 +1033,11 @@ const saveYamlNow = async () => {
 }
 const displayedPreviewScenes = computed(() => {
   if (!generatedScriptYaml.value) {
-    return currentProjectId.value ? [] : scriptPreviewScenes
+    return []
   }
 
   const scenes = buildScriptScenes(generatedScriptYaml.value)
-  return scenes.length ? scenes : (currentProjectId.value ? [] : scriptPreviewScenes)
+  return scenes
 })
 
 const selectedPreviewScene = computed(() => {
@@ -1131,77 +1119,80 @@ const syncCurrentWorkbench = async () => {
 
 const applyAnalysisResult = (analysis) => {
   const raw = analysis?.analysis || analysis || {}
-  const characters = raw.characters || []
-  const locations = raw.locations || []
-  const chapterSummaries = raw.chapter_summaries || []
-  const conflicts = raw.conflicts || []
-  const themes = raw.themes || []
-
-  displayedAnalysisCharacters.value = characters.length
-    ? characters.map((character, index) => ({
-      name: character.name || `人物 ${index + 1}`,
-      role: character.role || '角色',
-      age: character.age ?? '-',
-      trait: character.description || '等待作者继续补充人物说明',
+  const characters = Array.isArray(raw.characters) ? raw.characters : []
+  const locations = Array.isArray(raw.locations) ? raw.locations : []
+  const chapterAnalyses = Array.isArray(raw.chapter_analyses) ? raw.chapter_analyses : []
+  const conflicts = Array.isArray(raw.conflicts) ? raw.conflicts : []
+  const themes = Array.isArray(raw.themes) ? raw.themes : []
+  const events = chapterAnalyses.flatMap((chapter, chapterIndex) => {
+    const chapterEvents = chapter?.analysis?.events || []
+    return chapterEvents.map((event, eventIndex) => ({
+      ...event,
+      chapterNumber: chapter.chapter_number || chapterIndex + 1,
+      chapterTitle: chapter.source_title || chapter?.analysis?.chapter_title || `第${chapterIndex + 1}章`,
+      step: `${chapterIndex + 1}-${eventIndex + 1}`,
     }))
-    : analysisCharacters
-
-  displayedAnalysisScenes.value = locations.length
-    ? locations.map((location, index) => ({
-      title: location.name || `场景 ${index + 1}`,
-      chapter: `第${index + 1}章`,
-      time: '待定',
-      mood: location.description || '由 AI 根据章节内容识别',
+  })
+  const dialogues = chapterAnalyses.flatMap((chapter, chapterIndex) => {
+    const chapterDialogues = chapter?.analysis?.dialogues || []
+    return chapterDialogues.map((dialogue, dialogueIndex) => ({
+      ...dialogue,
+      chapterNumber: chapter.chapter_number || chapterIndex + 1,
+      chapterTitle: chapter.source_title || chapter?.analysis?.chapter_title || `第${chapterIndex + 1}章`,
+      key: `${chapterIndex + 1}-${dialogueIndex + 1}`,
     }))
-    : analysisScenes
+  })
 
-  displayedAnalysisMetrics.value = [
-    { label: '出场人物', value: String(characters.length), note: '主要角色', icon: 'user', tone: 'blue' },
-    { label: '核心场景', value: String(locations.length), note: '主要发生地', icon: 'location', tone: 'mint' },
-    { label: '核心主题', value: String(themes.length), note: '故事基调', icon: 'message', tone: 'violet' },
-    { label: '冲突事件', value: String(conflicts.length), note: '高潮与转折', icon: 'conflict', tone: 'orange' },
-  ]
+  displayedAnalysisCharacters.value = characters.map((character, index) => ({
+    name: character.name || `人物 ${index + 1}`,
+    role: character.role || '角色',
+    age: character.age ?? '-',
+    trait: character.description || character.evidence || 'AI 已识别，等待作者补充说明',
+  }))
 
-  if (themes.length) {
-    displayedInsightItems.value = themes.map((theme, idx) => ({
-      title: `主题 ${idx + 1}`,
-      description: `剧本围绕 "${theme}" 展开，建议在对白中强化这一主旨。`,
-      tone: ['blue', 'mint', 'orange', 'violet'][idx % 4]
+  displayedAnalysisScenes.value = events.map((event, index) => ({
+    title: event.title || `场景 ${index + 1}`,
+    chapter: event.chapterTitle,
+    time: '由 AI 判断',
+    mood: event.summary || event.evidence || 'AI 解析事件',
+  }))
+
+  displayedPlotEvents.value = events.map((event, index) => ({
+    step: String(index + 1).padStart(2, '0'),
+    chapter: event.chapterTitle,
+    title: event.title || `事件 ${index + 1}`,
+    detail: event.summary || event.evidence || '',
+  }))
+
+  displayedDialogueExtracts.value = dialogues.map((dialogue) => ({
+    speaker: dialogue.speaker || '旁白',
+    scene: dialogue.chapterTitle,
+    line: dialogue.line || '',
+    intent: dialogue.evidence || dialogue.line_type || '',
+  })).filter((dialogue) => dialogue.line)
+
+  displayedInsightItems.value = themes.map((theme, idx) => ({
+    title: `主题 ${idx + 1}`,
+    description: String(theme),
+    tone: ['blue', 'mint', 'orange', 'violet'][idx % 4],
+  }))
+
+  displayedCharacterRelations.value = Array.isArray(raw.relationships)
+    ? raw.relationships.map((relation, index) => ({
+      source: relation.source || relation.from || `关系 ${index + 1}`,
+      target: relation.target || relation.to || '',
+      relation: relation.relation || relation.type || '',
+      note: relation.evidence || relation.description || '',
     }))
-  } else {
-    displayedInsightItems.value = insightItems
-  }
-
-  displayedPlotEvents.value = chapterSummaries.length
-    ? chapterSummaries.map((chapter, index) => ({
-      step: String(index + 1).padStart(2, '0'),
-      chapter: `第${chapter.chapter_number || index + 1}章`,
-      title: chapter.title || `章节事件 ${index + 1}`,
-      detail: chapter.summary || '等待 AI 补充章节摘要',
-    }))
-    : plotEvents
+    : []
 
   displayedAnalysisMetrics.value = [
     { label: '人物', value: String(characters.length), icon: 'users', tone: 'violet' },
-    { label: '场景', value: String(locations.length), icon: 'scene', tone: 'blue' },
-    { label: '章节', value: String(chapterSummaries.length || chapterCount.value), icon: 'chapter', tone: 'mint' },
-    { label: '冲突事件', value: String(conflicts.length), icon: 'conflict', tone: 'orange' },
+    { label: '地点', value: String(locations.length), icon: 'scene', tone: 'blue' },
+    { label: '事件', value: String(events.length), icon: 'chapter', tone: 'mint' },
+    { label: '对白', value: String(dialogues.length), icon: 'message', tone: 'orange' },
   ]
-
-  displayedCharacterRelations.value = characters.length >= 2
-    ? [
-      {
-        source: characters[0].name || '主角',
-        target: characters[1].name || '重要人物',
-        relation: '主要关系',
-        note: conflicts[0] || themes.join('、') || '可在后续剧本编辑中继续细化人物关系。',
-      },
-    ]
-    : characterRelations
-
-  displayedDialogueExtracts.value = dialogueExtracts
 }
-
 const applyPreprocessResult = (preprocess) => {
   if (!preprocess) return
 
@@ -1367,6 +1358,7 @@ const defaultGenerationSettings = computed(() => {
     templateId,
     scriptType,
     adaptationStyle: generationSettingOptions.adaptationStyles[0],
+    detail_level: 'standard',
     contentOptions: generationSettingOptions.contentOptions.slice(0, 2),
   }
 })
@@ -1587,6 +1579,7 @@ const confirmGenerationSettings = async (settings) => {
   const normalizedSettings = {
     ...settings,
     templateId: settings.templateId || selectedTemplateId.value,
+    detail_level: settings.detail_level || settings.detailLevel || 'standard',
   }
 
   generatedSettings.value = normalizedSettings
@@ -1703,7 +1696,7 @@ const confirmAddScene = async (sceneDraft) => {
 const validateYaml = async () => {
   if (!currentProjectId.value) {
     schemaValidation.value = {
-      ...schemaValidationMock,
+      ...defaultSchemaValidation,
       checkedAt: `刚刚校验 · ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`,
       message: '校验通过：YAML 格式正确，必填字段完整。',
     }

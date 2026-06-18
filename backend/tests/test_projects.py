@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -35,7 +35,7 @@ def isolated_database(monkeypatch):
 
 
 def _payload(chapter_count: int = 3) -> dict:
-    chapter_samples = [
+    chapter_texts = [
         "话说天下大势，分久必合，合久必分。东汉末年，朝政日非，群雄渐起，刘备、关羽、张飞在乱世中相识。",
         "张飞庄后桃园花开正盛，刘备、关羽、张飞三人焚香再拜，约定同心协力，救困扶危，上报国家，下安黎庶。",
         "黄巾军势大，各地豪杰纷纷响应朝廷招募。刘备率新结义的兄弟投身战阵，开始踏入动荡的天下局势。",
@@ -46,7 +46,7 @@ def _payload(chapter_count: int = 3) -> dict:
         "chapters": [
             {
                 "title": f"第 {index} 章",
-                "content": chapter_samples[index - 1] if index <= len(chapter_samples) else chapter_samples[-1],
+                "content": chapter_texts[index - 1] if index <= len(chapter_texts) else chapter_texts[-1],
             }
             for index in range(1, chapter_count + 1)
         ],

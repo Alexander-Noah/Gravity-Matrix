@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, reactive, watch } from 'vue'
 
 const props = defineProps({
@@ -89,7 +89,7 @@ const confirmScene = () => {
 
           <label class="form-field">
             <span>出场人物</span>
-            <input v-model="form.characters" type="text" placeholder="用顿号分隔，例如：林晓、苏晴" />
+            <input v-model="form.characters" type="text" placeholder="用顿号分隔，例如：角色甲、角色乙" />
           </label>
 
           <label class="form-field">

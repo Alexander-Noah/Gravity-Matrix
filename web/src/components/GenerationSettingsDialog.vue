@@ -11,27 +11,34 @@ const emit = defineEmits(['update:modelValue', 'confirm'])
 
 const selectedType = ref('')
 const selectedStyle = ref('')
+const selectedDetail = ref('standard')
 const selectedContents = ref([])
 
 const defaultSettings = computed(() => ({
   scriptType: props.options.scriptTypes[0],
   adaptationStyle: props.options.adaptationStyles[0],
+  detail_level: 'standard',
   contentOptions: props.options.contentOptions.slice(0, 2),
 }))
+
+const detailLevelOptions = computed(() => props.options.detailLevels || [
+  { label: '简洁版', value: 'brief' },
+  { label: '标准版', value: 'standard' },
+  { label: '详细版', value: 'detailed' },
+])
 
 const resetForm = () => {
   const source = props.initialSettings || defaultSettings.value
   selectedType.value = source.scriptType
   selectedStyle.value = source.adaptationStyle
-  selectedContents.value = [...source.contentOptions]
+  selectedDetail.value = source.detail_level || source.detailLevel || 'standard'
+  selectedContents.value = [...(source.contentOptions || [])]
 }
 
 watch(
   () => props.modelValue,
   (isOpen) => {
-    if (isOpen) {
-      resetForm()
-    }
+    if (isOpen) resetForm()
   },
   { immediate: true },
 )
@@ -44,6 +51,7 @@ const confirmSettings = () => {
   emit('confirm', {
     scriptType: selectedType.value,
     adaptationStyle: selectedStyle.value,
+    detail_level: selectedDetail.value,
     contentOptions: [...selectedContents.value],
   })
 }
@@ -80,6 +88,19 @@ const confirmSettings = () => {
                 <span>{{ style }}</span>
               </label>
             </div>
+          </fieldset>
+
+          <fieldset class="setting-group">
+            <legend>生成详细度</legend>
+            <div class="segmented-grid">
+              <label v-for="detail in detailLevelOptions" :key="detail.value" class="choice-pill">
+                <input v-model="selectedDetail" type="radio" name="detail-level" :value="detail.value" />
+                <span>{{ detail.label }}</span>
+              </label>
+            </div>
+            <p class="setting-hint">
+              AI 生成的是可编辑剧本草稿，不是小说逐字转写。详细版会尽量保留更多场景和对白，但生成时间更长。
+            </p>
           </fieldset>
 
           <fieldset class="setting-group">

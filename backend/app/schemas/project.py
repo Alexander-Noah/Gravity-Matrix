@@ -218,6 +218,7 @@ class GenerationSettingsRequest(BaseModel):
     templateId: str | None = Field(default=None, max_length=80)
     scriptType: str | None = None
     adaptationStyle: str | None = None
+    detail_level: str = Field(default="standard", pattern="^(brief|standard|detailed)$")
     contentOptions: list[str] = Field(default_factory=list)
 
 

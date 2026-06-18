@@ -88,7 +88,10 @@ def extract_novel_scenes(novel_id: int, db: Session = Depends(get_db)) -> Scenes
     novel = _require_novel(db, novel_id)
     chapters = split_chapters(novel.cleaned_content)
     characters = [_character_to_read(item).model_dump() for item in novel.characters]
-    scenes = extract_scenes(chapters, characters)
+    try:
+        scenes = extract_scenes(chapters, characters)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     db.query(ScriptScene).filter(ScriptScene.novel_id == novel.id).delete()
     for scene in scenes:
@@ -143,7 +146,13 @@ def save_novel_scenes(
 def generate_content_for_scene(scene_id: str, db: Session = Depends(get_db)) -> SceneContentResponse:
     scene = _require_scene(db, scene_id)
     characters = [_character_to_read(item).model_dump() for item in scene.novel.characters]
-    content = [_sanitize_content_item(item, characters) for item in generate_scene_content(_scene_to_read(scene).model_dump(), characters)]
+    try:
+        content = [
+            _sanitize_content_item(item, characters)
+            for item in generate_scene_content(_scene_to_read(scene).model_dump(), characters)
+        ]
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     db.query(SceneContent).filter(SceneContent.scene_id == scene.id).delete()
     for item in content:
@@ -202,7 +211,10 @@ def generate_novel_yaml(novel_id: int, db: Session = Depends(get_db)) -> YamlRes
         scene_data["content"] = [_content_to_dict(item) for item in scene.contents]
         scenes.append(scene_data)
 
-    yaml_text = build_yaml(novel.title, characters, scenes)
+    try:
+        yaml_text = build_yaml(novel.title, characters, scenes)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     valid, errors = validate_script_yaml(yaml_text)
     if not valid:
         raise HTTPException(status_code=422, detail={"message": "YAML Schema 校验失败", "errors": errors})
