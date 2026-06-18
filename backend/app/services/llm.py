@@ -24,10 +24,20 @@ OMITTED_REASONS = {
 }
 
 logger = logging.getLogger(__name__)
+_last_llm_raw_response: str | None = None
 
 
 class AIParseError(RuntimeError):
     """Raised when AI parsing or validation fails."""
+
+
+class SafeJsonParseError(ValueError):
+    """Raised when an LLM response cannot be parsed into a JSON object."""
+
+    def __init__(self, message: str, raw_response: str, cleaned_response: str = "") -> None:
+        super().__init__(message)
+        self.raw_response = raw_response
+        self.cleaned_response = cleaned_response
 
 
 @dataclass(frozen=True)
@@ -102,12 +112,11 @@ def generate_screenplay(project: Project, analysis: dict[str, Any] | None = None
         False,
     )
 
-    result = _call_deepseek(_screenplay_prompt(project, source_analysis, generation_settings, detail_level))
-    if not isinstance(result, dict):
-        raise AIParseError("AI 解析失败，请重试：剧本生成结果不是有效 JSON。")
+    result = _generate_screenplay_in_stages(project, source_analysis, generation_settings, detail_level)
 
     errors = _validate_screenplay_result(result)
     if errors:
+        _print_llm_failure("screenplay_generation", "剧本 Schema 校验失败：" + "；".join(errors))
         raise AIParseError("AI 解析失败，请重试：" + "；".join(errors))
 
     scene_count = sum(len(chapter.get("scenes", []) or []) for chapter in result.get("script", {}).get("chapters", []) or [])
@@ -125,33 +134,246 @@ def _require_llm_config() -> None:
         raise AIParseError("AI 服务未配置，请检查 API Key 或模型配置")
 
 
-def _call_deepseek(prompt: str, timeout_seconds: int | None = None) -> dict[str, Any] | None:
+def get_last_llm_raw_response() -> str | None:
+    return _last_llm_raw_response
+
+
+def clear_last_llm_raw_response() -> None:
+    global _last_llm_raw_response
+    _last_llm_raw_response = None
+
+
+def _print_llm_failure(purpose: str, message: str) -> None:
+    raw = (get_last_llm_raw_response() or "").strip()
+    raw_head = raw[:4000] if raw else "<empty>"
+    print(
+        f"LLM {purpose} failed: {message}\n"
+        f"LLM {purpose} raw/error first 4000 chars:\n{raw_head}",
+        flush=True,
+    )
+    logger.error(
+        "LLM %s failed: %s raw/error head=%r",
+        purpose,
+        message,
+        raw_head,
+    )
+
+
+def _call_deepseek(
+    prompt: str,
+    timeout_seconds: int | None = None,
+    max_tokens: int = 4096,
+    purpose: str = "llm_call",
+) -> dict[str, Any] | None:
+    global _last_llm_raw_response
+    _last_llm_raw_response = None
+    content = ""
     try:
         client = OpenAI(
             api_key=settings.llm_api_key,
             base_url=settings.llm_base_url,
             timeout=timeout_seconds or settings.llm_timeout_seconds,
         )
-        response = client.chat.completions.create(
-            model=settings.llm_model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "你是小说结构化解析器。严格返回 JSON，不要输出解释、Markdown 或代码块。",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.2,
-        )
+        request = _deepseek_request_payload(prompt, max_tokens=max_tokens)
+        response = _create_chat_completion(client, request)
         content = response.choices[0].message.content
+        _last_llm_raw_response = content
         if not content:
             return None
-        parsed = _parse_json_object(content)
+        try:
+            parsed = safe_json_parse(content, purpose=purpose)
+        except SafeJsonParseError as parse_exc:
+            print(
+                f"LLM {purpose} JSON parse failed, attempting JSON repair: {parse_exc}",
+                flush=True,
+            )
+            logger.warning("LLM %s JSON parse failed, attempting repair: %s", purpose, parse_exc)
+            repaired_content = _repair_json_response(
+                client,
+                content,
+                str(parse_exc),
+                timeout_seconds=timeout_seconds,
+                max_tokens=max_tokens,
+                purpose=purpose,
+            )
+            _last_llm_raw_response = repaired_content
+            parsed = safe_json_parse(repaired_content, purpose=f"{purpose}_repair")
     except Exception as exc:
+        _last_llm_raw_response = _llm_exception_debug_text(exc)
+        print(f"LLM {purpose} raw/error head: {_last_llm_raw_response[:4000]}", flush=True)
         logger.warning("LLM call failed: %s", exc)
         return None
-    return parsed if isinstance(parsed, dict) else None
+    if isinstance(parsed, dict):
+        return parsed
+    logger.warning("LLM returned non-JSON content head=%r", (content or "")[:1000])
+    print(f"LLM {purpose} invalid JSON raw response head: {(content or '')[:4000]}", flush=True)
+    return None
+
+
+def _llm_exception_debug_text(exc: Exception) -> str:
+    parts = [
+        "LLM 请求异常，未收到可解析的模型响应。",
+        f"{type(exc).__name__}: {exc}",
+    ]
+    cause = getattr(exc, "__cause__", None)
+    if cause is not None:
+        parts.append(f"cause={type(cause).__name__}: {cause}")
+    context = getattr(exc, "__context__", None)
+    if context is not None and context is not cause:
+        parts.append(f"context={type(context).__name__}: {context}")
+    response = getattr(exc, "response", None)
+    response_text = getattr(response, "text", None)
+    if response_text:
+        parts.append(f"response_text={response_text}")
+    return "\n".join(parts)
+
+
+def _deepseek_request_payload(prompt: str, max_tokens: int = 4096) -> dict[str, Any]:
+    json_user_prompt = "\n".join(
+        [
+            "请严格输出 json。",
+            "只返回 json 对象。",
+            "不要 Markdown。",
+            "不要解释。",
+            "不要 ```json 代码块。",
+            prompt,
+        ]
+    )
+    payload: dict[str, Any] = {
+        "model": _effective_llm_model(),
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "你是小说结构化解析器。必须只返回 json 对象。"
+                    "不要 Markdown，不要解释，不要 ```json 代码块。"
+                ),
+            },
+            {"role": "user", "content": json_user_prompt},
+        ],
+        "temperature": 0.1,
+        "max_tokens": max_tokens,
+    }
+    if _should_use_json_response_format():
+        payload["response_format"] = {"type": "json_object"}
+    return payload
+
+
+def _effective_llm_model() -> str:
+    model = settings.llm_model or "deepseek-chat"
+    if "deepseek" in model.lower() and "reasoner" in model.lower():
+        return "deepseek-chat"
+    return model
+
+
+def _should_use_json_response_format() -> bool:
+    provider = (settings.llm_provider or "").lower()
+    model = _effective_llm_model().lower()
+    base_url = (settings.llm_base_url or "").lower()
+    return provider == "openai_compatible" and ("deepseek" in model or "deepseek" in base_url)
+
+
+def _create_chat_completion(client: OpenAI, request: dict[str, Any]):
+    try:
+        return client.chat.completions.create(**request)
+    except Exception as exc:
+        message = str(exc).lower()
+        fallback_request = dict(request)
+        changed = False
+        if "response_format" in fallback_request and "response_format" in message:
+            logger.warning("LLM response_format unsupported, retrying without response_format: %s", exc)
+            print(f"LLM response_format unsupported, retrying without response_format: {exc}", flush=True)
+            fallback_request.pop("response_format", None)
+            changed = True
+        if int(fallback_request.get("max_tokens") or 0) > 4096 and (
+            "max_tokens" in message or "maximum" in message or "token" in message
+        ):
+            logger.warning("LLM max_tokens unsupported, retrying with max_tokens=4096: %s", exc)
+            print(f"LLM max_tokens unsupported, retrying with max_tokens=4096: {exc}", flush=True)
+            fallback_request["max_tokens"] = 4096
+            changed = True
+        if not changed:
+            raise
+        return client.chat.completions.create(**fallback_request)
+
+
+def _repair_json_response(
+    client: OpenAI,
+    raw_content: str,
+    parse_error: str,
+    timeout_seconds: int | None = None,
+    max_tokens: int = 4096,
+    purpose: str = "llm_call",
+) -> str:
+    prompt = "\n".join(
+        [
+            "只修复 JSON 格式，不要改内容。",
+            "不要新增字段，不要删减字段，不要解释。",
+            "只返回一个合法 JSON 对象。",
+            f"JSON 解析错误：{parse_error}",
+            "需要修复的原始内容：",
+            raw_content,
+        ]
+    )
+    request = _deepseek_request_payload(prompt, max_tokens=max_tokens)
+    response = _create_chat_completion(client, request)
+    repaired = response.choices[0].message.content or ""
+    print(f"LLM {purpose} repaired JSON response head: {repaired[:1000]}", flush=True)
+    return repaired
+
+
+def extract_json_from_text(content: str) -> dict[str, Any] | None:
+    try:
+        return safe_json_parse(content, purpose="extract_json_from_text")
+    except SafeJsonParseError:
+        return None
+
+
+def safe_json_parse(content: str, *, purpose: str = "llm_call") -> dict[str, Any]:
+    if not isinstance(content, str) or not content.strip():
+        raise SafeJsonParseError("empty response", content or "")
+
+    cleaned = content.strip()
+    fenced = re.search(r"```(?:json)?\s*(.*?)```", cleaned, flags=re.IGNORECASE | re.DOTALL)
+    if fenced:
+        cleaned = fenced.group(1).strip()
+
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start < 0 or end <= start:
+        message = "no JSON object found between first { and last }"
+        _log_json_parse_failure(purpose, message, content, cleaned)
+        raise SafeJsonParseError(message, content, cleaned)
+
+    candidate = cleaned[start : end + 1]
+    try:
+        parsed = json.loads(candidate)
+    except json.JSONDecodeError as exc:
+        message = f"json.loads failed at line {exc.lineno} column {exc.colno}: {exc.msg}"
+        _log_json_parse_failure(purpose, message, content, candidate)
+        raise SafeJsonParseError(message, content, candidate) from exc
+
+    if not isinstance(parsed, dict):
+        message = f"parsed JSON root must be object, got {type(parsed).__name__}"
+        _log_json_parse_failure(purpose, message, content, candidate)
+        raise SafeJsonParseError(message, content, candidate)
+    return parsed
+
+
+def _log_json_parse_failure(purpose: str, message: str, raw: str, cleaned: str) -> None:
+    print(
+        f"LLM {purpose} safe_json_parse failed: {message}\n"
+        f"LLM {purpose} raw response first 4000 chars:\n{(raw or '')[:4000]}\n"
+        f"LLM {purpose} extracted candidate first 4000 chars:\n{(cleaned or '')[:4000]}",
+        flush=True,
+    )
+    logger.error(
+        "LLM %s safe_json_parse failed: %s raw=%r cleaned=%r",
+        purpose,
+        message,
+        (raw or "")[:8000],
+        (cleaned or "")[:8000],
+    )
 
 
 def _parse_json_object(content: str) -> dict[str, Any] | None:
@@ -389,6 +611,436 @@ def _global_merge_prompt(project: Project, chapter_results: list[dict[str, Any]]
             json.dumps(chapter_results, ensure_ascii=False),
         ]
     )
+
+
+def _generate_screenplay_in_stages(
+    project: Project,
+    analysis: dict[str, Any],
+    generation_settings: dict[str, Any],
+    detail_level: str,
+) -> dict[str, Any]:
+    metadata = _call_deepseek(
+        _screenplay_metadata_prompt(project, analysis, generation_settings, detail_level),
+        max_tokens=2048,
+        purpose="screenplay_metadata",
+    )
+    if not isinstance(metadata, dict):
+        _print_llm_failure("screenplay_metadata", "metadata JSON generation failed.")
+        raise AIParseError("AI 解析失败，请重试：剧本 metadata 生成失败，失败原因已输出到后端控制台。")
+
+    document = _screenplay_json_template(project, generation_settings, detail_level)
+    script = document["script"]
+    script["characters"] = _normalize_script_characters(metadata.get("characters"), analysis)
+    script["locations"] = _normalize_script_locations(metadata.get("locations"), analysis)
+    script["organizations"] = _normalize_script_organizations(metadata.get("organizations"), analysis)
+    script["adaptation_notes"] = _normalize_adaptation_notes(
+        metadata.get("adaptation_notes"),
+        analysis,
+        script["adaptation_notes"],
+    )
+
+    character_ids = {item["id"] for item in script["characters"]}
+    location_ids = {item["id"] for item in script["locations"]}
+    default_location_id = script["locations"][0]["id"]
+    chapters = []
+    failed_chapters = []
+
+    for chapter in sorted(project.chapters, key=lambda item: item.number):
+        chapter_analysis = _analysis_for_chapter(analysis, chapter.number)
+        try:
+            generated = _call_deepseek(
+                _screenplay_chapter_prompt(
+                    project,
+                    chapter,
+                    chapter_analysis,
+                    script["characters"],
+                    script["locations"],
+                    generation_settings,
+                    detail_level,
+                ),
+                max_tokens=3072,
+                purpose=f"screenplay_chapter_{chapter.number}",
+            )
+            chapter_payload = _normalize_generated_chapter(
+                chapter,
+                generated,
+                chapter_analysis,
+                character_ids,
+                location_ids,
+                default_location_id,
+            )
+        except Exception as exc:  # keep later chapters moving
+            print(f"LLM screenplay chapter {chapter.number} failed, continuing: {exc}", flush=True)
+            logger.exception("LLM screenplay chapter %s failed", chapter.number)
+            chapter_payload = _failed_chapter_payload(chapter, default_location_id, str(exc))
+
+        if chapter_payload.get("generation_status") == "failed":
+            failed_chapters.append(
+                {
+                    "number": chapter.number,
+                    "title": chapter.title,
+                    "error": chapter_payload.get("generation_error") or "chapter generation failed",
+                }
+            )
+        chapters.append(chapter_payload)
+
+    script["chapters"] = chapters
+    script["metadata"]["coverage"]["generated_scenes"] = sum(len(chapter.get("scenes", []) or []) for chapter in chapters)
+    script["metadata"]["coverage"]["preserved_dialogues"] = sum(
+        len(scene.get("dialogue", []) or [])
+        for chapter in chapters
+        for scene in chapter.get("scenes", []) or []
+    )
+    if failed_chapters:
+        failed_summary = "Failed chapters: " + "; ".join(
+            f"{item['number']} {item['title']}: {item['error']}" for item in failed_chapters
+        )
+        script["adaptation_notes"]["omissions"].append(failed_summary)
+
+    return document
+
+
+def _screenplay_metadata_prompt(
+    project: Project,
+    analysis: dict[str, Any],
+    generation_settings: dict[str, Any],
+    detail_level: str,
+) -> str:
+    template = {
+        "characters": [{"id": "char_001", "name": "人物名", "role": "角色", "gender": "unknown", "age": None, "description": ""}],
+        "locations": [{"id": "loc_001", "name": "地点名", "description": ""}],
+        "organizations": [{"id": "org_001", "name": "组织名", "description": ""}],
+        "adaptation_notes": {
+            "themes": [],
+            "conflicts": [],
+            "omissions": [],
+            "template_rules": [],
+        },
+    }
+    return "\n".join(
+        [
+            "Generate screenplay metadata only. Do not generate chapters, scenes, or dialogue.",
+            "Return one JSON object only.",
+            "Use the existing analysis as source truth. Preserve entity ids when possible.",
+            "characters must contain id, name, role, gender, age, description.",
+            "locations and organizations must contain id, name, description.",
+            f"Project title: {project.title}",
+            f"Author: {project.author or ''}",
+            f"detail_level: {detail_level}",
+            f"generation_settings: {json.dumps(generation_settings, ensure_ascii=False)}",
+            "Required JSON shape:",
+            json.dumps(template, ensure_ascii=False),
+            "Existing analysis:",
+            json.dumps(
+                {
+                    "characters": analysis.get("characters", []),
+                    "locations": analysis.get("locations", []),
+                    "organizations": analysis.get("organizations", []),
+                    "themes": analysis.get("themes", []),
+                    "conflicts": analysis.get("conflicts", []),
+                },
+                ensure_ascii=False,
+            ),
+        ]
+    )
+
+
+def _screenplay_chapter_prompt(
+    project: Project,
+    chapter,
+    chapter_analysis: dict[str, Any],
+    characters: list[dict[str, Any]],
+    locations: list[dict[str, Any]],
+    generation_settings: dict[str, Any],
+    detail_level: str,
+) -> str:
+    template = {
+        "chapter": {
+            "id": f"ch_{chapter.number:03d}",
+            "title": chapter.title,
+            "source_chapter_numbers": [chapter.number],
+            "summary": "章节摘要",
+            "scenes": [
+                {
+                    "id": f"sc_{chapter.number:03d}_001",
+                    "title": "场景标题",
+                    "location_id": "loc_001",
+                    "time": "时间",
+                    "characters": ["char_001"],
+                    "synopsis": "场景概要",
+                    "source_range": {
+                        "chapter": chapter.number,
+                        "start_hint": "原文起始短句",
+                        "end_hint": "原文结束短句",
+                    },
+                    "stage_directions": ["舞台或镜头调度"],
+                    "dialogue": [
+                        {
+                            "speaker_id": "char_001",
+                            "speaker_name": "人物名",
+                            "line": "台词",
+                            "emotion": "neutral",
+                            "line_type": "dialogue",
+                        }
+                    ],
+                }
+            ],
+        }
+    }
+    return "\n".join(
+        [
+            "Generate screenplay scenes for exactly one source chapter.",
+            "Return one JSON object only. Do not include metadata or other chapters.",
+            "Every location_id must be from allowed_locations. Every character id must be from allowed_characters.",
+            "dialogue.speaker_id must be null when speaker is uncertain.",
+            "line_type must be dialogue, monologue, or narration.",
+            "Do not invent template filler dialogue. Prefer source dialogue from chapter_analysis.",
+            f"Project title: {project.title}",
+            f"Source chapter number: {chapter.number}",
+            f"Source chapter title: {chapter.title}",
+            f"detail_level: {detail_level}",
+            f"generation_settings: {json.dumps(generation_settings, ensure_ascii=False)}",
+            "Required JSON shape:",
+            json.dumps(template, ensure_ascii=False),
+            "allowed_characters:",
+            json.dumps(characters, ensure_ascii=False),
+            "allowed_locations:",
+            json.dumps(locations, ensure_ascii=False),
+            "chapter_analysis:",
+            json.dumps(chapter_analysis, ensure_ascii=False),
+            "source_excerpt:",
+            _prompt_excerpt(chapter.content, AI_CHAPTER_PROMPT_CHAR_LIMIT),
+        ]
+    )
+
+
+def _normalize_script_characters(items: Any, analysis: dict[str, Any]) -> list[dict[str, Any]]:
+    source = items if isinstance(items, list) and items else analysis.get("characters", [])
+    characters = []
+    for index, item in enumerate(source or [], start=1):
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        if not name:
+            continue
+        characters.append(
+            {
+                "id": str(item.get("id") or f"char_{index:03d}"),
+                "name": name,
+                "role": str(item.get("role") or "角色"),
+                "gender": str(item.get("gender") or "unknown"),
+                "age": item.get("age") if isinstance(item.get("age"), int) else None,
+                "description": str(item.get("description") or f"{name}。"),
+            }
+        )
+    return characters or [
+        {
+            "id": "char_001",
+            "name": "旁白",
+            "role": "narrator",
+            "gender": "unknown",
+            "age": None,
+            "description": "用于无法确认说话人的旁白。",
+        }
+    ]
+
+
+def _normalize_script_locations(items: Any, analysis: dict[str, Any]) -> list[dict[str, Any]]:
+    source = items if isinstance(items, list) and items else analysis.get("locations", [])
+    locations = []
+    for index, item in enumerate(source or [], start=1):
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        if not name:
+            continue
+        locations.append(
+            {
+                "id": str(item.get("id") or f"loc_{index:03d}"),
+                "name": name,
+                "description": str(item.get("description") or f"{name}。"),
+            }
+        )
+    return locations or [{"id": "loc_001", "name": "未明确地点", "description": "原文未明确地点。"}]
+
+
+def _normalize_script_organizations(items: Any, analysis: dict[str, Any]) -> list[dict[str, Any]]:
+    source = items if isinstance(items, list) else analysis.get("organizations", [])
+    organizations = []
+    for index, item in enumerate(source or [], start=1):
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        if not name:
+            continue
+        organizations.append(
+            {
+                "id": str(item.get("id") or f"org_{index:03d}"),
+                "name": name,
+                "description": str(item.get("description") or f"{name}。"),
+            }
+        )
+    return organizations
+
+
+def _normalize_adaptation_notes(items: Any, analysis: dict[str, Any], defaults: dict[str, Any]) -> dict[str, Any]:
+    data = items if isinstance(items, dict) else {}
+    return {
+        "themes": _list_of_strings(data.get("themes")) or _list_of_strings(analysis.get("themes")),
+        "conflicts": _list_of_strings(data.get("conflicts")) or _list_of_strings(analysis.get("conflicts")),
+        "omissions": _list_of_strings(data.get("omissions")) or list(defaults.get("omissions") or []),
+        "template_rules": _list_of_strings(data.get("template_rules")) or list(defaults.get("template_rules") or []),
+    }
+
+
+def _analysis_for_chapter(analysis: dict[str, Any], chapter_number: int) -> dict[str, Any]:
+    for item in analysis.get("chapter_analyses") or []:
+        if not isinstance(item, dict):
+            continue
+        if item.get("chapter_number") == chapter_number:
+            chapter_analysis = item.get("analysis")
+            return chapter_analysis if isinstance(chapter_analysis, dict) else {}
+    return {}
+
+
+def _normalize_generated_chapter(
+    source_chapter,
+    generated: Any,
+    chapter_analysis: dict[str, Any],
+    character_ids: set[str],
+    location_ids: set[str],
+    default_location_id: str,
+) -> dict[str, Any]:
+    if not isinstance(generated, dict):
+        return _failed_chapter_payload(source_chapter, default_location_id, "LLM did not return a JSON object.")
+
+    payload = generated.get("chapter") if isinstance(generated.get("chapter"), dict) else generated
+    raw_scenes = payload.get("scenes") if isinstance(payload, dict) else None
+    if not isinstance(raw_scenes, list) or not raw_scenes:
+        return _failed_chapter_payload(source_chapter, default_location_id, "LLM chapter response has no scenes.")
+
+    scenes = [
+        _normalize_scene(
+            source_chapter.number,
+            index,
+            scene,
+            character_ids,
+            location_ids,
+            default_location_id,
+        )
+        for index, scene in enumerate(raw_scenes, start=1)
+        if isinstance(scene, dict)
+    ]
+    scenes = [scene for scene in scenes if scene is not None]
+    if not scenes:
+        return _failed_chapter_payload(source_chapter, default_location_id, "LLM chapter scenes were unusable.")
+
+    return {
+        "id": str(payload.get("id") or f"ch_{source_chapter.number:03d}"),
+        "title": str(payload.get("title") or source_chapter.title or f"Chapter {source_chapter.number}"),
+        "source_chapter_numbers": [source_chapter.number],
+        "summary": str(payload.get("summary") or chapter_analysis.get("chapter_title") or _compact_text(source_chapter.content, 120)),
+        "scenes": scenes,
+    }
+
+
+def _normalize_scene(
+    chapter_number: int,
+    scene_number: int,
+    scene: dict[str, Any],
+    character_ids: set[str],
+    location_ids: set[str],
+    default_location_id: str,
+) -> dict[str, Any] | None:
+    title = str(scene.get("title") or f"Scene {scene_number}").strip()
+    synopsis = str(scene.get("synopsis") or scene.get("summary") or title).strip()
+    if not title or not synopsis:
+        return None
+    location_id = str(scene.get("location_id") or "").strip()
+    if location_id not in location_ids:
+        location_id = default_location_id
+    scene_characters = [
+        str(item).strip()
+        for item in scene.get("characters") or []
+        if str(item).strip() in character_ids
+    ]
+    dialogue = [
+        _normalize_dialogue_for_script(line, character_ids)
+        for line in scene.get("dialogue") or []
+        if isinstance(line, dict)
+    ]
+    dialogue = [line for line in dialogue if line is not None]
+    source_range = scene.get("source_range") if isinstance(scene.get("source_range"), dict) else {}
+    return {
+        "id": str(scene.get("id") or f"sc_{chapter_number:03d}_{scene_number:03d}"),
+        "title": title,
+        "location_id": location_id,
+        "time": str(scene.get("time") or "未明确时间"),
+        "characters": _unique(scene_characters),
+        "synopsis": synopsis,
+        "source_range": {
+            "chapter": chapter_number,
+            "start_hint": str(source_range.get("start_hint") or synopsis[:40]),
+            "end_hint": str(source_range.get("end_hint") or synopsis[-40:]),
+        },
+        "stage_directions": _list_of_strings(scene.get("stage_directions")) or [synopsis],
+        "dialogue": dialogue,
+    }
+
+
+def _normalize_dialogue_for_script(line: dict[str, Any], character_ids: set[str]) -> dict[str, Any] | None:
+    text = str(line.get("line") or "").strip()
+    if not text:
+        return None
+    speaker_id = line.get("speaker_id")
+    speaker_id = str(speaker_id).strip() if speaker_id is not None else None
+    if speaker_id not in character_ids:
+        speaker_id = None
+    line_type = str(line.get("line_type") or "dialogue").strip().lower()
+    if line_type not in {"dialogue", "monologue", "narration"}:
+        line_type = "dialogue"
+    return {
+        "speaker_id": speaker_id,
+        "speaker_name": str(line.get("speaker_name") or ("旁白" if speaker_id is None else speaker_id)),
+        "line": text,
+        "emotion": str(line.get("emotion") or "neutral"),
+        "line_type": line_type,
+    }
+
+
+def _failed_chapter_payload(source_chapter, default_location_id: str, error: str) -> dict[str, Any]:
+    message = f"第 {source_chapter.number} 章生成失败：{error}"
+    return {
+        "id": f"ch_{source_chapter.number:03d}",
+        "title": source_chapter.title or f"Chapter {source_chapter.number}",
+        "source_chapter_numbers": [source_chapter.number],
+        "summary": message,
+        "generation_status": "failed",
+        "generation_error": error,
+        "scenes": [
+            {
+                "id": f"sc_{source_chapter.number:03d}_failed",
+                "title": "生成失败",
+                "location_id": default_location_id,
+                "time": "未明确时间",
+                "characters": [],
+                "synopsis": message,
+                "source_range": {
+                    "chapter": source_chapter.number,
+                    "start_hint": _compact_text(source_chapter.content, 40),
+                    "end_hint": _compact_text((source_chapter.content or "")[-120:], 40),
+                },
+                "stage_directions": [message],
+                "dialogue": [],
+            }
+        ],
+    }
+
+
+def _list_of_strings(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
 
 
 def _screenplay_prompt(
@@ -885,7 +1537,15 @@ def _chapters_for_prompt(project: Project) -> list[dict[str, Any]]:
         {
             "number": chapter.number,
             "title": chapter.title,
-            "content": chapter.content,
+            "content_excerpt": _prompt_excerpt(chapter.content, AI_CHAPTER_PROMPT_CHAR_LIMIT),
         }
         for chapter in project.chapters
     ]
+
+
+def _prompt_excerpt(text: str, limit: int) -> str:
+    compact = re.sub(r"\s+", "\n", (text or "").strip())
+    if len(compact) <= limit:
+        return compact
+    half = max(1, limit // 2)
+    return f"{compact[:half]}\n...\n{compact[-half:]}"

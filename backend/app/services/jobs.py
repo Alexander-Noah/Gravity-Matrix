@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.models.project import Job, JobStatus, JobType, Project
+from app.services import llm as llm_service
 from app.services.llm import analyze_project, generate_screenplay
 from app.services.screenplay_yaml import dump_screenplay_yaml
 
@@ -12,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def run_analysis_job(db: Session, job_id: int) -> None:
+    llm_service.clear_last_llm_raw_response()
     job = db.get(Job, job_id)
     if job is None:
         return
@@ -52,10 +54,15 @@ def run_analysis_job(db: Session, job_id: int) -> None:
         )
         _mark_succeeded(db, job, "AI 解析完成", 100, project.id)
     except Exception as exc:  # pragma: no cover - defensive boundary for background tasks
+        raw_response = llm_service.get_last_llm_raw_response()
+        if raw_response:
+            print(f"Analysis job failed raw/error first 4000 chars:\n{raw_response[:4000]}", flush=True)
+        print(f"Analysis job failed: {exc}", flush=True)
         _mark_failed(db, job, str(exc))
 
 
 def run_script_generation_job(db: Session, job_id: int) -> None:
+    llm_service.clear_last_llm_raw_response()
     job = db.get(Job, job_id)
     if job is None:
         return
@@ -88,6 +95,10 @@ def run_script_generation_job(db: Session, job_id: int) -> None:
         logger.info("script_job output project_id=%s scenes=%s mock_fallback=%s", project.id, scene_count, False)
         _mark_succeeded(db, job, "剧本生成完成", 100, project.id)
     except Exception as exc:  # pragma: no cover - defensive boundary for background tasks
+        raw_response = llm_service.get_last_llm_raw_response()
+        if raw_response:
+            print(f"Script generation job failed raw/error first 4000 chars:\n{raw_response[:4000]}", flush=True)
+        print(f"Script generation job failed: {exc}", flush=True)
         _mark_failed(db, job, str(exc))
 
 

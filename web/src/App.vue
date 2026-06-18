@@ -1,6 +1,7 @@
 ﻿<script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, h, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElNotification } from 'element-plus'
 import yaml from 'js-yaml'
 import { clearAuthSession, fetchCurrentUser, getAuthSession, hasActiveAuthSession } from './api/auth'
 import { getApiErrorMessage } from './api/http'
@@ -1117,7 +1118,10 @@ const waitForParseTask = async (taskId, { timeoutMs = 45 * 60 * 1000, intervalMs
     }
 
     if (task.status === 'failed') {
-      throw new Error(task.error || 'AI 解析任务失败。')
+      const error = new Error(task.error || 'AI 解析任务失败。')
+      error.rawResponse = task.raw_response || ''
+      error.parseTask = task
+      throw error
     }
 
     await new Promise((resolve) => {
@@ -1142,6 +1146,41 @@ const runProjectParseTask = async (projectId) => {
   } finally {
     isAnalysisParsing.value = false
   }
+}
+
+const showAnalysisErrorNotice = (error) => {
+  const message = getApiErrorMessage(error)
+  const rawResponse = getAnalysisRawResponse(error)
+  analysisNotice.value = message
+  if (rawResponse) {
+    console.error('AI 原始返回内容前 1000 字：', rawResponse)
+  }
+  ElNotification.error({
+    title: 'AI 解析失败',
+    message: rawResponse
+      ? h('div', { class: 'analysis-error-notice' }, [
+          h('p', message),
+          h('p', { class: 'analysis-error-notice__label' }, 'AI 原始返回内容前 1000 字：'),
+          h('pre', { class: 'analysis-error-notice__raw' }, rawResponse),
+        ])
+      : message,
+    duration: 0,
+    showClose: true,
+  })
+  return message
+}
+
+const getAnalysisRawResponse = (error) => {
+  const raw = error?.rawResponse
+    || error?.parseTask?.raw_response
+    || error?.response?.data?.raw_response
+    || error?.response?.data?.detail?.raw_response
+
+  if (!raw) {
+    return ''
+  }
+
+  return String(raw).slice(0, 1000)
 }
 
 const syncCurrentWorkbench = async () => {
@@ -1572,8 +1611,7 @@ const goToAnalysis = async () => {
     currentProjectStages.value = buildProjectStages('analysis')
     analysisNotice.value = 'AI 解析完成，结果已从后端同步。'
   } catch (error) {
-    importNotice.value = getApiErrorMessage(error)
-    analysisNotice.value = getApiErrorMessage(error)
+    importNotice.value = showAnalysisErrorNotice(error)
     if (hasEnteredAnalysis || currentProjectId.value) {
       activePage.value = 'analysis'
     } else {
@@ -1604,7 +1642,7 @@ const rerunAnalysis = async () => {
     analysisProgress.value = 100
     analysisNotice.value = '重新解析完成，结果已从后端同步。'
   } catch (error) {
-    analysisNotice.value = getApiErrorMessage(error)
+    showAnalysisErrorNotice(error)
   }
 }
 

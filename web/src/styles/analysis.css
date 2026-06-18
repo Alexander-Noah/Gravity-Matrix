@@ -4,6 +4,7 @@
   width: 100%;
   max-width: none;
   margin: 0;
+  padding-bottom: 92px;
 }
 
 .analysis-progress-card,
@@ -218,6 +219,10 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   padding-top: 16px;
+  max-height: min(560px, calc(100vh - 320px));
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
 }
 
 .dialogue-extract-grid article {
@@ -249,6 +254,34 @@
   color: var(--text);
   font-size: 13px;
   line-height: 1.65;
+}
+
+.analysis-error-notice {
+  max-width: 520px;
+}
+
+.analysis-error-notice p {
+  margin: 0 0 8px;
+}
+
+.analysis-error-notice__label {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.analysis-error-notice__raw {
+  max-height: 260px;
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #111827;
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .analysis-actions {

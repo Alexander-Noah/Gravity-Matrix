@@ -196,6 +196,7 @@ class ParseTaskRead(BaseModel):
     progress: int
     message: str
     error: str | None = None
+    raw_response: str | None = None
 
 
 class ParseTaskResultRead(BaseModel):

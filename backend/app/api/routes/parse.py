@@ -36,6 +36,7 @@ def get_task(task_id: str) -> ParseTaskRead:
         progress=task.progress,
         message=task.message,
         error=task.error_message,
+        raw_response=task.raw_response,
     )
 
 

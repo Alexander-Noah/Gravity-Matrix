@@ -11,6 +11,9 @@ from app.db.init_db import init_db
 
 
 def create_app() -> FastAPI:
+    _print_llm_startup_config()
+    _validate_llm_startup_config()
+
     app = FastAPI(title=settings.app_name)
     init_db()
 
@@ -29,6 +32,26 @@ def create_app() -> FastAPI:
     app.include_router(projects_router, prefix=settings.api_prefix)
     app.include_router(novel_scripts_router, prefix=settings.api_prefix)
     return app
+
+
+def _print_llm_startup_config() -> None:
+    print(f"LLM_PROVIDER={settings.llm_provider}", flush=True)
+    print(f"LLM_BASE_URL={settings.llm_base_url}", flush=True)
+    print(f"LLM_MODEL={settings.llm_model}", flush=True)
+    print(f"LLM_TIMEOUT_SECONDS={settings.llm_timeout_seconds}", flush=True)
+    print(f"LLM_API_KEY_SET={str(bool(settings.llm_api_key)).lower()}", flush=True)
+
+
+def _validate_llm_startup_config() -> None:
+    base_url = (settings.llm_base_url or "").strip()
+    if not base_url:
+        print("LLM_BASE_URL is empty; AI endpoints will require LLM config.", flush=True)
+        return
+    if not base_url.startswith(("http://", "https://")):
+        raise RuntimeError(
+            "LLM_BASE_URL 必须以 http:// 或 https:// 开头，"
+            f"当前值为：{settings.llm_base_url!r}"
+        )
 
 
 app = create_app()
