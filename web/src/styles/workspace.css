@@ -263,7 +263,8 @@
 
 .workflow-step {
   position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 18px;
   align-items: center;
   gap: 14px;
   min-height: 72px;
@@ -334,6 +335,7 @@
   display: grid;
   gap: 4px;
   min-width: 0;
+  align-content: center;
 }
 
 .step-copy strong {
@@ -358,7 +360,7 @@
 .step-arrow {
   width: 18px;
   height: 18px;
-  margin-left: auto;
+  justify-self: end;
   color: var(--text-soft);
 }
 

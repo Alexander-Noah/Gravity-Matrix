@@ -141,6 +141,7 @@
   }
 
   .workflow-step {
+    grid-template-columns: 38px minmax(0, 1fr);
     min-height: 68px;
   }
 

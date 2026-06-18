@@ -22,7 +22,7 @@ defineProps({
           <span v-else>{{ step.number }}</span>
         </span>
         <span class="step-copy">
-          <strong>{{ step.number }} {{ step.title }}</strong>
+          <strong>{{ step.title }}</strong>
           <span>{{ step.description }}</span>
         </span>
         <svg v-if="index < steps.length - 1" class="step-arrow" viewBox="0 0 24 24" aria-hidden="true">
