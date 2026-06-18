@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     llm_base_url: str = ""
     llm_model: str = ""
     llm_timeout_seconds: int = 120
+    llm_max_concurrency: int = Field(default=2, ge=1)
+    llm_max_retries: int = Field(default=0, ge=0)
+    llm_chunk_size: int = Field(default=3500, ge=500)
+    llm_chunk_overlap: int = Field(default=0, ge=0)
+    llm_enable_cache: bool = True
 
     llm_fallback_provider: str = "ollama"
     ollama_base_url: str = "http://127.0.0.1:11434"

@@ -10,6 +10,7 @@ const router = createRouter({
     { path: '/', redirect: defaultRoute.path },
     { path: '/profile', redirect: defaultRoute.path },
     { path: '/projects', redirect: defaultRoute.path },
+    { path: '/novel-to-yaml', redirect: '/workbench' },
     ...appRoutes.map((route) => ({
       path: route.path,
       name: route.id,

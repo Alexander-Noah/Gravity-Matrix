@@ -1,6 +1,5 @@
 ﻿export const navItems = [
   { id: 'workbench', label: '工作台', icon: 'home' },
-  { id: 'novel-to-yaml', label: '小说转YAML', icon: 'format' },
   { id: 'templates', label: '模板中心', icon: 'grid' },
   { id: 'library', label: '剧本库', icon: 'book' },
   { id: 'help', label: '帮助文档', icon: 'help' },

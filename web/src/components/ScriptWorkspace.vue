@@ -2,12 +2,12 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { Collection, Document, Plus } from '@element-plus/icons-vue'
 
-const yamlEditorRef = ref(null)
+const yamlInputRef = ref(null)
 
 const props = defineProps({
   activeYamlLine: { type: Number, default: null },
   correctionScene: { type: Object, default: null },
-  yamlText: { type: String, default: '' },
+  yamlContent: { type: String, default: '' },
   iconPaths: { type: Object, required: true },
   isGenerating: { type: Boolean, default: false },
   previewScene: { type: Object, default: null },
@@ -18,14 +18,16 @@ const props = defineProps({
   saveStatus: { type: String, default: '' },
 })
 
-const emit = defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'previous', 'save-yaml', 'select-chapter', 'select-scene', 'update:character', 'update:dialogue', 'update:scene-field', 'update:yaml-text', 'validate-yaml'])
+const emit = defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'previous', 'save-yaml', 'select-chapter', 'select-scene', 'update:character', 'update:dialogue', 'update:scene-field', 'update:yamlContent', 'validate-yaml'])
 
+const yamlContent = ref(props.yamlContent)
+const isSyncingYamlContent = ref(false)
 const yamlLineNumbers = computed(() => Array.from({ length: yamlTextLines.value.length }, (_, index) => index + 1))
 const yamlTextLines = computed(() => {
-  const lines = props.yamlText.split('\n')
+  const lines = yamlContent.value.split('\n')
   return lines.length ? lines : ['']
 })
-const yamlEditorRows = computed(() => yamlLineNumbers.value.length)
+const yamlEditorRows = computed(() => Math.max(18, yamlLineNumbers.value.length))
 const outlineTree = computed(() =>
   props.scriptChapters.map((chapter, chapterIndex) => ({
     id: `chapter-${chapter.id || chapter.title || chapterIndex}`,
@@ -54,7 +56,30 @@ const handleOutlineNodeClick = (node) => {
 }
 
 watch(
-  () => props.yamlText,
+  () => props.yamlContent,
+  (nextYaml) => {
+    if (nextYaml !== yamlContent.value) {
+      isSyncingYamlContent.value = true
+      yamlContent.value = nextYaml || ''
+      nextTick(() => {
+        isSyncingYamlContent.value = false
+      })
+    }
+  },
+)
+
+watch(
+  yamlContent,
+  (nextYaml) => {
+    if (isSyncingYamlContent.value) {
+      return
+    }
+    emit('update:yamlContent', nextYaml)
+  },
+)
+
+watch(
+  () => props.yamlContent,
   async (nextYaml, previousYaml) => {
     const isInitialLoad = !previousYaml
     const isDocumentReplace = Math.abs((nextYaml || '').length - (previousYaml || '').length) > 500
@@ -63,12 +88,14 @@ watch(
     }
 
     await nextTick()
-    yamlEditorRef.value?.scrollTo({ top: 0, left: 0 })
+    getYamlTextarea()?.scrollTo({ top: 0, left: 0 })
   },
 )
 
+const getYamlTextarea = () => yamlInputRef.value?.textarea || null
+
 const scrollToYamlLine = (lineNumber) => {
-  const editor = yamlEditorRef.value
+  const editor = getYamlTextarea()
 
   if (!editor || !lineNumber) {
     return
@@ -93,9 +120,10 @@ const handleEditorKeydown = (event) => {
   const end = textarea.selectionEnd
   const nextValue = `${textarea.value.slice(0, start)}  ${textarea.value.slice(end)}`
 
-  textarea.value = nextValue
-  textarea.setSelectionRange(start + 2, start + 2)
-  textarea.dispatchEvent(new Event('input', { bubbles: true }))
+  yamlContent.value = nextValue
+  nextTick(() => {
+    textarea.setSelectionRange(start + 2, start + 2)
+  })
 }
 
 defineExpose({ scrollToYamlLine })
@@ -176,28 +204,20 @@ defineExpose({ scrollToYamlLine })
         </el-button>
       </aside>
 
-      <div ref="yamlEditorRef" class="yaml-editor yaml-editor-editable" aria-label="YAML 剧本文档">
-        <div class="yaml-code-layer" aria-hidden="true">
-          <div
-            v-for="(line, index) in yamlTextLines"
-            :key="`${index}-${line}`"
-            class="yaml-render-line"
-            :class="{ 'is-jump-target': activeYamlLine === index + 1 }"
-          >
-            <span class="yaml-render-line-number">{{ index + 1 }}</span>
-            <span class="yaml-render-line-content">{{ line || ' ' }}</span>
-          </div>
-        </div>
-        <textarea
-          class="yaml-textarea"
+      <div class="yaml-editor yaml-editor-editable" aria-label="YAML 剧本文档">
+        <el-input
+          ref="yamlInputRef"
+          v-model="yamlContent"
+          class="yaml-content-input"
+          type="textarea"
           :disabled="isGenerating"
-          spellcheck="false"
-          :value="yamlText"
           :rows="yamlEditorRows"
+          resize="none"
+          wrap="off"
+          spellcheck="false"
           aria-label="可编辑 YAML 剧本文档"
-          @input="$emit('update:yaml-text', $event.target.value)"
           @keydown="handleEditorKeydown"
-        ></textarea>
+        />
       </div>
 
       <aside class="validation-pane" aria-labelledby="schema-title">

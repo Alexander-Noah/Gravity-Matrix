@@ -464,6 +464,51 @@
   display: block;
 }
 
+.yaml-content-input {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.yaml-content-input .el-textarea__inner {
+  min-width: 820px;
+  min-height: 100%;
+  height: 100%;
+  padding: 14px 24px 24px;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  color: oklch(86% 0.04 255);
+  background: transparent;
+  box-shadow: none;
+  caret-color: oklch(90% 0.06 255);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 13px;
+  line-height: var(--yaml-line-height);
+  outline: none;
+  resize: none;
+  tab-size: 2;
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.yaml-content-input .el-textarea__inner:focus {
+  box-shadow: inset 0 0 0 1px oklch(58% 0.13 242 / 0.72);
+}
+
+.yaml-content-input .el-textarea__inner::selection {
+  color: oklch(95% 0.02 255);
+  background: oklch(48% 0.115 236 / 0.44);
+}
+
+.yaml-content-input.is-disabled .el-textarea__inner,
+.yaml-content-input .el-textarea__inner:disabled {
+  opacity: 0.72;
+  color: oklch(78% 0.025 255);
+  background: transparent;
+}
+
 .yaml-editor pre {
   min-width: 820px;
   margin: 0;

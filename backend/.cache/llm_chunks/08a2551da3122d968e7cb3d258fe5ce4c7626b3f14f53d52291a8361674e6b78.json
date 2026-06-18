@@ -1,0 +1,164 @@
+{
+  "chapter_title": "第一章 牢狱之灾",
+  "characters": [
+    {
+      "name": "许七安",
+      "aliases": [
+        "许宁宴"
+      ],
+      "description": "穿越者，原捕快，炼精巅峰",
+      "evidence": "许七安幽幽醒来",
+      "role": "主角"
+    },
+    {
+      "name": "许新年",
+      "aliases": [
+        "许二郎"
+      ],
+      "description": "书生，新晋举人，被革功名",
+      "evidence": "许家二郎，许新年",
+      "role": "堂弟"
+    },
+    {
+      "name": "许平志",
+      "aliases": [],
+      "description": "御刀卫七品，因税银丢失被判斩首",
+      "evidence": "许平志于五日后斩首",
+      "role": "二叔"
+    },
+    {
+      "name": "婶婶",
+      "aliases": [],
+      "description": "不喜许七安",
+      "evidence": "被婶婶不喜",
+      "role": "二婶"
+    }
+  ],
+  "locations": [
+    {
+      "name": "京兆府监牢",
+      "aliases": [],
+      "description": "潮湿腐臭的牢房",
+      "evidence": "大奉京兆府，监牢"
+    },
+    {
+      "name": "长乐县衙",
+      "aliases": [],
+      "description": "许七安原工作地",
+      "evidence": "长乐县衙的一名捕快"
+    },
+    {
+      "name": "边陲",
+      "aliases": [],
+      "description": "荒凉流放地",
+      "evidence": "发配边疆"
+    }
+  ],
+  "organizations": [
+    {
+      "name": "御刀卫",
+      "aliases": [],
+      "description": "二叔所属机构",
+      "evidence": "御刀卫当差的七品绿袍二叔"
+    },
+    {
+      "name": "白鹿书院",
+      "aliases": [],
+      "description": "许新年求学书院",
+      "evidence": "白鹿书院求学"
+    }
+  ],
+  "events": [
+    {
+      "title": "税银丢失",
+      "summary": "二叔护送税银途中被劫，十五万两白银丢失",
+      "characters": [
+        "许平志"
+      ],
+      "location": "",
+      "evidence": "税银丢失"
+    },
+    {
+      "title": "许七安入狱",
+      "summary": "因二叔案连坐，被打入京兆府大牢",
+      "characters": [
+        "许七安"
+      ],
+      "location": "京兆府监牢",
+      "evidence": "打入京兆府大牢"
+    },
+    {
+      "title": "许新年探监",
+      "summary": "许新年贿赂狱卒，告知许七安流放安排",
+      "characters": [
+        "许新年",
+        "许七安"
+      ],
+      "location": "京兆府监牢",
+      "evidence": "一名狱卒领着一位神容憔悴的俊俏书生"
+    }
+  ],
+  "dialogues": [
+    {
+      "speaker": "许七安",
+      "line": "系统？",
+      "line_type": "monologue",
+      "emotion": "试探",
+      "evidence": "系统？"
+    },
+    {
+      "speaker": "许七安",
+      "line": "系统系统爸爸，你出来啊。",
+      "line_type": "monologue",
+      "emotion": "急切",
+      "evidence": "系统系统爸爸"
+    },
+    {
+      "speaker": "许新年",
+      "line": "押送你去边陲的士卒收了我三百两，这是我们家仅剩的银子了，你安心的去，途中不会有意外的。",
+      "line_type": "dialogue",
+      "emotion": "平静",
+      "evidence": "押送你去边陲的士卒收了我三百两"
+    },
+    {
+      "speaker": "许七安",
+      "line": "那你呢？",
+      "line_type": "dialogue",
+      "emotion": "关切",
+      "evidence": "那你呢？"
+    },
+    {
+      "speaker": "许新年",
+      "line": "我已被革除功名，但有书院师长护着，不需要发配。管好你自己就行了。去了边陲，收敛脾气，能活一年是一年。",
+      "line_type": "dialogue",
+      "emotion": "不耐烦",
+      "evidence": "我已被革除功名"
+    },
+    {
+      "speaker": "许七安",
+      "line": "你想自尽？！",
+      "line_type": "dialogue",
+      "emotion": "震惊",
+      "evidence": "你想自尽？！"
+    },
+    {
+      "speaker": "许新年",
+      "line": "与汝何干。",
+      "line_type": "dialogue",
+      "emotion": "冷漠",
+      "evidence": "与汝何干。"
+    },
+    {
+      "speaker": "许新年",
+      "line": "活下去。",
+      "line_type": "dialogue",
+      "emotion": "柔和",
+      "evidence": "活下去。"
+    }
+  ],
+  "conflicts": [
+    "{'type':'人物内心','description':'许七安对穿越无系统感到绝望','parties':['许七安",
+    "{'type':'人物内心','description':'许七安想自救但无计可施','parties':['许七安']",
+    "{'type':'人物内心','description':'许新年有自尽念头','parties':['许新年'],'e"
+  ]
+}

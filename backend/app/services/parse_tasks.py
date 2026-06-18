@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import json
 import logging
 import re
@@ -9,16 +11,17 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from app.core.config import BACKEND_DIR, settings
 from app.db.session import SessionLocal
 from app.models.project import Project
 from app.services.frontend_data import get_novel_source_project_payload
 from app.services import llm as llm_service
 
 
-CHUNK_TARGET_CHARS = 3000
-CHUNK_OVERLAP_CHARS = 200
-CHUNK_MAX_ATTEMPTS = 3
-CHUNK_LLM_TIMEOUT_SECONDS = 30
+PARSE_PROMPT_VERSION = "parse_chunk_v3_single_call_limits"
+CHUNK_LLM_TIMEOUT_SECONDS = settings.llm_timeout_seconds
+CHUNK_CACHE_DIR = BACKEND_DIR / ".cache" / "llm_chunks"
+CHUNK_MAX_ATTEMPTS = max(settings.llm_max_retries + 1, 1)
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +39,7 @@ class ParseTask:
     result_yaml: str | None = None
     error_message: str | None = None
     raw_response: str | None = None
+    failed_chunks: list[dict[str, Any]] = field(default_factory=list)
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -72,6 +76,20 @@ def get_parse_task(task_id: str) -> ParseTask | None:
         return parse_tasks.get(task_id)
 
 
+def get_active_project_parse_task(project_id: int | None) -> ParseTask | None:
+    if project_id is None:
+        return None
+    with _task_lock:
+        active_tasks = [
+            task
+            for task in parse_tasks.values()
+            if task.project_id == project_id and task.status in {"pending", "running"}
+        ]
+    if not active_tasks:
+        return None
+    return max(active_tasks, key=lambda task: task.created_at)
+
+
 def run_parse_task(task_id: str) -> None:
     task = get_parse_task(task_id)
     if task is None:
@@ -88,24 +106,12 @@ def run_parse_task(task_id: str) -> None:
         if not chunks:
             raise ValueError("未能切分出可解析文本块。")
 
-        chunk_results = []
-        total_chunks = len(chunks)
-        for index, chunk in enumerate(chunks, start=1):
-            progress = 10 + int(index / total_chunks * 70)
-            _update_task(task_id, progress=progress, message=f"正在解析第 {index} / {total_chunks} 个文本块")
-            parsed_chunk = _parse_chunk(chunk, index)
-            if not llm_service._is_valid_chapter_analysis(parsed_chunk):
-                raise ValueError(f"第 {index} 个文本块解析结果格式无效。")
-            chunk_results.append(
-                {
-                    "chapter_number": index,
-                    "source_title": chunk["title"],
-                    "analysis": parsed_chunk,
-                }
-            )
+        chunk_results, failed_chunks = asyncio.run(_parse_chunks_concurrently(task_id, chunks))
 
         _update_task(task_id, progress=88, message="正在合并剧本解析结果")
-        result = _merge_chunk_results(title, chunk_results)
+        result = _merge_chunk_results(title, chunk_results, failed_chunks)
+        result["conflicts"] = _merge_conflicts_from_chunk_results(chunk_results) or result.get("conflicts", [])
+        result["failed_chunks"] = failed_chunks
         _save_project_result(task.project_id, result)
         _update_task(
             task_id,
@@ -113,6 +119,7 @@ def run_parse_task(task_id: str) -> None:
             progress=100,
             message="解析完成",
             result_json=result,
+            failed_chunks=failed_chunks,
         )
     except Exception as exc:
         raw_response = getattr(exc, "raw_response", None) or llm_service.get_last_llm_raw_response()
@@ -128,6 +135,62 @@ def run_parse_task(task_id: str) -> None:
             error_message=_error_message_with_raw(str(exc), raw_response_head),
             raw_response=raw_response_head,
         )
+
+
+async def _parse_chunks_concurrently(
+    task_id: str,
+    chunks: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    semaphore = asyncio.Semaphore(settings.llm_max_concurrency)
+    total_chunks = len(chunks)
+    completed = 0
+    completed_lock = asyncio.Lock()
+
+    async def parse_one(index: int, chunk: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+        nonlocal completed
+        async with semaphore:
+            _update_task(
+                task_id,
+                progress=10 + int(completed / total_chunks * 70),
+                message=f"正在解析第 {index} / {total_chunks} 个文本块",
+            )
+            try:
+                parsed_chunk = await asyncio.to_thread(_parse_chunk, chunk, index)
+                if not llm_service._is_valid_chapter_analysis(parsed_chunk):
+                    raise ValueError("文本块解析结果格式无效。")
+                result = {
+                    "chapter_number": index,
+                    "source_title": chunk["title"],
+                    "analysis": parsed_chunk,
+                }
+                failed = None
+            except Exception as exc:
+                raw_response = getattr(exc, "raw_response", None) or llm_service.get_last_llm_raw_response()
+                failed = {
+                    "chunk_number": index,
+                    "title": chunk.get("title") or f"chunk {index}",
+                    "error": str(exc),
+                    "raw_response": (raw_response or "")[:1000] if raw_response else None,
+                }
+                print(f"Parse chunk {index} failed, continuing: {exc}", flush=True)
+                logger.exception("Parse chunk %s failed", index)
+                result = None
+
+            async with completed_lock:
+                completed += 1
+                _update_task(
+                    task_id,
+                    progress=10 + int(completed / total_chunks * 70),
+                    message=f"已完成 {completed} / {total_chunks} 个文本块",
+                )
+            return result, failed
+
+    parsed = await asyncio.gather(
+        *(parse_one(index, chunk) for index, chunk in enumerate(chunks, start=1))
+    )
+    chunk_results = [result for result, _failed in parsed if result is not None]
+    failed_chunks = [failed for _result, failed in parsed if failed is not None]
+    return chunk_results, failed_chunks
 
 
 def split_text_into_chunks(text: str) -> list[dict[str, Any]]:
@@ -192,26 +255,28 @@ def _split_chapters(text: str) -> list[dict[str, str]]:
 
 def _split_long_chapter(text: str) -> list[str]:
     text = text.strip()
-    if len(text) <= CHUNK_TARGET_CHARS:
+    chunk_size = settings.llm_chunk_size
+    chunk_overlap = min(settings.llm_chunk_overlap, max(chunk_size - 1, 0))
+    if len(text) <= chunk_size:
         return [text] if text else []
 
     chunks = []
     start = 0
     text_length = len(text)
     while start < text_length:
-        ideal_end = min(start + CHUNK_TARGET_CHARS, text_length)
+        ideal_end = min(start + chunk_size, text_length)
         end = text_length if ideal_end >= text_length else _find_chunk_end(text, start, ideal_end)
         chunk = text[start:end].strip()
         if chunk:
             chunks.append(chunk)
         if end >= text_length:
             break
-        start = max(end - CHUNK_OVERLAP_CHARS, start + 1)
+        start = max(end - chunk_overlap, start + 1)
     return chunks
 
 
 def _find_chunk_end(text: str, start: int, ideal_end: int) -> int:
-    min_end = max(start + int(CHUNK_TARGET_CHARS * 0.75), start + 1)
+    min_end = max(start + int(settings.llm_chunk_size * 0.75), start + 1)
     max_end = min(len(text), ideal_end + 400)
     search = text[min_end:max_end]
     boundaries = ("\n\n", "\r\n\r\n", "\n", "。”", "！”", "？”", "。", "！", "？", "；")
@@ -233,40 +298,180 @@ def _find_chunk_end(text: str, start: int, ideal_end: int) -> int:
 
 
 def _parse_chunk(chunk: dict[str, Any], chunk_number: int) -> dict[str, Any]:
-    character_result = _call_parse_stage(
-        "角色",
-        _characters_prompt(chunk, chunk_number),
-        _normalize_characters_response,
-        chunk,
-        chunk_number,
-    )
-    characters = character_result["characters"]
+    cache_key = _chunk_cache_key(chunk["content"])
+    cached = _read_chunk_cache(cache_key)
+    if cached is not None:
+        logger.info("LLM cache hit chunk=%s key=%s", chunk_number, cache_key)
+        print(f"LLM cache hit chunk={chunk_number} key={cache_key}", flush=True)
+        return cached
 
-    location_result = _call_parse_stage(
-        "地点",
-        _locations_prompt(chunk, chunk_number, characters),
-        _normalize_locations_response,
-        chunk,
-        chunk_number,
+    parsed = llm_service._call_deepseek(
+        _single_chunk_prompt(chunk, chunk_number),
+        timeout_seconds=CHUNK_LLM_TIMEOUT_SECONDS,
+        max_tokens=1800,
+        purpose=f"parse_chunk_{chunk_number}",
     )
-    locations = location_result["locations"]
+    normalized = _normalize_single_chunk_response(parsed, chunk)
+    if normalized is None:
+        raw_response = llm_service.get_last_llm_raw_response()
+        raise ParseStageError(
+            f"第 {chunk_number} 个文本块（{chunk['title']}）解析失败：LLM 未返回有效结构。",
+            raw_response=raw_response[:1000] if raw_response else None,
+        )
+    _write_chunk_cache(cache_key, normalized)
+    return normalized
 
-    story_result = _call_parse_stage(
-        "剧情与对白",
-        _story_prompt(chunk, chunk_number, characters, locations),
-        lambda parsed: _normalize_story_response(parsed, characters, locations),
-        chunk,
-        chunk_number,
-    )
 
-    return {
-        "chapter_title": chunk["title"],
-        "characters": characters,
-        "locations": locations,
-        "organizations": story_result["organizations"],
-        "events": story_result["events"],
-        "dialogues": story_result["dialogues"],
+def _chunk_cache_key(chunk_text: str) -> str:
+    payload = "\n".join([chunk_text or "", settings.llm_model or "", PARSE_PROMPT_VERSION])
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _read_chunk_cache(cache_key: str) -> dict[str, Any] | None:
+    if not settings.llm_enable_cache:
+        return None
+    path = CHUNK_CACHE_DIR / f"{cache_key}.json"
+    if not path.exists():
+        return None
+    try:
+        cached = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning("Failed to read LLM chunk cache %s: %s", path, exc)
+        return None
+    return cached if isinstance(cached, dict) else None
+
+
+def _write_chunk_cache(cache_key: str, result: dict[str, Any]) -> None:
+    if not settings.llm_enable_cache:
+        return
+    try:
+        CHUNK_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        path = CHUNK_CACHE_DIR / f"{cache_key}.json"
+        path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError as exc:
+        logger.warning("Failed to write LLM chunk cache key=%s: %s", cache_key, exc)
+
+
+def _single_chunk_prompt(chunk: dict[str, Any], chunk_number: int) -> str:
+    template = {
+        "characters": [{"name": "", "aliases": [], "role": "", "description": "", "evidence": ""}],
+        "locations": [{"name": "", "description": "", "evidence": ""}],
+        "organizations": [{"name": "", "description": "", "evidence": ""}],
+        "events": [{"title": "", "summary": "", "characters": [], "location": "", "evidence": ""}],
+        "dialogues": [{"speaker": "", "line": "", "line_type": "dialogue", "emotion": "", "evidence": ""}],
+        "conflicts": [],
     }
+    return "\n".join(
+        [
+            "你是小说结构化解析器。只返回严格 JSON 对象，不要 markdown，不要解释。",
+            "一次性解析当前文本块，返回 characters、locations、organizations、events、dialogues、conflicts。",
+            "禁止返回 narration，禁止返回旁白，禁止复制大段原文。",
+            "数量限制：characters 最多 8 个；locations 最多 6 个；organizations 最多 5 个；events 最多 5 个；dialogues 最多 8 条；conflicts 最多 5 条。",
+            "长度限制：description 不超过 30 字；summary 不超过 60 字；evidence 不超过 20 字。",
+            "dialogues 只保留明确说话人的真实对白；不确定说话人就不要返回该条。",
+            "dialogues.line_type 只能是 dialogue 或 monologue。",
+            "不要把动作短语、语气短语、地点、组织、普通名词识别成人物。",
+            "返回 JSON 必须符合这个结构：",
+            json.dumps(template, ensure_ascii=False),
+            f"prompt_version: {PARSE_PROMPT_VERSION}",
+            f"文本块编号：{chunk_number}",
+            f"文本块标题：{chunk['title']}",
+            "文本块内容：",
+            chunk["content"],
+        ]
+    )
+
+
+def _normalize_single_chunk_response(parsed: Any, chunk: dict[str, Any]) -> dict[str, Any] | None:
+    if not isinstance(parsed, dict):
+        return None
+    characters = _normalize_named_items(_as_list(parsed.get("characters"))[:8], include_role=True)
+    locations = _normalize_named_items(_as_list(parsed.get("locations"))[:6], include_role=False)
+    organizations = _normalize_named_items(_as_list(parsed.get("organizations"))[:5], include_role=False)
+    character_names = _character_name_set(characters)
+    location_names = {str(item.get("name")) for item in locations if item.get("name")}
+
+    normalized = {
+        "chapter_title": chunk["title"],
+        "characters": [_limit_named_item(item, include_role=True) for item in characters[:8]],
+        "locations": [_limit_named_item(item, include_role=False) for item in locations[:6]],
+        "organizations": [_limit_named_item(item, include_role=False) for item in organizations[:5]],
+        "events": [
+            _limit_event(_normalize_event(item, character_names, location_names))
+            for item in _as_list(parsed.get("events"))[:5]
+            if isinstance(item, dict)
+        ],
+        "dialogues": [
+            item
+            for item in (
+                _limit_dialogue(_normalize_dialogue_line_with_characters(line, character_names))
+                for line in _as_list(parsed.get("dialogues"))[:8]
+                if isinstance(line, dict)
+            )
+            if item is not None
+        ],
+        "conflicts": _limit_string_list(_as_list(parsed.get("conflicts")), 5, 60),
+    }
+    return normalized
+
+
+def _as_list(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else []
+
+
+def _clip_text(value: Any, limit: int) -> str:
+    text = re.sub(r"\s+", "", str(value or ""))
+    return text[:limit]
+
+
+def _limit_named_item(item: dict[str, Any], *, include_role: bool) -> dict[str, Any]:
+    result = {
+        "name": _clip_text(item.get("name"), 20),
+        "aliases": [_clip_text(alias, 20) for alias in item.get("aliases", [])[:3] if _clip_text(alias, 20)],
+        "description": _clip_text(item.get("description"), 30),
+        "evidence": _clip_text(item.get("evidence"), 20),
+    }
+    if include_role:
+        result["role"] = _clip_text(item.get("role"), 20)
+    return result
+
+
+def _limit_event(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "title": _clip_text(item.get("title"), 30),
+        "summary": _clip_text(item.get("summary"), 60),
+        "characters": [_clip_text(name, 20) for name in item.get("characters", [])[:8] if _clip_text(name, 20)],
+        "location": _clip_text(item.get("location"), 20),
+        "evidence": _clip_text(item.get("evidence"), 20),
+    }
+
+
+def _limit_dialogue(line: dict[str, Any]) -> dict[str, Any] | None:
+    speaker = _clip_text(line.get("speaker"), 20)
+    text = _clip_text(line.get("line"), 80)
+    line_type = str(line.get("line_type") or "dialogue").strip().lower()
+    if not speaker or not text or speaker == "旁白" or line_type == "narration":
+        return None
+    if line_type not in {"dialogue", "monologue"}:
+        line_type = "dialogue"
+    return {
+        "speaker": speaker,
+        "line": text,
+        "line_type": line_type,
+        "emotion": _clip_text(line.get("emotion"), 20) or "neutral",
+        "evidence": _clip_text(line.get("evidence"), 20),
+    }
+
+
+def _limit_string_list(items: list[Any], max_count: int, max_len: int) -> list[str]:
+    result = []
+    for item in items:
+        text = _clip_text(item, max_len)
+        if text:
+            result.append(text)
+        if len(result) >= max_count:
+            break
+    return result
 
 
 def _call_parse_stage(
@@ -668,15 +873,29 @@ def _normalize_dialogue_line(line: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def _merge_chunk_results(title: str, chunk_results: list[dict[str, Any]]) -> dict[str, Any]:
+def _merge_conflicts_from_chunk_results(chunk_results: list[dict[str, Any]]) -> list[str]:
+    conflicts: list[str] = []
+    for item in chunk_results:
+        analysis = item.get("analysis") or {}
+        conflicts.extend(str(conflict) for conflict in analysis.get("conflicts", []) if conflict)
+    return llm_service._unique(conflicts)[:20]
+
+
+def _merge_chunk_results(
+    title: str,
+    chunk_results: list[dict[str, Any]],
+    failed_chunks: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     character_names: list[str] = []
     location_names: list[str] = []
     organizations: list[dict[str, Any]] = []
+    conflicts: list[str] = []
     for item in chunk_results:
         analysis = item.get("analysis") or {}
         character_names.extend(character.get("name") for character in analysis.get("characters", []) if character.get("name"))
         location_names.extend(location.get("name") for location in analysis.get("locations", []) if location.get("name"))
         organizations.extend(analysis.get("organizations", []))
+        conflicts.extend(str(conflict) for conflict in analysis.get("conflicts", []) if conflict)
 
     characters = [
         {"id": f"char_{index:03d}", "name": name, "aliases": [], "role": "角色", "description": "分块解析识别的人物。"}

@@ -1,0 +1,144 @@
+{
+  "chapter_title": "第五章 解开谜题",
+  "characters": [
+    {
+      "name": "许七安",
+      "aliases": [],
+      "description": "提出金属钠假说并实验验证",
+      "evidence": "许七安点点头，在器具面前蹲下",
+      "role": "主角"
+    },
+    {
+      "name": "陈府尹",
+      "aliases": [],
+      "description": "正四品府尹，负责审案",
+      "evidence": "陈府尹沉声道",
+      "role": "官员"
+    },
+    {
+      "name": "中年男人",
+      "aliases": [
+        "李玉春"
+      ],
+      "description": "赏识许七安的官员",
+      "evidence": "中年男人喃喃道",
+      "role": "官员"
+    },
+    {
+      "name": "黄裙少女",
+      "aliases": [
+        "采薇姑娘"
+      ],
+      "description": "监正弟子，协助实验",
+      "evidence": "黄裙少女笑嘻嘻道",
+      "role": "司天监弟子"
+    }
+  ],
+  "locations": [
+    {
+      "name": "内堂",
+      "aliases": [],
+      "description": "审案场所",
+      "evidence": "摆在堂内"
+    }
+  ],
+  "organizations": [
+    {
+      "name": "司天监",
+      "aliases": [],
+      "description": "术士机构",
+      "evidence": "司天监术士第六品：炼金术师"
+    },
+    {
+      "name": "钦天监",
+      "aliases": [],
+      "description": "观测机构",
+      "evidence": "钦天监的望气术"
+    }
+  ],
+  "events": [
+    {
+      "title": "提取金属钠实验",
+      "summary": "许七安通过电解法制取金属钠，验证税银爆炸假说",
+      "characters": [
+        "许七安",
+        "陈府尹",
+        "中年男人",
+        "黄裙少女"
+      ],
+      "location": "内堂",
+      "evidence": "电解法制取金属钠"
+    },
+    {
+      "title": "金属钠遇水爆炸演示",
+      "summary": "许七安将金属钠丢入水中引发爆炸，解释税银爆炸原因",
+      "characters": [
+        "许七安",
+        "陈府尹",
+        "中年男人",
+        "黄裙少女"
+      ],
+      "location": "内堂",
+      "evidence": "丢进了洗笔缸里"
+    }
+  ],
+  "dialogues": [
+    {
+      "speaker": "陈府尹",
+      "line": "你要的东西都在这里，务必给本官满意的答复。",
+      "line_type": "dialogue",
+      "emotion": "严肃",
+      "evidence": "陈府尹沉声道"
+    },
+    {
+      "speaker": "许七安",
+      "line": "若是草民助大人破了此案，可否上书圣人，免去我许家的罪责。",
+      "line_type": "dialogue",
+      "emotion": "恳求",
+      "evidence": "许七安说道"
+    },
+    {
+      "speaker": "陈府尹",
+      "line": "自然。",
+      "line_type": "dialogue",
+      "emotion": "肯定",
+      "evidence": "陈府尹颔首"
+    },
+    {
+      "speaker": "许七安",
+      "line": "大人是司天监的弟子吧。",
+      "line_type": "dialogue",
+      "emotion": "询问",
+      "evidence": "许七安抬起头"
+    },
+    {
+      "speaker": "黄裙少女",
+      "line": "家师便是司天监监正。",
+      "line_type": "dialogue",
+      "emotion": "自豪",
+      "evidence": "黄裙少女‘嗯’了一声"
+    },
+    {
+      "speaker": "许七安",
+      "line": "麻烦姐姐为我熔化这些结晶。",
+      "line_type": "dialogue",
+      "emotion": "请求",
+      "evidence": "许七安语气温柔"
+    },
+    {
+      "speaker": "黄裙少女",
+      "line": "控火是炼金术师才有的能力，我只是个风水师。",
+      "line_type": "dialogue",
+      "emotion": "无奈",
+      "evidence": "黄裙少女瘪了瘪小嘴"
+    },
+    {
+      "speaker": "黄裙少女",
+      "line": "你，你是炼金术师？",
+      "line_type": "dialogue",
+      "emotion": "惊讶",
+      "evidence": "黄裙少女接过，掂量掂量，然后眼神古怪的盯"
+    }
+  ],
+  "conflicts": []
+}

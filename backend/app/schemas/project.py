@@ -197,12 +197,14 @@ class ParseTaskRead(BaseModel):
     message: str
     error: str | None = None
     raw_response: str | None = None
+    failed_chunks: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ParseTaskResultRead(BaseModel):
     task_id: str
     result_json: dict[str, Any] | None = None
     result_yaml: str | None = None
+    failed_chunks: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ScriptRead(BaseModel):

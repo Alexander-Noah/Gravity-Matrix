@@ -6,7 +6,12 @@ from app.schemas.project import (
     ParseTaskRead,
     ParseTaskResultRead,
 )
-from app.services.parse_tasks import create_parse_task, get_parse_task, run_parse_task
+from app.services.parse_tasks import (
+    create_parse_task,
+    get_active_project_parse_task,
+    get_parse_task,
+    run_parse_task,
+)
 
 router = APIRouter(tags=["parse-tasks"])
 
@@ -15,6 +20,10 @@ router = APIRouter(tags=["parse-tasks"])
 def create_task(payload: ParseTaskCreateRequest, background_tasks: BackgroundTasks) -> ParseTaskCreateResponse:
     if not payload.source_text and not payload.source_file_id and payload.project_id is None:
         raise HTTPException(status_code=422, detail="请提供 source_text、source_file_id 或 project_id。")
+
+    active_task = get_active_project_parse_task(payload.project_id)
+    if active_task is not None:
+        return ParseTaskCreateResponse(task_id=active_task.id)
 
     task = create_parse_task(
         source_text=payload.source_text,
@@ -37,6 +46,7 @@ def get_task(task_id: str) -> ParseTaskRead:
         message=task.message,
         error=task.error_message,
         raw_response=task.raw_response,
+        failed_chunks=task.failed_chunks,
     )
 
 
@@ -47,4 +57,9 @@ def get_task_result(task_id: str) -> ParseTaskResultRead:
         raise HTTPException(status_code=404, detail="解析任务不存在。")
     if task.status != "success":
         raise HTTPException(status_code=409, detail="解析任务尚未完成。")
-    return ParseTaskResultRead(task_id=task.id, result_json=task.result_json, result_yaml=task.result_yaml)
+    return ParseTaskResultRead(
+        task_id=task.id,
+        result_json=task.result_json,
+        result_yaml=task.result_yaml,
+        failed_chunks=task.failed_chunks,
+    )

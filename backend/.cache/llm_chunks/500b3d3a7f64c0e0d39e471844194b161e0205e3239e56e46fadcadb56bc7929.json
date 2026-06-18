@@ -1,0 +1,168 @@
+{
+  "chapter_title": "第二章 妖物作祟",
+  "characters": [
+    {
+      "name": "许七安",
+      "aliases": [],
+      "description": "穿越者，原为现代人，现为许家长子",
+      "evidence": "我要破案",
+      "role": "主角"
+    },
+    {
+      "name": "许新年",
+      "aliases": [],
+      "description": "许七安弟弟，为家族奔走",
+      "evidence": "我去写下来",
+      "role": "配角"
+    },
+    {
+      "name": "陈汉光",
+      "aliases": [],
+      "description": "正四品官员，负责税银案",
+      "evidence": "还有两天",
+      "role": "京兆府尹"
+    },
+    {
+      "name": "李玉春",
+      "aliases": [],
+      "description": "中年男人，出身打更人组织",
+      "evidence": "此案云遮雾笼",
+      "role": "打更人"
+    },
+    {
+      "name": "黄裙少女",
+      "aliases": [],
+      "description": "监正弟子，辅助办案",
+      "evidence": "我观过他的气",
+      "role": "司天监弟子"
+    }
+  ],
+  "locations": [
+    {
+      "name": "广南街",
+      "aliases": [],
+      "description": "税银失踪案发地",
+      "evidence": "行至广南街"
+    },
+    {
+      "name": "京兆府后堂",
+      "aliases": [],
+      "description": "官员议事场所",
+      "evidence": "京兆府后堂"
+    }
+  ],
+  "organizations": [
+    {
+      "name": "打更人",
+      "aliases": [],
+      "description": "皇室情报组织",
+      "evidence": "被大奉官员忌惮"
+    },
+    {
+      "name": "司天监",
+      "aliases": [],
+      "description": "朝廷天文机构",
+      "evidence": "司天监的人"
+    },
+    {
+      "name": "京兆府",
+      "aliases": [],
+      "description": "京城地方官府",
+      "evidence": "京兆府尹陈汉光"
+    }
+  ],
+  "events": [
+    {
+      "title": "税银失踪案",
+      "summary": "许平志押运税银遇怪风，白银入河后爆炸消失",
+      "characters": [
+        "许七安",
+        "许新年"
+      ],
+      "location": "广南街",
+      "evidence": "三天前的卯时二刻"
+    },
+    {
+      "title": "许新年抄录卷宗",
+      "summary": "许新年买通吏员获取卷宗",
+      "characters": [
+        "许新年"
+      ],
+      "location": "",
+      "evidence": "买通了京兆府的吏员"
+    },
+    {
+      "title": "官员会议",
+      "summary": "陈汉光、李玉春、黄裙少女讨论案情",
+      "characters": [
+        "陈汉光",
+        "李玉春",
+        "黄裙少女"
+      ],
+      "location": "京兆府后堂",
+      "evidence": "齐聚一堂"
+    }
+  ],
+  "dialogues": [
+    {
+      "speaker": "许新年",
+      "line": "你要这个干嘛。",
+      "line_type": "dialogue",
+      "emotion": "疑惑",
+      "evidence": "许新年皱了皱眉"
+    },
+    {
+      "speaker": "许七安",
+      "line": "我想知道案发经过，死也死的明白。不然我不甘心。",
+      "line_type": "dialogue",
+      "emotion": "坚定",
+      "evidence": "许七安沉声道"
+    },
+    {
+      "speaker": "许新年",
+      "line": "我看过卷宗了，可以说给你听",
+      "line_type": "dialogue",
+      "emotion": "无奈",
+      "evidence": "许新年沉吟一下"
+    },
+    {
+      "speaker": "许七安",
+      "line": "你去写下来，口述没有意义。",
+      "line_type": "dialogue",
+      "emotion": "冷静",
+      "evidence": "许七安抬手打断"
+    },
+    {
+      "speaker": "许新年",
+      "line": "时间到了，我得走了。你自己保重。",
+      "line_type": "dialogue",
+      "emotion": "关切",
+      "evidence": "许新年犹豫一下"
+    },
+    {
+      "speaker": "陈汉光",
+      "line": "还有两天，圣上命我等在许平志斩首前追回税银，两位大人，得抓紧时间了。",
+      "line_type": "dialogue",
+      "emotion": "焦虑",
+      "evidence": "陈府尹轻叹道"
+    },
+    {
+      "speaker": "李玉春",
+      "line": "此案云遮雾笼，甚是古怪，也许我们的方向是错的。",
+      "line_type": "dialogue",
+      "emotion": "沉思",
+      "evidence": "中年人脸色沉重的回复"
+    },
+    {
+      "speaker": "陈汉光",
+      "line": "我们的时间不多了，而今应该做的是尽快捉拿作乱的妖物，莫要想这些乱七八糟的。",
+      "line_type": "dialogue",
+      "emotion": "急躁",
+      "evidence": "陈府尹说"
+    }
+  ],
+  "conflicts": [
+    "{'type':'人物冲突','description':'陈汉光与李玉春对案件方向有分歧','evidence':'陈",
+    "{'type':'人物冲突','description':'许七安与许新年兄弟关系紧张','evidence':'换成以"
+  ]
+}

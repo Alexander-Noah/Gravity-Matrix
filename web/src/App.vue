@@ -41,7 +41,6 @@ import AuthPage from './components/AuthPage.vue'
 import GenerationSettingsDialog from './components/GenerationSettingsDialog.vue'
 import HelpDocsPage from './components/HelpDocsPage.vue'
 import NovelImportPage from './components/NovelImportPage.vue'
-import NovelToYaml from './components/NovelToYaml.vue'
 import ProductRoutePage from './components/ProductRoutePage.vue'
 import ProfileCenterDialog from './components/ProfileCenterDialog.vue'
 import SchemaHelpPage from './components/SchemaHelpPage.vue'
@@ -1007,8 +1006,13 @@ const handleYamlTextUpdate = (yamlText) => {
   }, 900)
 }
 
+const yamlContent = computed({
+  get: () => generatedYamlText.value,
+  set: (value) => handleYamlTextUpdate(value),
+})
+
 const saveYamlNow = async () => {
-  const yamlText = generatedYamlText.value
+  const yamlText = yamlContent.value
   if (!yamlText?.trim()) {
     editorNotice.value = '当前没有可保存的 YAML 草稿。'
     return
@@ -1570,7 +1574,7 @@ const cloneLibraryScript = async (script) => {
 }
 
 const goToAnalysis = async () => {
-  if (!isNovelValid.value || isImportSubmitting.value) {
+  if (!isNovelValid.value || isImportSubmitting.value || isAnalysisParsing.value) {
     return
   }
 
@@ -1631,7 +1635,7 @@ const goBackToAnalysis = () => {
 }
 
 const rerunAnalysis = async () => {
-  if (!currentProjectId.value) return
+  if (!currentProjectId.value || isAnalysisParsing.value) return
   analysisProgress.value = 10
   analysisNotice.value = '正在请求后端重新解析小说内容...'
 
@@ -1783,8 +1787,8 @@ const validateYaml = async () => {
 
   try {
     editorNotice.value = '正在调用后端校验 YAML...'
-    const validation = await validateProjectScript(currentProjectId.value, generatedYamlText.value)
-    const diagnosis = await diagnoseProjectScriptDraft(currentProjectId.value, generatedYamlText.value)
+    const validation = await validateProjectScript(currentProjectId.value, yamlContent.value)
+    const diagnosis = await diagnoseProjectScriptDraft(currentProjectId.value, yamlContent.value)
 
     schemaValidation.value = {
       ...mapDiagnosisToSchemaValidation(diagnosis, validation.valid),
@@ -1807,7 +1811,7 @@ const copyYaml = async () => {
   }
 
   try {
-    await navigator.clipboard.writeText(generatedYamlText.value)
+    await navigator.clipboard.writeText(yamlContent.value)
     editorNotice.value = 'YAML 已复制到剪贴板。'
   } catch {
     editorNotice.value = '复制失败，请检查浏览器剪贴板权限。'
@@ -1815,7 +1819,7 @@ const copyYaml = async () => {
 }
 
 const downloadYaml = () => {
-  const blob = new Blob([generatedYamlText.value], { type: 'text/yaml;charset=utf-8' })
+  const blob = new Blob([yamlContent.value], { type: 'text/yaml;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
 
@@ -1839,7 +1843,7 @@ const goToPreview = () => {
 
 const importSourceNovel = async (script) => {
   const sourceId = script?.source_id
-  if (!sourceId) return
+  if (!sourceId || isAnalysisParsing.value) return
 
   try {
     libraryNotice.value = `正在导入素材 ${script.sourceNovel}...`
@@ -1880,7 +1884,7 @@ const downloadTextFile = (content, filename, type) => {
 }
 
 const exportPreviewYaml = () => {
-  downloadTextFile(generatedYamlText.value, 'generated-script.yaml', 'text/yaml;charset=utf-8')
+  downloadTextFile(yamlContent.value, 'generated-script.yaml', 'text/yaml;charset=utf-8')
   previewNotice.value = 'YAML 文件已开始下载。'
 }
 
@@ -2032,8 +2036,6 @@ const handleFileUpload = async (event) => {
 
         <HelpDocsPage v-else-if="activeRoute.id === 'help'" :content="productHelpDocs" :icon-paths="iconPaths" />
 
-        <NovelToYaml v-else-if="activeRoute.id === 'novel-to-yaml'" />
-
         <ProductRoutePage v-else-if="!isWorkbenchRoute" :icon-paths="iconPaths" :route="activeRoute" />
 
         <template v-else>
@@ -2065,13 +2067,13 @@ const handleFileUpload = async (event) => {
               :analysis-metrics="displayedAnalysisMetrics" :icon-paths="iconPaths" :insight-items="displayedInsightItems"
               :project-progress="currentProjectProgress" :project-stages="currentProjectStages"
               :project-title="currentProjectTitle" @show-analysis="goBackToAnalysis" />
-            <ScriptWorkspace ref="scriptWorkspaceRef" :active-yaml-line="activeYamlLine" :correction-scene="selectedCorrectionScene" :icon-paths="iconPaths" :preview-scene="selectedPreviewScene"
+            <ScriptWorkspace ref="scriptWorkspaceRef" v-model:yaml-content="yamlContent" :active-yaml-line="activeYamlLine" :correction-scene="selectedCorrectionScene" :icon-paths="iconPaths" :preview-scene="selectedPreviewScene"
               :schema-validation="schemaValidation" :script-chapters="displayedScriptChapters"
-              :is-generating="isScriptGenerating" :status-notice="editorNotice" :yaml-lines="generatedYamlLines" :yaml-text="generatedYamlText" @add-scene="openAddScene"
+              :is-generating="isScriptGenerating" :status-notice="editorNotice" :yaml-lines="generatedYamlLines" @add-scene="openAddScene"
               @copy-yaml="copyYaml" @download-yaml="downloadYaml" @open-preview="goToPreview"
               @open-schema="goToSchemaHelp" @previous="goBackToAnalysis" @select-chapter="selectScriptChapter" @select-scene="selectScriptScene"
               @save-yaml="saveYamlNow" @update:character="updateScriptCharacter" @update:dialogue="updateSelectedSceneDialogue"
-              @update:scene-field="updateSelectedSceneField" @update:yaml-text="handleYamlTextUpdate" @validate-yaml="validateYaml" />
+              @update:scene-field="updateSelectedSceneField" @validate-yaml="validateYaml" />
           </div>
 
           <GenerationSettingsDialog v-model="isGenerationSettingsOpen" :initial-settings="generatedSettings || defaultGenerationSettings"

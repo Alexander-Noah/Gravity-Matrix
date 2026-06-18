@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass
 from typing import Any
 
-from openai import OpenAI
+from openai import APIStatusError, OpenAI
 from pydantic import ValidationError
 
 from app.core.config import settings
@@ -175,7 +176,7 @@ def _call_deepseek(
             timeout=timeout_seconds or settings.llm_timeout_seconds,
         )
         request = _deepseek_request_payload(prompt, max_tokens=max_tokens)
-        response = _create_chat_completion(client, request)
+        response = _create_chat_completion_with_policy(client, request, purpose=purpose)
         content = response.choices[0].message.content
         _last_llm_raw_response = content
         if not content:
@@ -198,6 +199,8 @@ def _call_deepseek(
             )
             _last_llm_raw_response = repaired_content
             parsed = safe_json_parse(repaired_content, purpose=f"{purpose}_repair")
+    except AIParseError:
+        raise
     except Exception as exc:
         _last_llm_raw_response = _llm_exception_debug_text(exc)
         print(f"LLM {purpose} raw/error head: {_last_llm_raw_response[:4000]}", flush=True)
@@ -273,6 +276,60 @@ def _should_use_json_response_format() -> bool:
     return provider == "openai_compatible" and ("deepseek" in model or "deepseek" in base_url)
 
 
+def _create_chat_completion_with_policy(client: OpenAI, request: dict[str, Any], *, purpose: str):
+    max_retries = min(settings.llm_max_retries, 1)
+    attempt = 0
+    while True:
+        try:
+            return _create_chat_completion(client, request)
+        except APIStatusError as exc:
+            status_code = getattr(exc, "status_code", None)
+            message = _api_status_error_message(exc)
+            _last_error = f"LLM API error status={status_code}: {message}"
+            print(f"LLM {purpose} API error: {_last_error}", flush=True)
+            logger.warning("LLM %s API error status=%s: %s", purpose, status_code, message)
+
+            if status_code == 402:
+                raise AIParseError("DeepSeek 账户余额不足，请充值或更换 API Key。") from exc
+            if status_code in {401, 403}:
+                raise AIParseError(f"LLM API 鉴权失败或无权限（HTTP {status_code}）：{message}") from exc
+            if status_code == 429 and attempt < max_retries:
+                attempt += 1
+                wait_seconds = _retry_after_seconds(exc) or 1.5
+                print(f"LLM {purpose} rate limited, retrying in {wait_seconds:.1f}s", flush=True)
+                time.sleep(wait_seconds)
+                continue
+            if status_code is not None and 500 <= status_code < 600 and attempt < max_retries:
+                attempt += 1
+                wait_seconds = _retry_after_seconds(exc) or 1.5
+                print(f"LLM {purpose} server error, retrying in {wait_seconds:.1f}s", flush=True)
+                time.sleep(wait_seconds)
+                continue
+            raise AIParseError(f"LLM API 请求失败（HTTP {status_code}）：{message}") from exc
+
+
+def _api_status_error_message(exc: APIStatusError) -> str:
+    response = getattr(exc, "response", None)
+    response_text = getattr(response, "text", None)
+    if response_text:
+        return str(response_text)[:1000]
+    return str(exc)
+
+
+def _retry_after_seconds(exc: APIStatusError) -> float | None:
+    response = getattr(exc, "response", None)
+    headers = getattr(response, "headers", None)
+    if not headers:
+        return None
+    value = headers.get("retry-after") if hasattr(headers, "get") else None
+    if not value:
+        return None
+    try:
+        return max(0.0, min(float(value), 30.0))
+    except ValueError:
+        return None
+
+
 def _create_chat_completion(client: OpenAI, request: dict[str, Any]):
     try:
         return client.chat.completions.create(**request)
@@ -316,7 +373,7 @@ def _repair_json_response(
         ]
     )
     request = _deepseek_request_payload(prompt, max_tokens=max_tokens)
-    response = _create_chat_completion(client, request)
+    response = _create_chat_completion_with_policy(client, request, purpose=f"{purpose}_repair")
     repaired = response.choices[0].message.content or ""
     print(f"LLM {purpose} repaired JSON response head: {repaired[:1000]}", flush=True)
     return repaired

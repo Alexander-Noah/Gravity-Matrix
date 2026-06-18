@@ -201,6 +201,10 @@
     min-width: 620px;
   }
 
+  .yaml-content-input .el-textarea__inner {
+    min-width: 620px;
+  }
+
   .preview-strip-header {
     align-items: stretch;
     height: auto;

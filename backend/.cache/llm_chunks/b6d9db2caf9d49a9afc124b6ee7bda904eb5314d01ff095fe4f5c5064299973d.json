@@ -1,0 +1,43 @@
+{
+  "chapter_title": "第三章 仙侠世界一样能推理 / 片段 2",
+  "characters": [
+    {
+      "name": "许七安",
+      "aliases": [],
+      "description": "穿着囚服，身上有血痕",
+      "evidence": "穿着囚服，身上有道道干涸血痕",
+      "role": "囚犯"
+    },
+    {
+      "name": "陈府尹",
+      "aliases": [],
+      "description": "下令提审许七安",
+      "evidence": "陈府尹沉吟一下，道：“把人提过来。”",
+      "role": "官员"
+    }
+  ],
+  "locations": [],
+  "organizations": [],
+  "events": [
+    {
+      "title": "提审许七安",
+      "summary": "陈府尹下令将许七安从牢房提来审问",
+      "characters": [
+        "陈府尹",
+        "许七安"
+      ],
+      "location": "",
+      "evidence": "陈府尹沉吟一下，道：“把人提过来。”"
+    }
+  ],
+  "dialogues": [
+    {
+      "speaker": "陈府尹",
+      "line": "把人提过来。",
+      "line_type": "dialogue",
+      "emotion": "冷静",
+      "evidence": "陈府尹沉吟一下，道：“把人提过来。”"
+    }
+  ],
+  "conflicts": []
+}
