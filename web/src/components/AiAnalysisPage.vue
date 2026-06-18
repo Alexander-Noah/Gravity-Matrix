@@ -34,19 +34,19 @@ const noticeType = computed(() => (/失败|错误|异常/.test(props.notice) ? '
           <el-progress :percentage="displayProgress" :stroke-width="8" />
         </div>
         <div class="analysis-primary-actions" aria-label="解析主操作">
-          <el-button class="editor-tool" type="button" :disabled="isParsing" @click="$emit('previous')">
+          <el-button class="editor-tool" native-type="button" :disabled="isParsing" @click="$emit('previous')">
             <svg class="reverse-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
             </svg>
             <span>返回导入</span>
           </el-button>
-          <el-button class="editor-tool" type="button" :loading="isParsing" :disabled="isParsing" @click="$emit('rerun')">
+          <el-button class="editor-tool" native-type="button" :loading="isParsing" :disabled="isParsing" @click="$emit('rerun')">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path v-for="path in iconPaths.refresh" :key="path" :d="path" />
             </svg>
             <span>重新解析</span>
           </el-button>
-          <el-button class="editor-tool is-primary" type="button" :disabled="!isComplete || isParsing" @click="$emit('next')">
+          <el-button class="editor-tool is-primary" native-type="button" :disabled="!isComplete || isParsing" @click="$emit('next')">
             <span>生成剧本</span>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
@@ -174,20 +174,20 @@ const noticeType = computed(() => (/失败|错误|异常/.test(props.notice) ? '
     />
 
     <div class="analysis-actions">
-      <el-button class="editor-tool" type="button" :disabled="isParsing" @click="$emit('previous')">
+      <el-button class="editor-tool" native-type="button" :disabled="isParsing" @click="$emit('previous')">
         <svg class="reverse-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
         </svg>
         <span>返回导入</span>
       </el-button>
       <div class="analysis-action-group">
-        <el-button class="editor-tool" type="button" :loading="isParsing" :disabled="isParsing" @click="$emit('rerun')">
+        <el-button class="editor-tool" native-type="button" :loading="isParsing" :disabled="isParsing" @click="$emit('rerun')">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path v-for="path in iconPaths.refresh" :key="path" :d="path" />
           </svg>
           <span>重新解析</span>
         </el-button>
-        <el-button class="editor-tool is-primary" type="button" :disabled="!isComplete || isParsing" @click="$emit('next')">
+        <el-button class="editor-tool is-primary" native-type="button" :disabled="!isComplete || isParsing" @click="$emit('next')">
           <span>生成剧本</span>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path v-for="path in iconPaths.arrow" :key="path" :d="path" />

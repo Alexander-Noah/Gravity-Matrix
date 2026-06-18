@@ -80,6 +80,17 @@ button {
   font: inherit;
 }
 
+img,
+svg,
+video,
+canvas,
+input,
+textarea,
+select,
+button {
+  max-width: 100%;
+}
+
 button:disabled {
   cursor: not-allowed;
   filter: saturate(0.72);

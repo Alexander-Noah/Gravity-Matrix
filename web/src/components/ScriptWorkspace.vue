@@ -251,7 +251,7 @@ defineExpose({ scrollToYamlLine })
       </aside>
     </div>
 
-    <section class="correction-panel" aria-labelledby="correction-title">
+    <section v-if="false" class="correction-panel" aria-labelledby="correction-title">
       <header class="correction-header">
         <div>
           <span>人工校正</span>
@@ -424,12 +424,6 @@ defineExpose({ scrollToYamlLine })
           </article>
         </div>
 
-        <div class="subway-visual" aria-label="场景画面预览">
-          <div class="station-wall" aria-hidden="true"></div>
-          <div class="train" aria-hidden="true"><span></span><span></span></div>
-          <div class="platform" aria-hidden="true"></div>
-          <div class="visual-people" aria-hidden="true"><span></span><span></span><span></span></div>
-        </div>
       </div>
     </section>
   </section>
