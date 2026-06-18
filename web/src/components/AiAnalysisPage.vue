@@ -8,6 +8,7 @@ const props = defineProps({
   characterRelations: { type: Array, required: true },
   dialogueExtracts: { type: Array, required: true },
   iconPaths: { type: Object, required: true },
+  isParsing: { type: Boolean, default: false },
   notice: { type: String, default: '' },
   plotEvents: { type: Array, required: true },
   progress: { type: Number, required: true },
@@ -15,7 +16,9 @@ const props = defineProps({
 
 defineEmits(['next', 'previous', 'rerun'])
 
-const isComplete = computed(() => props.progress >= 100)
+const displayProgress = computed(() => Math.min(100, Math.max(0, Math.round(props.progress || 0))))
+const isComplete = computed(() => displayProgress.value >= 100)
+const noticeType = computed(() => (/失败|错误|异常/.test(props.notice) ? 'error' : 'info'))
 </script>
 
 <template>
@@ -28,37 +31,27 @@ const isComplete = computed(() => props.progress >= 100)
       </div>
       <div class="analysis-progress-side">
         <div class="analysis-progress-meter">
-          <div
-            class="progress-track"
-            role="progressbar"
-            aria-label="AI解析进度"
-            :aria-valuenow="progress"
-            aria-valuemin="0"
-            aria-valuemax="100"
-          >
-            <span :style="{ width: `${progress}%` }"></span>
-          </div>
-          <strong>{{ progress }}%</strong>
+          <el-progress :percentage="displayProgress" :stroke-width="8" />
         </div>
         <div class="analysis-primary-actions" aria-label="解析主操作">
-          <button class="editor-tool" type="button" @click="$emit('previous')">
+          <el-button class="editor-tool" type="button" :disabled="isParsing" @click="$emit('previous')">
             <svg class="reverse-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
             </svg>
             <span>返回导入</span>
-          </button>
-          <button class="editor-tool" type="button" @click="$emit('rerun')">
+          </el-button>
+          <el-button class="editor-tool" type="button" :loading="isParsing" :disabled="isParsing" @click="$emit('rerun')">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path v-for="path in iconPaths.refresh" :key="path" :d="path" />
             </svg>
             <span>重新解析</span>
-          </button>
-          <button class="editor-tool is-primary" type="button" :disabled="!isComplete" @click="$emit('next')">
+          </el-button>
+          <el-button class="editor-tool is-primary" type="button" :disabled="!isComplete || isParsing" @click="$emit('next')">
             <span>生成剧本</span>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
             </svg>
-          </button>
+          </el-button>
         </div>
       </div>
     </section>
@@ -171,28 +164,35 @@ const isComplete = computed(() => props.progress >= 100)
       </div>
     </section>
 
-    <p v-if="notice" class="inline-note">{{ notice }}</p>
+    <el-alert
+      v-if="notice"
+      class="analysis-alert"
+      :closable="false"
+      :title="notice"
+      :type="noticeType"
+      show-icon
+    />
 
     <div class="analysis-actions">
-      <button class="editor-tool" type="button" @click="$emit('previous')">
+      <el-button class="editor-tool" type="button" :disabled="isParsing" @click="$emit('previous')">
         <svg class="reverse-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
         </svg>
         <span>返回导入</span>
-      </button>
+      </el-button>
       <div class="analysis-action-group">
-        <button class="editor-tool" type="button" @click="$emit('rerun')">
+        <el-button class="editor-tool" type="button" :loading="isParsing" :disabled="isParsing" @click="$emit('rerun')">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path v-for="path in iconPaths.refresh" :key="path" :d="path" />
           </svg>
           <span>重新解析</span>
-        </button>
-        <button class="editor-tool is-primary" type="button" :disabled="!isComplete" @click="$emit('next')">
+        </el-button>
+        <el-button class="editor-tool is-primary" type="button" :disabled="!isComplete || isParsing" @click="$emit('next')">
           <span>生成剧本</span>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
           </svg>
-        </button>
+        </el-button>
       </div>
     </div>
   </div>

@@ -5,19 +5,19 @@ import yaml from 'js-yaml'
 import { clearAuthSession, fetchCurrentUser, getAuthSession, hasActiveAuthSession } from './api/auth'
 import { getApiErrorMessage } from './api/http'
 import {
+  createParseTask,
   createProject,
   diagnoseProjectScriptDraft,
   getJob,
+  getParseTask,
+  getParseTaskResult,
   getProjectReadiness,
-  getProjectAnalysis,
   getProjectScript,
   getProjectWorkbench,
   saveProjectScript,
-  startAnalysisJob,
   startScriptJob,
   validateProjectScript,
   updateGenerationSettings,
-  rerunAnalysisJob,
   addProjectScene,
   exportProjectMarkdown,
   exportProjectPdf,
@@ -74,6 +74,7 @@ const selectedFileName = ref('')
 const importNotice = ref('')
 const analysisProgress = ref(100)
 const analysisNotice = ref('')
+const isAnalysisParsing = ref(false)
 const currentProjectId = ref(null)
 const isImportSubmitting = ref(false)
 const isGenerationSettingsOpen = ref(false)
@@ -1101,6 +1102,48 @@ const waitForJob = async (jobId, onProgress, { timeoutMs = 180000, intervalMs = 
     : '任务仍在处理中，请稍后重试或刷新工作台查看结果。')
 }
 
+const waitForParseTask = async (taskId, { timeoutMs = 45 * 60 * 1000, intervalMs = 1200 } = {}) => {
+  const startedAt = Date.now()
+  let lastTask = null
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const task = await getParseTask(taskId)
+    lastTask = task
+    analysisProgress.value = task.progress ?? analysisProgress.value
+    analysisNotice.value = task.message || analysisNotice.value
+
+    if (task.status === 'success') {
+      return getParseTaskResult(taskId)
+    }
+
+    if (task.status === 'failed') {
+      throw new Error(task.error || 'AI 解析任务失败。')
+    }
+
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, intervalMs)
+    })
+  }
+
+  throw new Error(lastTask?.message
+    ? `任务仍在处理中：${lastTask.message}（${lastTask.progress ?? 0}%）。请稍后重试或刷新工作台查看结果。`
+    : '任务仍在处理中，请稍后重试或刷新工作台查看结果。')
+}
+
+const startProjectParseTask = async (projectId) => {
+  const { task_id: taskId } = await createParseTask({ projectId })
+  return waitForParseTask(taskId)
+}
+
+const runProjectParseTask = async (projectId) => {
+  isAnalysisParsing.value = true
+  try {
+    return await startProjectParseTask(projectId)
+  } finally {
+    isAnalysisParsing.value = false
+  }
+}
+
 const syncCurrentWorkbench = async () => {
   if (!currentProjectId.value) {
     return null
@@ -1516,15 +1559,14 @@ const goToAnalysis = async () => {
     analysisProgress.value = 25
     importNotice.value = '项目已创建，正在启动 AI 解析任务...'
 
-    const job = await startAnalysisJob(project.id)
     activePage.value = 'analysis'
     hasEnteredAnalysis = true
-    analysisNotice.value = job.current_step || 'AI 解析任务已启动。'
-    analysisProgress.value = job.progress ?? 30
+    analysisNotice.value = '解析任务已启动，正在切分文本...'
+    analysisProgress.value = 5
 
-    await waitForJob(job.id)
-    const analysis = await getProjectAnalysis(project.id)
-    applyAnalysisResult(analysis)
+    const result = await runProjectParseTask(project.id)
+    applyAnalysisResult(result.result_json)
+    await syncCurrentWorkbench()
     analysisProgress.value = 100
     currentProjectProgress.value = 60
     currentProjectStages.value = buildProjectStages('analysis')
@@ -1556,12 +1598,9 @@ const rerunAnalysis = async () => {
   analysisNotice.value = '正在请求后端重新解析小说内容...'
 
   try {
-    const job = await rerunAnalysisJob(currentProjectId.value)
-    analysisNotice.value = job.current_step || '重新解析任务已启动...'
-    analysisProgress.value = job.progress || 30
-    await waitForJob(job.id)
-    const analysis = await getProjectAnalysis(currentProjectId.value)
-    applyAnalysisResult(analysis)
+    const result = await runProjectParseTask(currentProjectId.value)
+    applyAnalysisResult(result.result_json)
+    await syncCurrentWorkbench()
     analysisProgress.value = 100
     analysisNotice.value = '重新解析完成，结果已从后端同步。'
   } catch (error) {
@@ -1777,13 +1816,9 @@ const importSourceNovel = async (script) => {
     analysisProgress.value = 10
     analysisNotice.value = '素材已导入，正在启动 AI 解析...'
 
-    const job = await startAnalysisJob(project.id)
-    analysisNotice.value = job.current_step || 'AI 解析任务已启动。'
-    analysisProgress.value = job.progress ?? 30
-    await waitForJob(job.id)
-
-    const analysis = await getProjectAnalysis(project.id)
-    applyAnalysisResult(analysis)
+    const result = await runProjectParseTask(project.id)
+    applyAnalysisResult(result.result_json)
+    await syncCurrentWorkbench()
     analysisProgress.value = 100
     analysisNotice.value = '素材小说已导入并完成 AI 解析。'
   } catch (error) {
@@ -1976,7 +2011,7 @@ const handleFileUpload = async (event) => {
           <AiAnalysisPage v-else-if="activePage === 'analysis'" :analysis-characters="displayedAnalysisCharacters"
             :analysis-metrics="displayedAnalysisMetrics" :analysis-scenes="displayedAnalysisScenes"
             :character-relations="displayedCharacterRelations" :dialogue-extracts="displayedDialogueExtracts"
-            :icon-paths="iconPaths" :notice="analysisNotice" :plot-events="displayedPlotEvents"
+            :icon-paths="iconPaths" :is-parsing="isAnalysisParsing" :notice="analysisNotice" :plot-events="displayedPlotEvents"
             :progress="analysisProgress" @next="openGenerationSettings" @previous="goBackToImport"
             @rerun="rerunAnalysis" />
 

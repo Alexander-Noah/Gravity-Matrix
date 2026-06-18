@@ -30,6 +30,34 @@ export const getJob = async (jobId) => {
   return response.data
 }
 
+export const createParseTask = async ({ sourceText, sourceFileId, projectId } = {}) => {
+  const response = await http.post('/parse/tasks', {
+    source_text: sourceText,
+    source_file_id: sourceFileId,
+    project_id: projectId,
+  }, {
+    timeout: 30000,
+  })
+
+  return response.data
+}
+
+export const getParseTask = async (taskId) => {
+  const response = await http.get(`/parse/tasks/${taskId}`, {
+    timeout: 10000,
+  })
+
+  return response.data
+}
+
+export const getParseTaskResult = async (taskId) => {
+  const response = await http.get(`/parse/tasks/${taskId}/result`, {
+    timeout: 60000,
+  })
+
+  return response.data
+}
+
 export const getProjectAnalysis = async (projectId) => {
   const response = await http.get(`/projects/${projectId}/analysis`)
 

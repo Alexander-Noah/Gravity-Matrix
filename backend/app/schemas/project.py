@@ -180,6 +180,30 @@ class JobRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ParseTaskCreateRequest(BaseModel):
+    source_text: str | None = Field(default=None, min_length=1)
+    source_file_id: str | None = Field(default=None, max_length=255)
+    project_id: int | None = None
+
+
+class ParseTaskCreateResponse(BaseModel):
+    task_id: str
+
+
+class ParseTaskRead(BaseModel):
+    task_id: str
+    status: str
+    progress: int
+    message: str
+    error: str | None = None
+
+
+class ParseTaskResultRead(BaseModel):
+    task_id: str
+    result_json: dict[str, Any] | None = None
+    result_yaml: str | None = None
+
+
 class ScriptRead(BaseModel):
     project_id: int
     yaml: str

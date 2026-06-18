@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -14,6 +15,8 @@ from app.schemas.screenplay import ScreenplayDocument
 
 
 DETAIL_LEVELS = {"brief", "standard", "detailed"}
+FAST_LOCAL_ANALYSIS_CHAR_LIMIT = 12_000
+AI_CHAPTER_PROMPT_CHAR_LIMIT = 1_600
 OMITTED_REASONS = {
     "brief": "已省略非关键细节、重复心理描写和背景解释。",
     "standard": "已压缩支线细节和重复背景说明，保留主要场景、冲突和关键对白。",
@@ -46,34 +49,29 @@ def analyze_project(project: Project) -> LLMResult:
         False,
     )
 
-    chapter_results = []
-    for chapter in project.chapters:
-        chapter_result = _call_deepseek(_chapter_analysis_prompt(chapter.number, chapter.title, chapter.content))
-        if not _is_valid_chapter_analysis(chapter_result):
-            raise AIParseError("AI 解析失败，请重试：章节解析结果格式无效。")
-        chapter_results.append(
-            {
-                "chapter_number": chapter.number,
-                "source_title": chapter.title,
-                "analysis": chapter_result,
-            }
+    if source_chars > FAST_LOCAL_ANALYSIS_CHAR_LIMIT:
+        fallback_reason = "小说正文较长，已使用本地快速解析，避免 AI 长时间等待。"
+        content = _local_project_analysis(project)
+    else:
+        result = _call_deepseek(
+            _project_analysis_prompt(project),
+            timeout_seconds=min(settings.llm_timeout_seconds, 12),
+        )
+        if _is_valid_project_analysis(result):
+            content = _normalize_project_analysis(result)
+            fallback_reason = None
+        else:
+            fallback_reason = "AI 返回超时或格式不完整，已使用本地快速解析兜底。"
+            content = _local_project_analysis(project)
+
+    if fallback_reason:
+        logger.warning(
+            "AI analysis fallback project_id=%s reason=%s",
+            getattr(project, "id", None),
+            fallback_reason,
         )
 
-    merged = _call_deepseek(_global_merge_prompt(project, chapter_results))
-    if not _is_valid_global_analysis(merged):
-        raise AIParseError("AI 解析失败，请重试：全局实体合并结果无效。")
-
-    content = {
-        "source": "ai",
-        "chapter_analyses": chapter_results,
-        "characters": merged["characters"],
-        "locations": merged["locations"],
-        "organizations": merged.get("organizations", []),
-        "alias_map": merged.get("alias_map", []),
-        "candidate_aliases": merged.get("alias_map", []),
-        "themes": merged.get("themes", []),
-        "conflicts": merged.get("conflicts", []),
-    }
+    chapter_results = content["chapter_analyses"]
     scene_count = sum(len(item.get("analysis", {}).get("events", []) or []) for item in chapter_results)
     logger.info(
         "AI analysis completed project_id=%s characters=%s locations=%s scenes=%s mock_fallback=%s",
@@ -81,9 +79,9 @@ def analyze_project(project: Project) -> LLMResult:
         len(content["characters"]),
         len(content["locations"]),
         scene_count,
-        False,
+        fallback_reason is not None,
     )
-    return LLMResult(provider=settings.llm_provider, content=content)
+    return LLMResult(provider=settings.llm_provider, content=content, fallback_reason=fallback_reason)
 
 
 def generate_screenplay(project: Project, analysis: dict[str, Any] | None = None) -> LLMResult:
@@ -127,12 +125,12 @@ def _require_llm_config() -> None:
         raise AIParseError("AI 服务未配置，请检查 API Key 或模型配置")
 
 
-def _call_deepseek(prompt: str) -> dict[str, Any] | None:
+def _call_deepseek(prompt: str, timeout_seconds: int | None = None) -> dict[str, Any] | None:
     try:
         client = OpenAI(
             api_key=settings.llm_api_key,
             base_url=settings.llm_base_url,
-            timeout=settings.llm_timeout_seconds,
+            timeout=timeout_seconds or settings.llm_timeout_seconds,
         )
         response = client.chat.completions.create(
             model=settings.llm_model,
@@ -149,10 +147,117 @@ def _call_deepseek(prompt: str) -> dict[str, Any] | None:
         content = response.choices[0].message.content
         if not content:
             return None
-        parsed = json.loads(content)
-    except Exception:
+        parsed = _parse_json_object(content)
+    except Exception as exc:
+        logger.warning("LLM call failed: %s", exc)
         return None
     return parsed if isinstance(parsed, dict) else None
+
+
+def _parse_json_object(content: str) -> dict[str, Any] | None:
+    try:
+        parsed = json.loads(content)
+        return parsed if isinstance(parsed, dict) else None
+    except json.JSONDecodeError:
+        pass
+
+    cleaned = content.strip()
+    fenced = re.search(r"```(?:json)?\s*(.*?)```", cleaned, flags=re.IGNORECASE | re.DOTALL)
+    if fenced:
+        cleaned = fenced.group(1).strip()
+
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start < 0 or end <= start:
+        return None
+
+    try:
+        parsed = json.loads(cleaned[start : end + 1])
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _project_analysis_prompt(project: Project) -> str:
+    template = {
+        "chapter_analyses": [
+            {
+                "chapter_number": 1,
+                "source_title": "章节标题",
+                "analysis": {
+                    "chapter_title": "章节标题",
+                    "characters": [
+                        {"name": "人物名", "aliases": [], "role": "角色", "description": "", "evidence": ""}
+                    ],
+                    "locations": [{"name": "地点名", "description": "", "evidence": ""}],
+                    "organizations": [{"name": "组织名", "description": "", "evidence": ""}],
+                    "events": [
+                        {
+                            "title": "事件标题",
+                            "summary": "事件摘要",
+                            "characters": ["人物名"],
+                            "location": "地点名",
+                            "evidence": "",
+                        }
+                    ],
+                    "dialogues": [
+                        {
+                            "speaker": "人物名",
+                            "line": "对白",
+                            "line_type": "dialogue",
+                            "emotion": "neutral",
+                            "evidence": "",
+                        }
+                    ],
+                },
+            }
+        ],
+        "characters": [{"id": "char_001", "name": "人物名", "aliases": [], "role": "角色", "description": ""}],
+        "locations": [{"id": "loc_001", "name": "地点名", "description": ""}],
+        "organizations": [{"id": "org_001", "name": "组织名", "description": ""}],
+        "alias_map": [{"alias": "别名", "canonical": "人物名", "evidence": "", "confidence": 0.95}],
+        "themes": [],
+        "conflicts": [],
+    }
+    chapters = [
+        {
+            "number": chapter.number,
+            "title": chapter.title,
+            "content": _prompt_chapter_text(chapter.content),
+        }
+        for chapter in project.chapters
+    ]
+    return "\n".join(
+        [
+            "你是小说结构化解析器。",
+            "请一次性完成整本小说的结构化解析，避免逐章多轮往返。",
+            "必须严格返回 JSON 对象，不要输出解释、Markdown 或代码块。",
+            "",
+            "要求：",
+            "1. chapter_analyses 必须包含每个输入章节的解析。",
+            "2. characters 和 locations 是全局合并后的实体，必须带 id 和 name。",
+            "3. 不要把动作短语、地点、组织、普通名词识别成人物。",
+            "4. 对白 line_type 只能是 dialogue、monologue 或 narration。",
+            "5. 无法确认说话人时 speaker 为 null。",
+            "",
+            "返回 JSON 必须符合这个结构：",
+            json.dumps(template, ensure_ascii=False),
+            "",
+            f"小说标题：{project.title}",
+            f"作者：{project.author or '未知'}",
+            "章节：",
+            json.dumps(chapters, ensure_ascii=False),
+        ]
+    )
+
+
+def _prompt_chapter_text(text: str) -> str:
+    compact = re.sub(r"\s+", "\n", text or "").strip()
+    if len(compact) <= AI_CHAPTER_PROMPT_CHAR_LIMIT:
+        return compact
+    head_length = int(AI_CHAPTER_PROMPT_CHAR_LIMIT * 0.75)
+    tail_length = AI_CHAPTER_PROMPT_CHAR_LIMIT - head_length
+    return f"{compact[:head_length]}\n...[中间内容已压缩]...\n{compact[-tail_length:]}"
 
 
 def _chapter_analysis_prompt(chapter_number: int, chapter_title: str, chapter_text: str) -> str:
@@ -431,6 +536,252 @@ def _is_valid_global_analysis(data: Any) -> bool:
     character_names = {item["name"] for item in characters}
     location_names = {item["name"] for item in locations}
     return character_names.isdisjoint(location_names)
+
+
+def _is_valid_project_analysis(data: Any) -> bool:
+    if not isinstance(data, dict):
+        return False
+    chapter_analyses = data.get("chapter_analyses")
+    if not isinstance(chapter_analyses, list) or not chapter_analyses:
+        return False
+    for item in chapter_analyses:
+        if not isinstance(item, dict) or not _is_valid_chapter_analysis(item.get("analysis")):
+            return False
+    return _is_valid_global_analysis(data)
+
+
+def _normalize_project_analysis(data: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "source": "ai",
+        "chapter_analyses": data.get("chapter_analyses", []),
+        "characters": data.get("characters", []),
+        "locations": data.get("locations", []),
+        "organizations": data.get("organizations", []),
+        "alias_map": data.get("alias_map", []),
+        "candidate_aliases": data.get("alias_map", []),
+        "themes": data.get("themes", []),
+        "conflicts": data.get("conflicts", []),
+    }
+
+
+def _local_project_analysis(project: Project) -> dict[str, Any]:
+    chapter_analyses = []
+    character_names: list[str] = []
+    location_names: list[str] = []
+    organizations: list[dict[str, Any]] = []
+
+    for chapter in project.chapters:
+        analysis = _local_chapter_analysis(chapter.number, chapter.title, chapter.content)
+        chapter_analyses.append(
+            {
+                "chapter_number": chapter.number,
+                "source_title": chapter.title,
+                "analysis": analysis,
+            }
+        )
+        character_names.extend(item["name"] for item in analysis["characters"])
+        location_names.extend(item["name"] for item in analysis["locations"])
+        organizations.extend(analysis.get("organizations", []))
+
+    characters = [
+        {
+            "id": f"char_{index:03d}",
+            "name": name,
+            "aliases": [],
+            "role": "角色",
+            "description": "本地快速解析识别的人物。",
+        }
+        for index, name in enumerate(_unique(character_names) or ["旁白"], start=1)
+    ]
+    locations = [
+        {
+            "id": f"loc_{index:03d}",
+            "name": name,
+            "description": "本地快速解析识别的地点。",
+        }
+        for index, name in enumerate(_unique(location_names) or ["未明确地点"], start=1)
+    ]
+    return {
+        "source": "local_fallback",
+        "chapter_analyses": chapter_analyses,
+        "characters": characters,
+        "locations": locations,
+        "organizations": [
+            {
+                "id": f"org_{index:03d}",
+                "name": item["name"],
+                "description": item.get("description") or "本地快速解析识别的组织。",
+            }
+            for index, item in enumerate(_unique_dicts(organizations, "name"), start=1)
+        ],
+        "alias_map": [],
+        "candidate_aliases": [],
+        "themes": ["小说改编", "人物冲突"],
+        "conflicts": ["主角目标与外部阻碍之间的冲突"],
+    }
+
+
+def _local_chapter_analysis(chapter_number: int, title: str, content: str) -> dict[str, Any]:
+    speakers = _extract_speakers(content)
+    fallback_names = _extract_likely_names(content)
+    characters = _unique(speakers + fallback_names)[:12]
+    locations = _extract_locations(content)[:8]
+    dialogues = _extract_dialogues(content)
+    summary = _compact_text(content, 90)
+    event_characters = characters[:4]
+    event_location = locations[0] if locations else "未明确地点"
+    return {
+        "chapter_title": title,
+        "characters": [
+            {
+                "name": name,
+                "aliases": [],
+                "role": "角色",
+                "description": f"第 {chapter_number} 章出现的人物。",
+                "evidence": name,
+            }
+            for name in characters
+        ],
+        "locations": [
+            {
+                "name": location,
+                "description": f"第 {chapter_number} 章出现的地点。",
+                "evidence": location,
+            }
+            for location in locations
+        ],
+        "organizations": [],
+        "events": [
+            {
+                "title": title,
+                "summary": summary,
+                "characters": event_characters,
+                "location": event_location,
+                "evidence": _compact_text(content, 40),
+            }
+        ],
+        "dialogues": dialogues,
+    }
+
+
+def _extract_dialogues(text: str) -> list[dict[str, Any]]:
+    dialogues = []
+    patterns = [
+        re.compile(r"(?P<speaker>[\u4e00-\u9fffA-Za-z0-9_]{1,8})(?:说道|说|道|问道|答道|喊道|喝道|低声道|沉声道|笑道|怒道)[:：]?[“\"](?P<line>[^”\"]{1,120})[”\"]"),
+        re.compile(r"[“\"](?P<line>[^”\"]{1,120})[”\"](?P<speaker>[\u4e00-\u9fffA-Za-z0-9_]{1,8})(?:说道|说|道|问道|答道|喊道|喝道|低声道|沉声道|笑道|怒道)"),
+    ]
+    for pattern in patterns:
+        for match in pattern.finditer(text):
+            speaker = _clean_name(match.group("speaker"))
+            line = match.group("line").strip()
+            if not speaker or not line:
+                continue
+            dialogues.append(
+                {
+                    "speaker": speaker,
+                    "line": line,
+                    "line_type": "dialogue",
+                    "emotion": "neutral",
+                    "evidence": line[:40],
+                }
+            )
+    if not dialogues:
+        dialogues.append(
+            {
+                "speaker": None,
+                "line": _compact_text(text, 80),
+                "line_type": "narration",
+                "emotion": "neutral",
+                "evidence": _compact_text(text, 40),
+            }
+        )
+    return dialogues[:20]
+
+
+def _extract_speakers(text: str) -> list[str]:
+    names = []
+    for pattern in [
+        r"([\u4e00-\u9fffA-Za-z0-9_]{1,8})(?:说道|说|道|问道|答道|喊道|喝道|低声道|沉声道|笑道|怒道)",
+        r"[“\"][^”\"]{1,120}[”\"]([\u4e00-\u9fffA-Za-z0-9_]{1,8})(?:说道|说|道|问道|答道|喊道|喝道|低声道|沉声道|笑道|怒道)",
+    ]:
+        names.extend(_clean_name(match) for match in re.findall(pattern, text))
+    return [name for name in names if name]
+
+
+def _extract_likely_names(text: str) -> list[str]:
+    candidates = re.findall(r"[\u4e00-\u9fff]{2,4}", text)
+    stop_words = {
+        "第一章",
+        "第二章",
+        "第三章",
+        "第四章",
+        "第五章",
+        "第六章",
+        "一个",
+        "他们",
+        "我们",
+        "这里",
+        "那里",
+        "没有",
+        "什么",
+        "时候",
+        "自己",
+        "众人",
+    }
+    names = []
+    for item in candidates:
+        if item in stop_words or item.startswith("第"):
+            continue
+        if any(suffix in item for suffix in ("府", "街", "城", "院", "监", "司", "堂", "桥", "河")):
+            continue
+        names.append(item)
+    return names[:12]
+
+
+def _extract_locations(text: str) -> list[str]:
+    locations = []
+    for match in re.findall(r"[\u4e00-\u9fff]{2,8}(?:府|街|城|院|监|司|堂|桥|河|客栈|书院|衙门|监牢|皇宫|山|门)", text):
+        if not match.startswith("第"):
+            locations.append(match)
+    return _unique(locations)
+
+
+def _clean_name(value: str | None) -> str | None:
+    if not value:
+        return None
+    name = re.sub(r"[，。！？、：；“”\"'（）()\s]", "", value)
+    name = re.sub(r"^(?:忽然|只见|却见|这时|随后|于是|但是|因为|如果|那个|这个)", "", name)
+    if len(name) < 2 or len(name) > 8:
+        return None
+    if any(word in name for word in ("众人", "声音", "时候", "什么", "这里", "那里")):
+        return None
+    return name
+
+
+def _compact_text(text: str, limit: int) -> str:
+    compact = re.sub(r"\s+", "", text or "")
+    return compact[:limit] if compact else "本章围绕主要人物与事件展开。"
+
+
+def _unique(values: list[str]) -> list[str]:
+    result = []
+    seen = set()
+    for value in values:
+        if value and value not in seen:
+            seen.add(value)
+            result.append(value)
+    return result
+
+
+def _unique_dicts(values: list[dict[str, Any]], key: str) -> list[dict[str, Any]]:
+    result = []
+    seen = set()
+    for value in values:
+        marker = value.get(key)
+        if marker and marker not in seen:
+            seen.add(marker)
+            result.append(value)
+    return result
 
 
 def _validate_screenplay_result(data: dict[str, Any]) -> list[str]:

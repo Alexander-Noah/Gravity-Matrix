@@ -65,6 +65,20 @@ def _global_response():
     }
 
 
+def _project_analysis_response():
+    return {
+        "chapter_analyses": [
+            {
+                "chapter_number": chapter.number,
+                "source_title": chapter.title,
+                "analysis": _chapter_response(chapter.title),
+            }
+            for chapter in _project().chapters
+        ],
+        **_global_response(),
+    }
+
+
 def _screenplay_response(detail_level: str = "standard"):
     return {
         "script": {
@@ -180,18 +194,16 @@ def _screenplay_response(detail_level: str = "standard"):
     }
 
 
-def test_analysis_calls_ai_for_each_chapter_and_global_merge(monkeypatch):
+def test_analysis_calls_ai_once_for_project_and_normalizes_result(monkeypatch):
     from app.services import llm as llm_service
 
     prompts = []
 
-    def fake_call(prompt: str):
+    def fake_call(prompt: str, timeout_seconds: int | None = None):
         prompts.append(prompt)
-        if "当前章节文本" in prompt or "章节文本：" in prompt:
-            assert "不要把动作词并入人物名" in prompt
-            return _chapter_response("章节")
-        if "全局实体合并" in prompt:
-            return _global_response()
+        if "一次性完成整本小说" in prompt:
+            assert timeout_seconds <= 25
+            return _project_analysis_response()
         raise AssertionError(prompt)
 
     monkeypatch.setattr(llm_service, "_require_llm_config", lambda: None)
@@ -202,7 +214,7 @@ def test_analysis_calls_ai_for_each_chapter_and_global_merge(monkeypatch):
     assert result.provider == llm_service.settings.llm_provider
     assert len(result.content["chapter_analyses"]) == 3
     assert result.content["characters"][0]["name"] == "林青"
-    assert any("全局实体合并" in prompt for prompt in prompts)
+    assert len(prompts) == 1
 
 
 def test_generate_screenplay_uses_ai_output_and_validates_references(monkeypatch):
@@ -262,11 +274,9 @@ def test_api_flow_import_analyze_view_and_generate_yaml(monkeypatch):
         finally:
             db.close()
 
-    def fake_call(prompt: str):
-        if "章节文本：" in prompt:
-            return _chapter_response("章节")
-        if "全局实体合并" in prompt:
-            return _global_response()
+    def fake_call(prompt: str, timeout_seconds: int | None = None):
+        if "一次性完成整本小说" in prompt:
+            return _project_analysis_response()
         if "请基于全局 characters" in prompt:
             return _screenplay_response("standard")
         raise AssertionError(prompt)

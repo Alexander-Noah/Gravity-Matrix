@@ -29,10 +29,13 @@ def run_analysis_job(db: Session, job_id: int) -> None:
             False,
         )
 
-        _mark_running(db, job, "正在分析人物、场景和冲突", 45)
+        _mark_running(db, job, "正在请求 AI 解析整本小说", 35)
         result = analyze_project(project)
 
-        _mark_running(db, job, "正在整理 AI 解析结果", 85)
+        if result.fallback_reason:
+            _mark_running(db, job, "AI 返回较慢，已切换本地快速解析", 70)
+        else:
+            _mark_running(db, job, "正在整理 AI 解析结果", 85)
         project.analysis_json = json.dumps(result.content, ensure_ascii=False)
         project.status = "analysis_completed"
         scene_count = sum(
