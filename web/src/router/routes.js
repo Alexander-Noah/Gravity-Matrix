@@ -14,8 +14,8 @@ export const appRoutes = [
   {
     id: 'templates',
     path: '/templates',
-    title: '模板中心',
-    description: '选择剧本生成规则模板，统一后续 YAML 结构、字段和场景组织方式',
+    title: '选择剧本生成方式',
+    description: '不同生成方式会影响剧本结构、场景拆分、对白数量和生成成本。不知道选哪个，优先选择影视剧剧本。',
   },
   {
     id: 'library',

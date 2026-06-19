@@ -6,9 +6,46 @@
   margin: 0 auto;
 }
 
+.library-command-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-soft);
+}
+
+.library-command-bar > div:first-child {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.library-command-bar span {
+  color: var(--primary-strong);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.library-command-bar strong {
+  color: var(--text);
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.library-command-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .library-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -72,6 +109,10 @@
   background: var(--surface-raised);
 }
 
+.library-stat-card.tone-neutral {
+  background: var(--surface-raised);
+}
+
 .library-stat-card.tone-mint::after {
   background: var(--accent);
 }
@@ -80,9 +121,13 @@
   background: var(--warning);
 }
 
+.library-stat-card.tone-neutral::after {
+  background: var(--border-strong);
+}
+
 .library-toolbar {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) 180px 180px;
+  grid-template-columns: minmax(260px, 1fr) 160px 160px 160px;
   gap: 12px;
   padding: 12px;
 }
@@ -162,19 +207,17 @@
   position: relative;
   display: grid;
   gap: 14px;
+  align-content: start;
+  min-height: 350px;
   padding: 16px;
   transition:
     border-color 160ms ease,
     box-shadow 160ms ease;
 }
 
-.library-script-card:has(.library-status span:nth-child(1)) {
-  min-height: 260px;
-}
-
 .library-script-card:hover {
   border-color: var(--border-strong);
-  box-shadow: var(--shadow-panel);
+  box-shadow: 0 3px 8px oklch(28% 0.025 250 / 0.08);
 }
 
 .library-card-head {
@@ -204,6 +247,47 @@
   stroke-width: 1.75;
 }
 
+.library-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.library-type-pill,
+.library-status-pill {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.library-type-pill {
+  color: var(--primary-strong);
+  background: var(--primary-faint);
+}
+
+.library-status-pill.is-draft {
+  color: var(--primary-strong);
+  border: 1px solid oklch(82% 0.05 236);
+  background: var(--primary-faint);
+}
+
+.library-status-pill.is-success {
+  color: oklch(35% 0.1 156);
+  border: 1px solid oklch(82% 0.055 156);
+  background: var(--success-soft);
+}
+
+.library-status-pill.is-warning {
+  color: oklch(46% 0.13 45);
+  border: 1px solid oklch(82% 0.07 74);
+  background: var(--warning-soft);
+}
+
 .library-card-head span {
   color: var(--primary-strong);
   font-size: 12px;
@@ -230,9 +314,14 @@
   line-height: 1.65;
 }
 
+.library-version {
+  color: var(--text-soft) !important;
+  font-size: 12px !important;
+}
+
 .library-meta-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
   margin: 0;
 }
@@ -264,6 +353,14 @@
 
 .library-meta-grid dd.is-warning {
   color: oklch(54% 0.14 55);
+}
+
+.library-meta-grid dd.is-success {
+  color: oklch(35% 0.1 156);
+}
+
+.library-meta-grid dd.is-attention {
+  color: oklch(48% 0.12 74);
 }
 
 .library-card-foot {
@@ -303,8 +400,11 @@
 
 .library-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-self: end;
   padding-top: 2px;
 }
 
@@ -316,9 +416,9 @@
   position: absolute;
   right: 0;
   bottom: calc(100% + 8px);
-  z-index: 5;
+  z-index: 30;
   display: grid;
-  min-width: 160px;
+  min-width: 148px;
   padding: 6px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -424,10 +524,21 @@
     grid-template-columns: 1fr;
   }
 
+  .library-command-bar,
   .library-actions,
   .library-result-row {
     display: grid;
     justify-content: stretch;
+  }
+
+  .library-command-actions {
+    display: grid;
+    justify-content: stretch;
+  }
+
+  .library-command-actions .editor-tool,
+  .library-actions .editor-tool {
+    width: 100%;
   }
 
   .library-more-menu {

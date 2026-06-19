@@ -108,9 +108,10 @@ const displayedScriptChapters = ref([])
 const displayedLibraryItems = ref([])
 const displayedLibraryStats = ref([
   { label: '全部剧本', value: '0', note: '等待读取真实剧本库', tone: 'violet' },
-  { label: '编辑中', value: '0', note: '等待读取真实剧本库', tone: 'blue' },
+  { label: '草稿中', value: '0', note: '等待读取真实剧本库', tone: 'blue' },
   { label: '已完成', value: '0', note: '等待读取真实剧本库', tone: 'mint' },
-  { label: '素材库', value: '0', note: '等待读取真实剧本库', tone: 'orange' },
+  { label: '需要修正', value: '0', note: '等待读取真实剧本库', tone: 'orange' },
+  { label: '最近导出', value: '0', note: '等待读取真实剧本库', tone: 'neutral' },
 ])
 const displayedTemplates = ref(localTemplates)
 const selectedSceneId = ref(null)
@@ -164,12 +165,13 @@ const setCurrentProjectId = (projectId) => {
 
 const fetchTemplates = async () => {
   try {
+    const storedTemplateId = localStorage.getItem('gravityMatrixSelectedTemplate')
     const [templates, defaultTemplate] = await Promise.all([
       getScriptTemplates(),
       getDefaultTemplate(),
     ])
     displayedTemplates.value = templates?.length ? templates : localTemplates
-    if (defaultTemplate?.templateId) {
+    if (storedTemplateId && defaultTemplate?.templateId) {
       selectedTemplateId.value = defaultTemplate.templateId
       localStorage.setItem('gravityMatrixSelectedTemplate', defaultTemplate.templateId)
     }
@@ -342,14 +344,14 @@ const formatProjectTime = (value) => {
 
 const mapLibraryStatus = (project, diagnosis) => {
   if (diagnosis?.valid_schema === false) {
-    return '校验异常'
+    return '需修正'
   }
 
   if (project.status === 'script_edited') {
-    return '编辑中'
+    return '草稿中'
   }
 
-  return project.has_script ? '已完成' : '草稿'
+  return project.has_script ? '已完成' : '草稿中'
 }
 
 const mapLibraryItem = (project, workbench) => {
@@ -359,32 +361,39 @@ const mapLibraryItem = (project, workbench) => {
   return {
     id: `project-${project.id}`,
     projectId: project.id,
-    title: `《${project.title}》剧本`,
+    title: `《${project.title}》影视剧改编稿 v1`,
     sourceNovel: `《${project.title}》`,
     type: '影视剧',
     chapters: summary.chapter_count ?? project.chapter_count,
     scenes: summary.scene_count ?? 0,
     dialogues: summary.dialogue_count ?? 0,
-    schemaStatus: diagnosis?.valid_schema === false ? '校验异常' : '校验通过',
+    schemaStatus: diagnosis?.valid_schema === false ? '格式需修正' : '格式正常',
+    qualityStatus: diagnosis?.valid_schema === false ? '需要修正' : '质量良好',
     status: mapLibraryStatus(project, diagnosis),
     updatedAt: formatProjectTime(project.updated_at),
-    tags: [project.status, project.has_analysis ? '已解析' : '待解析', 'YAML'],
+    versionLabel: 'v1',
+    tags: [project.has_analysis ? '已解析' : '待解析', 'YAML'],
     raw: project,
   }
 }
 
 const applyLibraryResult = (items) => {
-  const editingCount = items.filter((item) => item.status === '编辑中').length
+  const generatedItems = items.filter((item) => item.source_type !== 'source_novel')
+  const editingCount = generatedItems.filter((item) => ['草稿中', '编辑中', '草稿'].includes(item.status)).length
   const completedCount = items.filter((item) => item.status === '已完成').length
   const exportedCount = items.filter((item) => item.status === '已导出').length
-  const sourceCount = items.filter((item) => item.source_type === 'source_novel').length
+  const fixCount = generatedItems.filter((item) =>
+    ['需修正', '校验异常'].includes(item.status) ||
+    ['格式需修正', '校验异常', '字段缺失'].includes(item.schemaStatus),
+  ).length
 
   displayedLibraryItems.value = items
   displayedLibraryStats.value = [
-    { label: '全部条目', value: String(items.length), note: '来自后端剧本与素材库', tone: 'violet' },
-    { label: '编辑中', value: String(editingCount), note: '已保存 YAML 草稿', tone: 'blue' },
+    { label: '全部剧本', value: String(generatedItems.length), note: '已生成的剧本草稿', tone: 'violet' },
+    { label: '草稿中', value: String(editingCount), note: '可继续编辑', tone: 'blue' },
     { label: '已完成', value: String(completedCount), note: '可进入完整预览', tone: 'mint' },
-    { label: '素材库', value: String(sourceCount || exportedCount), note: sourceCount ? '可导入工作台' : '后端暂未返回导出历史', tone: 'orange' },
+    { label: '需要修正', value: String(fixCount), note: '格式或质量需处理', tone: 'orange' },
+    { label: '最近导出', value: String(exportedCount), note: '已生成交付文件', tone: 'neutral' },
   ]
 }
 
@@ -759,10 +768,11 @@ const fetchScriptLibrary = async () => {
     const library = await getScriptsLibrary()
     if (library) {
       displayedLibraryStats.value = library.stats || [
-        { label: '全部条目', value: '0', note: '后端暂无剧本或素材', tone: 'violet' },
-        { label: '编辑中', value: '0', note: '暂无编辑中剧本', tone: 'blue' },
+        { label: '全部剧本', value: '0', note: '后端暂无剧本', tone: 'violet' },
+        { label: '草稿中', value: '0', note: '暂无草稿中剧本', tone: 'blue' },
         { label: '已完成', value: '0', note: '暂无已完成剧本', tone: 'mint' },
-        { label: '素材库', value: '0', note: '暂无可导入素材', tone: 'orange' },
+        { label: '需要修正', value: '0', note: '暂无需修正剧本', tone: 'orange' },
+        { label: '最近导出', value: '0', note: '暂无导出记录', tone: 'neutral' },
       ]
       displayedLibraryItems.value = library.items || []
     }
@@ -771,10 +781,11 @@ const fetchScriptLibrary = async () => {
     libraryNotice.value = `剧本库加载失败：${getApiErrorMessage(error)}`
     if (!hasLibraryLoaded.value) {
       displayedLibraryStats.value = [
-        { label: '全部条目', value: '0', note: '后端暂不可用', tone: 'violet' },
-        { label: '编辑中', value: '0', note: '后端暂不可用', tone: 'blue' },
+        { label: '全部剧本', value: '0', note: '后端暂不可用', tone: 'violet' },
+        { label: '草稿中', value: '0', note: '后端暂不可用', tone: 'blue' },
         { label: '已完成', value: '0', note: '后端暂不可用', tone: 'mint' },
-        { label: '素材库', value: '0', note: '后端暂不可用', tone: 'orange' },
+        { label: '需要修正', value: '0', note: '后端暂不可用', tone: 'orange' },
+        { label: '最近导出', value: '0', note: '后端暂不可用', tone: 'neutral' },
       ]
       displayedLibraryItems.value = []
     }
