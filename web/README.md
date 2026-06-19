@@ -1,14 +1,16 @@
 # Gravity-Matrix Web
 
-AI 小说转剧本工具前端，基于 Vue 3 + Vite。
+Vue 3 + Vite 前端应用，提供小说转剧本工作台、模板中心、剧本库、完整预览、帮助文档和个人中心。
 
 ## 技术栈
 
-- Vue 3（Composition API）
+- Vue 3 Composition API
 - Vite
 - Vue Router
+- Element Plus
 - Axios
 - js-yaml
+- npm
 
 ## 快速启动
 
@@ -18,107 +20,158 @@ npm install
 npm run dev
 ```
 
-默认 `http://localhost:5173`。构建：`npm run build`。
+默认地址：
 
-## 目录结构
-
-```
-web/
-  src/
-    api/
-      auth.js                    # 注册/登录/获取用户/会话管理
-      http.js                    # Axios 实例（baseURL、超时、token 注入）
-      workbench.js               # 全部业务接口
-    components/
-      AddSceneDialog.vue         # 添加场景弹窗
-      AiAnalysisPage.vue         # AI 解析结果页
-      AppSidebar.vue             # 左侧导航 + 回收站入口
-      AuthPage.vue               # 登录注册页
-      GenerationSettingsDialog.vue  # 生成设置弹窗
-      HelpDocsPage.vue           # 帮助文档页
-      NovelImportPage.vue        # 小说导入页
-      ProductRoutePage.vue       # 路由占位
-      ProfileCenterDialog.vue    # 个人中心弹窗
-      SchemaHelpPage.vue         # Schema 说明页
-      ScriptLibraryPage.vue      # 剧本库页
-      ScriptPreviewPage.vue      # 预览导出页
-      ScriptWorkspace.vue        # YAML 编辑器 + 场景树
-      SupportColumn.vue          # 左侧进度面板
-      TemplateCenterPage.vue     # 模板中心页
-      WorkflowStepper.vue        # 流程步骤条
-      WorkspaceHeader.vue        # 顶栏（标题、用户名、使用指南）
-    data/
-      workbench.js               # 静态演示数据 + 帮助文档内容
-    router/
-      index.js                   # Vue Router
-      routes.js                  # 路由表
-    styles/                      # 各页面 CSS
-    App.vue                      # 根组件
-    main.js                      # 入口
-    style.css                    # 样式入口
-  index.html
-  package.json
-  vite.config.js
+```text
+http://localhost:5173
 ```
 
-## 路由
+生产构建：
 
-| 路由 | 页面 | 说明 |
-|---|---|---|
-| `/auth` | 登录注册 | 支持表单校验 |
-| `/workbench` | 工作台 | 4 步流程：导入→解析→生成→编辑导出 |
-| `/templates` | 模板中心 | 5 种模板，设为默认，查看 YAML 示例 |
-| `/library` | 剧本库 | 管理/编辑/预览/导出/重命名/复制/回收站 |
-| `/help` | 帮助文档 | 流程说明、Schema、字段表、设计原因、FAQ |
+```powershell
+npm run build
+```
 
-## 工作台流程
+本地预览构建结果：
 
-1. **小说导入** — 上传 TXT 或粘贴正文，`/import/preview` 识别章节，本地正则兜底。
-2. **AI 解析** — 启动 analysis-jobs，轮询展示人物/场景/事件/对白。
-3. **剧本生成** — 选择模板和偏好，启动 script-jobs，生成 YAML。
-4. **编辑与导出** — 在线编辑 YAML、校验、诊断、预览、导出 YAML/TXT/Markdown/PDF。
+```powershell
+npm run preview
+```
 
-## 后端接口
+## 环境变量
 
-默认地址 `http://127.0.0.1:8000/api/v1`。可在 `web/` 下创建 `.env.local` 覆盖：
+如需覆盖后端地址，可在 `web/.env.local` 中配置：
 
 ```env
 VITE_API_BASE_URL=http://127.0.0.1:8000/api/v1
 ```
 
-### 请求约定
+默认后端前缀是：
 
-- Content-Type: `application/json`
-- 导出接口 `responseType: 'blob'`
-- 超时 15 秒
-- 自动注入 `Authorization: Bearer <token>`
+```text
+http://127.0.0.1:8000/api/v1
+```
 
-### 错误处理
+## 目录结构
 
-优先展示 `error.response.data.detail`，网络不通时提示「暂时无法连接服务」。
+```text
+web/
+  src/
+    api/
+      auth.js             登录注册、当前用户、会话处理
+      http.js             Axios 实例、baseURL、token 注入、错误提取
+      workbench.js        工作台、项目、模板、剧本库接口
+    components/
+      AuthPage.vue        登录注册
+      NovelImportPage.vue 小说导入
+      AiAnalysisPage.vue  AI 解析结果
+      ScriptWorkspace.vue YAML 编辑和校验
+      TemplateCenterPage.vue 选择剧本生成方式
+      ScriptLibraryPage.vue 剧本库
+      ScriptPreviewPage.vue 完整预览和导出
+      HelpDocsPage.vue    帮助文档
+      AppSidebar.vue      左侧导航
+      WorkspaceHeader.vue 顶部栏
+    data/
+      workbench.js        图标、流程、帮助文案和兜底数据
+    router/
+      index.js            Vue Router 实例
+      routes.js           路由元信息
+    styles/               页面样式
+    App.vue               应用壳和主业务状态
+    main.js               入口
+```
 
-## 认证
+## 页面路由
 
-| localStorage Key | 说明 |
-|---|---|
-| `gm_auth_token` | 后端返回的 `access_token` |
-| `gm_auth_user` | 后端返回的 `user` JSON `{id, name, email}` |
+| 路由 | 页面 | 说明 |
+| --- | --- | --- |
+| `/auth` | 登录注册 | 注册、登录、获取当前用户 |
+| `/workbench` | 工作台 | 导入、解析、生成、编辑、导出 |
+| `/templates` | 选择剧本生成方式 | 选择模板、查看示例、查看 Schema |
+| `/library` | 剧本库 | 草稿管理、预览、导出、复制、回收站 |
+| `/help` | 帮助文档 | 流程和 YAML Schema 说明 |
 
-注册要求 name + email + password（≥6 位）。登录成功后右上角头像和用户名从数据库同步。退出清空 token 和 user，重定向到 `/auth`。
+`/novel-to-yaml` 会重定向到 `/workbench`。
 
-## 关键交互
+## 工作台交互
 
-**打开已有项目**：剧本库点「继续编辑」→ 切换工作台 → `/workbench` 恢复状态、YAML、场景树。
+### 导入小说
 
-**校验 YAML**：点「校验格式」→ 同时调 validate + diagnosis → 右侧面板显示结果、统计和质量等级。
+- 粘贴正文或上传 TXT。
+- 前端会调用 `/import/preview` 获取章节预检结果。
+- 至少 3 章时允许继续。
 
-**添加场景**：弹窗选目标章节 → 填标题/地点/时间/人物/动作 → 后端拼接 YAML → 校验落库。
+### AI 解析
 
-**导出**：YAML 本地 Blob 下载；Markdown/TXT 调后端返回 Blob；PDF 通过浏览器打印另存。
+- 创建项目后启动解析任务。
+- 通过任务接口轮询进度。
+- 解析结果映射成人物、地点、事件、对白和冲突展示。
 
-## 后端联调清单
+### 生成剧本
 
-1. 后端 `http://127.0.0.1:8000`，CORS 允许 `localhost:5173`。
-2. 统一前缀 `/api/v1`。
-3. 登录注册返回 `{access_token, token_type, user{id, name, email}}`。
-4. 错误用 `{detail: "..."}` 结构。
+- 用户选择生成方式和偏好。
+- 前端启动剧本生成任务。
+- 完成后拉取项目 YAML。
+
+### 编辑和导出
+
+- YAML 编辑区是可编辑 textarea。
+- 校验、保存、复制和下载均使用当前 `yamlContent`。
+- 完整预览页支持 YAML / TXT / Markdown / PDF 导出。
+
+## 剧本库交互
+
+剧本库用于管理已有草稿和版本：
+
+- 继续编辑：加载项目并跳回工作台。
+- 查看预览：打开完整预览。
+- 导出：下载当前剧本。
+- 更多：重命名、复制一份、重新生成、移动到回收站、查看日志。
+
+所有确认、输入和错误提示统一使用 Element Plus，不使用浏览器原生 `alert / confirm / prompt`。
+
+## 登录状态
+
+前端使用 localStorage 保存：
+
+| Key | 说明 |
+| --- | --- |
+| `gm_auth_token` | JWT token |
+| `gm_auth_user` | 当前用户 JSON |
+| `gravityMatrixSelectedTemplate` | 当前默认模板 |
+| `gravityMatrixCurrentProjectId` | 当前项目 ID |
+
+Axios 请求会自动携带：
+
+```http
+Authorization: Bearer <token>
+```
+
+## 开发约定
+
+- 使用 npm，不使用 pnpm。
+- 非首屏页面可使用异步组件加载，降低首屏体积。
+- Element Plus 的按钮原生类型使用 `native-type="button"`。
+- 控制台调试日志应限制在 `import.meta.env.DEV`。
+- 页面文案面向普通用户，避免在主界面突出技术字段。
+
+## 验证
+
+```powershell
+npm run build
+```
+
+构建通过后，可启动：
+
+```powershell
+npm run dev
+```
+
+重点回归页面：
+
+- `/auth`
+- `/workbench`
+- `/templates`
+- `/library`
+- `/help`

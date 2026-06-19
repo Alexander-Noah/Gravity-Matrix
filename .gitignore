@@ -16,11 +16,14 @@ env/
 !.env.example
 
 backend/data/
+.pytest_cache/
+backend/.cache/
 backend/.pytest_cache/
 backend/.mypy_cache/
 backend/.ruff_cache/
 
 dist/
+web/dist/
 build/
 *.egg-info/
 

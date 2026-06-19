@@ -1,7 +1,7 @@
 ﻿<script setup>
-import { computed, h, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, h, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElNotification } from 'element-plus'
+import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import yaml from 'js-yaml'
 import { clearAuthSession, fetchCurrentUser, getAuthSession, hasActiveAuthSession } from './api/auth'
 import { getApiErrorMessage } from './api/http'
@@ -39,16 +39,12 @@ import AiAnalysisPage from './components/AiAnalysisPage.vue'
 import AppSidebar from './components/AppSidebar.vue'
 import AuthPage from './components/AuthPage.vue'
 import GenerationSettingsDialog from './components/GenerationSettingsDialog.vue'
-import HelpDocsPage from './components/HelpDocsPage.vue'
 import NovelImportPage from './components/NovelImportPage.vue'
 import ProductRoutePage from './components/ProductRoutePage.vue'
 import ProfileCenterDialog from './components/ProfileCenterDialog.vue'
 import SchemaHelpPage from './components/SchemaHelpPage.vue'
-import ScriptLibraryPage from './components/ScriptLibraryPage.vue'
-import ScriptPreviewPage from './components/ScriptPreviewPage.vue'
 import ScriptWorkspace from './components/ScriptWorkspace.vue'
 import SupportColumn from './components/SupportColumn.vue'
-import TemplateCenterPage from './components/TemplateCenterPage.vue'
 import WorkflowStepper from './components/WorkflowStepper.vue'
 import WorkspaceHeader from './components/WorkspaceHeader.vue'
 import {
@@ -65,6 +61,23 @@ import {
   workflowSteps,
 } from './data/workbench'
 import { getRouteById } from './router/routes'
+
+const HelpDocsPage = defineAsyncComponent(() => import('./components/HelpDocsPage.vue'))
+const ScriptLibraryPage = defineAsyncComponent(() => import('./components/ScriptLibraryPage.vue'))
+const ScriptPreviewPage = defineAsyncComponent(() => import('./components/ScriptPreviewPage.vue'))
+const TemplateCenterPage = defineAsyncComponent(() => import('./components/TemplateCenterPage.vue'))
+
+const devWarn = (...args) => {
+  if (import.meta.env.DEV) {
+    console.warn(...args)
+  }
+}
+
+const devError = (...args) => {
+  if (import.meta.env.DEV) {
+    console.error(...args)
+  }
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -176,7 +189,7 @@ const fetchTemplates = async () => {
       localStorage.setItem('gravityMatrixSelectedTemplate', defaultTemplate.templateId)
     }
   } catch (error) {
-    console.warn('获取模板失败，使用本地默认模板', error)
+    devWarn('获取模板失败，使用本地默认模板', error)
   }
 }
 
@@ -459,7 +472,7 @@ const buildScriptChaptersFromYaml = (yamlText) => {
   try {
     script = getScriptBody(yamlText)
   } catch (error) {
-    console.error('YAML structure parsing error', error)
+    devError('YAML structure parsing error', error)
     return []
   }
 
@@ -483,7 +496,7 @@ const buildScriptScenes = (yamlText) => {
   try {
     script = getScriptBody(yamlText)
   } catch (error) {
-    console.error('YAML parsing error', error)
+    devError('YAML parsing error', error)
     return []
   }
 
@@ -943,7 +956,7 @@ watch(novelText, (newText) => {
       if (requestId !== previewRequestId) {
         return
       }
-      console.warn('后端解析章节失败，请检查网络或后端服务', error)
+      devWarn('后端解析章节失败，请检查网络或后端服务', error)
       detectedChapters.value = localChapters
       chapterCount.value = localChapters.length
       isNovelValid.value = localChapters.length >= 3
@@ -1168,7 +1181,7 @@ const showAnalysisErrorNotice = (error) => {
   const rawResponse = getAnalysisRawResponse(error)
   analysisNotice.value = message
   if (rawResponse) {
-    console.error('AI 原始返回内容前 1000 字：', rawResponse)
+    devError('AI 原始返回内容前 1000 字：', rawResponse)
   }
   ElNotification.error({
     title: 'AI 解析失败',
@@ -1434,7 +1447,7 @@ const selectGenerationTemplate = async (templateId) => {
   try {
     await updateDefaultTemplate(templateId)
   } catch (error) {
-    console.warn('保存默认模板失败，已保留本地选择', error)
+    devWarn('保存默认模板失败，已保留本地选择', error)
   }
 }
 
@@ -1539,7 +1552,7 @@ const exportLibraryScript = async (script, format) => {
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
   } catch (error) {
-    alert('导出失败: ' + getApiErrorMessage(error))
+    ElMessage.error(`导出失败：${getApiErrorMessage(error)}`)
   }
 }
 
@@ -1547,13 +1560,26 @@ const deleteLibraryScript = async (script) => {
   const projectId = getScriptProjectId(script)
   if (!projectId) return
 
-  if (!confirm(`确定要删除剧本《${script.title}》吗？此操作无法恢复。`)) return
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除剧本《${script.title}》吗？此操作无法恢复。`,
+      '删除剧本',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    )
+  } catch {
+    return
+  }
 
   try {
     await deleteProject(projectId)
     await fetchScriptLibrary()
+    ElMessage.success('剧本已删除')
   } catch (error) {
-    alert('删除失败: ' + getApiErrorMessage(error))
+    ElMessage.error(`删除失败：${getApiErrorMessage(error)}`)
   }
 }
 
@@ -1561,14 +1587,27 @@ const renameLibraryScript = async (script) => {
   const projectId = getScriptProjectId(script)
   if (!projectId) return
 
-  const newName = prompt('请输入新的剧本名称：', script.title)
+  let newName = ''
+  try {
+    const result = await ElMessageBox.prompt('请输入新的剧本名称：', '重命名剧本', {
+      confirmButtonText: '保存',
+      cancelButtonText: '取消',
+      inputValue: script.title,
+      inputPattern: /\S+/,
+      inputErrorMessage: '剧本名称不能为空',
+    })
+    newName = String(result.value || '').trim()
+  } catch {
+    return
+  }
   if (!newName || newName === script.title) return
 
   try {
     await updateProject(projectId, { title: newName })
     await fetchScriptLibrary()
+    ElMessage.success('剧本已重命名')
   } catch (error) {
-    alert('重命名失败: ' + getApiErrorMessage(error))
+    ElMessage.error(`重命名失败：${getApiErrorMessage(error)}`)
   }
 }
 
@@ -1579,8 +1618,9 @@ const cloneLibraryScript = async (script) => {
   try {
     await cloneProject(projectId)
     await fetchScriptLibrary()
+    ElMessage.success('已复制一份剧本')
   } catch (error) {
-    alert('复制失败: ' + getApiErrorMessage(error))
+    ElMessage.error(`复制失败：${getApiErrorMessage(error)}`)
   }
 }
 
@@ -1976,10 +2016,19 @@ const closeRecycleBin = () => {
   showRecycleBin.value = false
 }
 
-const clearRecycleBin = () => {
-  if (!confirm('确定要清空回收站吗？此操作无法恢复。')) return
+const clearRecycleBin = async () => {
+  try {
+    await ElMessageBox.confirm('确定要清空回收站吗？此操作无法恢复。', '清空回收站', {
+      confirmButtonText: '清空',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+  } catch {
+    return
+  }
   localStorage.removeItem('gravityMatrixRecycleBin')
   recycleBinItems.value = []
+  ElMessage.success('回收站已清空')
 }
 
 const restoreFromRecycleBin = () => {

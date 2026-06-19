@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -9,9 +11,11 @@ from app.api.routes.projects import router as projects_router
 from app.core.config import settings
 from app.db.init_db import init_db
 
+logger = logging.getLogger(__name__)
+
 
 def create_app() -> FastAPI:
-    _print_llm_startup_config()
+    _log_llm_startup_config()
     _validate_llm_startup_config()
 
     app = FastAPI(title=settings.app_name)
@@ -34,18 +38,18 @@ def create_app() -> FastAPI:
     return app
 
 
-def _print_llm_startup_config() -> None:
-    print(f"LLM_PROVIDER={settings.llm_provider}", flush=True)
-    print(f"LLM_BASE_URL={settings.llm_base_url}", flush=True)
-    print(f"LLM_MODEL={settings.llm_model}", flush=True)
-    print(f"LLM_TIMEOUT_SECONDS={settings.llm_timeout_seconds}", flush=True)
-    print(f"LLM_API_KEY_SET={str(bool(settings.llm_api_key)).lower()}", flush=True)
+def _log_llm_startup_config() -> None:
+    logger.info("LLM_PROVIDER=%s", settings.llm_provider)
+    logger.info("LLM_BASE_URL=%s", settings.llm_base_url)
+    logger.info("LLM_MODEL=%s", settings.llm_model)
+    logger.info("LLM_TIMEOUT_SECONDS=%s", settings.llm_timeout_seconds)
+    logger.info("LLM_API_KEY_SET=%s", str(bool(settings.llm_api_key)).lower())
 
 
 def _validate_llm_startup_config() -> None:
     base_url = (settings.llm_base_url or "").strip()
     if not base_url:
-        print("LLM_BASE_URL is empty; AI endpoints will require LLM config.", flush=True)
+        logger.warning("LLM_BASE_URL is empty; AI endpoints will require LLM config.")
         return
     if not base_url.startswith(("http://", "https://")):
         raise RuntimeError(

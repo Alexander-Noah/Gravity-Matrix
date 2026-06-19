@@ -1,6 +1,6 @@
 # 剧本 YAML Schema 说明
 
-本文档定义 AI 小说转剧本工具导出的 YAML 结构。Schema 的目标是让作者快速获得可编辑、可校验、可继续打磨的剧本初稿。
+Gravity-Matrix 的核心产物是 YAML 剧本。YAML 既方便用户编辑，也方便后端校验、诊断和导出。
 
 ## 顶层结构
 
@@ -8,8 +8,8 @@
 script:
   schema_version: "1.0"
   metadata:
-    title: "小说名"
-    original_novel: "小说名"
+    title: "剧本标题"
+    original_novel: "原小说标题"
     author: "作者"
     language: "zh-CN"
     target_format: "screenplay"
@@ -17,7 +17,7 @@ script:
 
   characters:
     - id: "char_001"
-      name: "人物名"
+      name: "许七安"
       role: "主角"
       gender: "unknown"
       age: null
@@ -25,49 +25,146 @@ script:
 
   locations:
     - id: "loc_001"
-      name: "地点名"
-      description: "地点说明"
+      name: "京兆府监牢"
+      description: "场景地点说明"
+
+  organizations:
+    - id: "org_001"
+      name: "打更人"
+      description: "组织说明"
 
   chapters:
     - id: "ch_001"
-      title: "章节标题"
+      title: "第一章 牢中苏醒"
       source_chapter_numbers: [1]
       summary: "章节摘要"
       scenes:
         - id: "sc_001_001"
-          title: "场景标题"
+          title: "牢中苏醒"
           location_id: "loc_001"
           time: "day"
           characters: ["char_001"]
           synopsis: "场景概述"
           stage_directions:
-            - "动作或画面说明"
+            - "动作、镜头或舞台说明"
           dialogue:
             - speaker_id: "char_001"
-              speaker_name: "人物名"
-              line: "台词"
-              emotion: "calm"
+              speaker_name: "许七安"
+              line: "系统？"
+              emotion: "试探"
 
   adaptation_notes:
-    themes: ["成长", "友情"]
-    conflicts: ["主角目标与现实阻碍"]
-    omissions: ["被压缩或省略的小说内容"]
+    themes: ["悬疑", "成长"]
+    conflicts: ["主角需要证明清白"]
+    omissions: ["省略的支线内容"]
 ```
 
-## 设计原因
+## 字段说明
 
-- `characters` 独立存放人物，便于前端集中编辑人物设定，也方便多个场景复用同一人物。
-- `locations` 独立存放地点，避免每个场景重复写完整地点描述。
-- `chapters -> scenes -> dialogue` 贴合剧本创作流程，作者可以按章节和场景逐层修改。
-- `source_chapter_numbers` 保留剧本内容来源，方便作者回到原小说检查改编是否偏离原意。
-- `adaptation_notes` 记录主题、冲突和删减说明，体现 AI 改编时的创作取舍。
-- 使用稳定 `id` 引用人物和地点，前端可以安全地做编辑、校验和导出。
+### `script.metadata`
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `title` | string | 剧本标题 |
+| `original_novel` | string | 原小说标题 |
+| `author` | string | 作者或上传者 |
+| `language` | string | 默认 `zh-CN` |
+| `target_format` | string | 目标格式，如 `screenplay` |
+| `total_chapters` | number | 章节数 |
+
+### `characters`
+
+人物列表。场景和对白应通过 `speaker_id` 或 `characters` 引用这里的 ID。
+
+推荐字段：
+
+- `id`
+- `name`
+- `role`
+- `gender`
+- `age`
+- `description`
+
+### `locations`
+
+地点列表。场景通过 `location_id` 引用。
+
+推荐字段：
+
+- `id`
+- `name`
+- `description`
+
+### `chapters`
+
+章节列表。每个章节至少包含一个 scene。
+
+推荐字段：
+
+- `id`
+- `title`
+- `source_chapter_numbers`
+- `summary`
+- `scenes`
+
+### `scenes`
+
+剧本的核心结构单位。
+
+推荐字段：
+
+- `id`
+- `title`
+- `location_id`
+- `time`
+- `characters`
+- `synopsis`
+- `stage_directions`
+- `dialogue`
+
+### `dialogue`
+
+对白列表。
+
+推荐字段：
+
+- `speaker_id`
+- `speaker_name`
+- `line`
+- `emotion`
 
 ## 校验规则
 
+后端校验重点：
+
 - 顶层必须包含 `script`。
-- `metadata.total_chapters` 必须大于或等于 3。
-- 每个章节必须至少包含一个场景。
-- 场景引用的 `location_id` 必须存在于 `locations`。
-- 场景引用的角色 ID 必须存在于 `characters`。
-- 对白的 `speaker_id` 必须存在于 `characters`。
+- `metadata` 必须存在。
+- `chapters` 必须是数组。
+- 每个章节应至少包含一个场景。
+- 场景引用的 `location_id` 应存在于 `locations`。
+- 场景引用的人物 ID 应存在于 `characters`。
+- 对白的 `speaker_id` 应存在于 `characters`。
+- YAML 内容不能超过 `MAX_SCRIPT_YAML_CHARS`。
+
+## 质量诊断
+
+质量诊断不只是检查格式，还会评估：
+
+- 章节和场景是否足够。
+- 对白是否过少。
+- 场景是否缺少地点、人物或动作说明。
+- 人物引用是否混乱。
+- 是否存在明显空内容。
+
+前端会把结果展示成：
+
+- 格式正常 / 格式需修正。
+- 质量良好 / 建议优化 / 需要修正。
+
+## 设计原因
+
+- YAML 比纯文本更容易校验和导出。
+- 独立的 `characters` 和 `locations` 可以避免重复描述。
+- `chapters -> scenes -> dialogue` 贴近真实剧本编辑流程。
+- `source_chapter_numbers` 保留原小说来源，方便回查。
+- `adaptation_notes` 记录改编取舍，方便后续人工调整。
