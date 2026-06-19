@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import logging
 import re
@@ -7,6 +8,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+import httpx
 from openai import APIStatusError, OpenAI
 from pydantic import ValidationError
 
@@ -131,8 +133,14 @@ def generate_screenplay(project: Project, analysis: dict[str, Any] | None = None
 
 
 def _require_llm_config() -> None:
+    provider = _effective_llm_provider()
+    if provider == "ollama":
+        if not (_effective_llm_base_url() and _effective_llm_model()):
+            raise AIParseError("本地 Ollama 未配置，请检查 OLLAMA_BASE_URL 和 OLLAMA_MODEL。")
+        return
+
     if not (settings.llm_api_key and settings.llm_base_url and settings.llm_model):
-        raise AIParseError("AI 服务未配置，请检查 API Key 或模型配置")
+        raise AIParseError("AI 服务未配置，请检查 API Key、Base URL 或模型配置。")
 
 
 def get_last_llm_raw_response() -> str | None:
@@ -166,13 +174,16 @@ def _call_deepseek(
     max_tokens: int = 4096,
     purpose: str = "llm_call",
 ) -> dict[str, Any] | None:
+    if _effective_llm_provider() == "ollama":
+        return _call_ollama(prompt, timeout_seconds=timeout_seconds, max_tokens=max_tokens, purpose=purpose)
+
     global _last_llm_raw_response
     _last_llm_raw_response = None
     content = ""
     try:
         client = OpenAI(
-            api_key=settings.llm_api_key,
-            base_url=settings.llm_base_url,
+            api_key=_effective_llm_api_key(),
+            base_url=_effective_llm_base_url(),
             timeout=timeout_seconds or settings.llm_timeout_seconds,
         )
         request = _deepseek_request_payload(prompt, max_tokens=max_tokens)
@@ -211,6 +222,113 @@ def _call_deepseek(
     logger.warning("LLM returned non-JSON content head=%r", (content or "")[:1000])
     print(f"LLM {purpose} invalid JSON raw response head: {(content or '')[:4000]}", flush=True)
     return None
+
+
+def _call_ollama(
+    prompt: str,
+    timeout_seconds: int | None = None,
+    max_tokens: int = 4096,
+    purpose: str = "llm_call",
+) -> dict[str, Any] | None:
+    global _last_llm_raw_response
+    _last_llm_raw_response = None
+    request = _deepseek_request_payload(prompt, max_tokens=max_tokens)
+    content = ""
+
+    try:
+        content = _ollama_chat_content(
+            request["messages"],
+            timeout_seconds=timeout_seconds,
+            max_tokens=max_tokens,
+        )
+        _last_llm_raw_response = content
+        if not content:
+            return None
+
+        try:
+            parsed = safe_json_parse(content, purpose=purpose)
+        except SafeJsonParseError as parse_exc:
+            print(
+                f"LLM {purpose} JSON parse failed, attempting Ollama JSON repair: {parse_exc}",
+                flush=True,
+            )
+            logger.warning("LLM %s JSON parse failed, attempting Ollama repair: %s", purpose, parse_exc)
+            repaired_content = _ollama_repair_json_response(
+                content,
+                str(parse_exc),
+                timeout_seconds=timeout_seconds,
+                max_tokens=max_tokens,
+            )
+            _last_llm_raw_response = repaired_content
+            parsed = safe_json_parse(repaired_content, purpose=f"{purpose}_repair")
+    except AIParseError:
+        raise
+    except Exception as exc:
+        _last_llm_raw_response = _llm_exception_debug_text(exc)
+        print(f"LLM {purpose} raw/error head: {_last_llm_raw_response[:4000]}", flush=True)
+        logger.warning("Ollama LLM call failed: %s", exc)
+        return None
+
+    if isinstance(parsed, dict):
+        return parsed
+
+    logger.warning("Ollama returned non-JSON content head=%r", (content or "")[:1000])
+    print(f"LLM {purpose} invalid JSON raw response head: {(content or '')[:4000]}", flush=True)
+    return None
+
+
+def _ollama_chat_content(
+    messages: list[dict[str, str]],
+    timeout_seconds: int | None = None,
+    max_tokens: int = 4096,
+) -> str:
+    base_url = (settings.ollama_base_url or "http://127.0.0.1:11434").rstrip("/")
+    payload = {
+        "model": _effective_llm_model(),
+        "messages": messages,
+        "stream": False,
+        "think": False,
+        "format": "json",
+        "options": {
+            "temperature": 0.1,
+            "num_predict": max_tokens,
+        },
+    }
+    response = httpx.post(
+        f"{base_url}/api/chat",
+        json=payload,
+        timeout=timeout_seconds or settings.llm_timeout_seconds,
+    )
+    response.raise_for_status()
+    data = response.json()
+    message = data.get("message") or {}
+    return str(message.get("content") or "")
+
+
+def _ollama_repair_json_response(
+    raw_content: str,
+    parse_error: str,
+    timeout_seconds: int | None = None,
+    max_tokens: int = 4096,
+) -> str:
+    prompt = "\n".join(
+        [
+            "只修复 JSON 格式，不要改内容。",
+            "不要新增字段，不要删除字段，不要解释。",
+            "只返回一个合法 JSON 对象。",
+            f"JSON 解析错误：{parse_error}",
+            "需要修复的原始内容：",
+            raw_content,
+        ]
+    )
+    request = _deepseek_request_payload(prompt, max_tokens=max_tokens)
+    repaired = _ollama_chat_content(
+        request["messages"],
+        timeout_seconds=timeout_seconds,
+        max_tokens=max_tokens,
+    )
+    print(f"LLM repaired JSON response head: {repaired[:1000]}", flush=True)
+    return repaired
 
 
 def _llm_exception_debug_text(exc: Exception) -> str:
@@ -263,16 +381,40 @@ def _deepseek_request_payload(prompt: str, max_tokens: int = 4096) -> dict[str, 
 
 
 def _effective_llm_model() -> str:
+    if _effective_llm_provider() == "ollama":
+        return settings.llm_model or settings.ollama_model or "qwen3.5:9b"
+
     model = settings.llm_model or "deepseek-chat"
     if "deepseek" in model.lower() and "reasoner" in model.lower():
         return "deepseek-chat"
     return model
 
 
+def _effective_llm_provider() -> str:
+    return (settings.llm_provider or "openai_compatible").strip().lower()
+
+
+def _effective_llm_base_url() -> str:
+    if _effective_llm_provider() == "ollama":
+        base_url = (settings.llm_base_url or settings.ollama_base_url or "http://127.0.0.1:11434").strip()
+        base_url = base_url.rstrip("/")
+        if not base_url.endswith("/v1"):
+            base_url = f"{base_url}/v1"
+        return base_url
+
+    return (settings.llm_base_url or "").strip()
+
+
+def _effective_llm_api_key() -> str:
+    if _effective_llm_provider() == "ollama":
+        return settings.llm_api_key or "ollama"
+    return settings.llm_api_key
+
+
 def _should_use_json_response_format() -> bool:
-    provider = (settings.llm_provider or "").lower()
+    provider = _effective_llm_provider()
     model = _effective_llm_model().lower()
-    base_url = (settings.llm_base_url or "").lower()
+    base_url = _effective_llm_base_url().lower()
     return provider == "openai_compatible" and ("deepseek" in model or "deepseek" in base_url)
 
 
@@ -690,11 +832,13 @@ def _generate_screenplay_in_stages(
     script["characters"] = _normalize_script_characters(metadata.get("characters"), analysis)
     script["locations"] = _normalize_script_locations(metadata.get("locations"), analysis)
     script["organizations"] = _normalize_script_organizations(metadata.get("organizations"), analysis)
+    script["world_settings"] = _normalize_script_world_settings(metadata.get("world_settings"))
     script["adaptation_notes"] = _normalize_adaptation_notes(
         metadata.get("adaptation_notes"),
         analysis,
         script["adaptation_notes"],
     )
+    _split_world_settings_from_locations(script)
 
     character_ids = {item["id"] for item in script["characters"]}
     location_ids = {item["id"] for item in script["locations"]}
@@ -754,6 +898,7 @@ def _generate_screenplay_in_stages(
         )
         script["adaptation_notes"]["omissions"].append(failed_summary)
 
+    _finalize_screenplay_document(document, generation_settings, analysis, detail_level)
     return document
 
 
@@ -767,9 +912,10 @@ def _screenplay_metadata_prompt(
         "characters": [{"id": "char_001", "name": "人物名", "role": "角色", "gender": "unknown", "age": None, "description": ""}],
         "locations": [{"id": "loc_001", "name": "地点名", "description": ""}],
         "organizations": [{"id": "org_001", "name": "组织名", "description": ""}],
+        "world_settings": [{"id": "world_001", "name": "世界观地点或设定", "description": ""}],
         "adaptation_notes": {
             "themes": [],
-            "conflicts": [],
+            "conflicts": [{"type": "个人困境", "description": "角色目标与阻碍", "characters": ["char_001"]}],
             "omissions": [],
             "template_rules": [],
         },
@@ -780,6 +926,11 @@ def _screenplay_metadata_prompt(
             "Return one JSON object only.",
             "Use the existing analysis as source truth. Preserve entity ids when possible.",
             "characters must contain id, name, role, gender, age, description.",
+            "Do not use generic role='角色'. Infer concrete roles such as 主角、堂弟、叔父、府尹、打更人、司天监术士、狱卒.",
+            "character descriptions must be 30-60 Chinese characters and explain relationship/function in the story.",
+            "locations must contain only actual scene locations where action happens.",
+            "Put worldview-only places into world_settings, not locations.",
+            "adaptation_notes.conflicts must be an array of objects: {type, description, characters}. characters must use character ids.",
             "locations and organizations must contain id, name, description.",
             f"Project title: {project.title}",
             f"Author: {project.author or ''}",
@@ -850,8 +1001,11 @@ def _screenplay_chapter_prompt(
             "Return one JSON object only. Do not include metadata or other chapters.",
             "Every location_id must be from allowed_locations. Every character id must be from allowed_characters.",
             "dialogue.speaker_id must be null when speaker is uncertain.",
-            "line_type must be dialogue, monologue, or narration.",
-            "Do not invent template filler dialogue. Prefer source dialogue from chapter_analysis.",
+            "line_type must be dialogue or monologue. Do not put narration into dialogue.",
+            "Move narration, exposition, and descriptive prose into stage_directions.",
+            "Keep only 4-8 key character dialogue lines per scene. Do not copy source paragraphs line by line.",
+            "dialogue.speaker_name must match the allowed character name for dialogue.speaker_id.",
+            "Do not invent template filler dialogue. Prefer concise source dialogue from chapter_analysis.",
             f"Project title: {project.title}",
             f"Source chapter number: {chapter.number}",
             f"Source chapter title: {chapter.title}",
@@ -938,6 +1092,26 @@ def _normalize_script_organizations(items: Any, analysis: dict[str, Any]) -> lis
             }
         )
     return organizations
+
+
+def _normalize_script_world_settings(items: Any) -> list[dict[str, Any]]:
+    if not isinstance(items, list):
+        return []
+    settings_items = []
+    for index, item in enumerate(items, start=1):
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        if not name:
+            continue
+        settings_items.append(
+            {
+                "id": str(item.get("id") or f"world_{index:03d}"),
+                "name": name,
+                "description": str(item.get("description") or "世界观背景设定。").strip(),
+            }
+        )
+    return settings_items
 
 
 def _normalize_adaptation_notes(items: Any, analysis: dict[str, Any], defaults: dict[str, Any]) -> dict[str, Any]:
@@ -1100,6 +1274,336 @@ def _list_of_strings(value: Any) -> list[str]:
     return [str(item).strip() for item in value if str(item).strip()]
 
 
+def _finalize_screenplay_document(
+    document: dict[str, Any],
+    generation_settings: dict[str, Any],
+    analysis: dict[str, Any],
+    detail_level: str,
+) -> None:
+    script = document.get("script") if isinstance(document.get("script"), dict) else {}
+    _fix_metadata_consistency(script, generation_settings)
+    _improve_character_profiles(script, analysis)
+    _normalize_conflict_notes(script, analysis)
+    _split_world_settings_from_locations(script)
+    _fix_dialogues_and_scene_refs(script, detail_level)
+    _recalculate_screenplay_coverage(script, detail_level)
+
+
+def _fix_metadata_consistency(script: dict[str, Any], generation_settings: dict[str, Any]) -> None:
+    metadata = script.get("metadata") if isinstance(script.get("metadata"), dict) else {}
+    profile = _template_profile_for_generation_settings(
+        {
+            **generation_settings,
+            "templateId": metadata.get("template_id") or generation_settings.get("templateId"),
+            "scriptType": generation_settings.get("scriptType") or metadata.get("script_type"),
+        }
+    )
+    metadata["target_format"] = profile["target_format"]
+    metadata["template_id"] = profile["id"]
+    metadata["script_type"] = profile["script_type"]
+    script["metadata"] = metadata
+
+
+def _improve_character_profiles(script: dict[str, Any], analysis: dict[str, Any]) -> None:
+    source_by_name = {
+        str(item.get("name") or "").strip(): item
+        for item in (analysis.get("characters") or [])
+        if isinstance(item, dict) and str(item.get("name") or "").strip()
+    }
+    characters = []
+    seen_ids = set()
+    for index, item in enumerate(script.get("characters") or [], start=1):
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        if not name:
+            continue
+        character_id = str(item.get("id") or f"char_{index:03d}").strip()
+        if character_id in seen_ids:
+            character_id = f"char_{index:03d}"
+        seen_ids.add(character_id)
+        source = source_by_name.get(name, {})
+        role = _infer_character_role(name, item, source)
+        description = _character_description(name, role, item, source)
+        characters.append(
+            {
+                **item,
+                "id": character_id,
+                "name": name,
+                "role": role,
+                "gender": str(item.get("gender") or source.get("gender") or "unknown"),
+                "age": item.get("age") if isinstance(item.get("age"), int) else source.get("age") if isinstance(source.get("age"), int) else None,
+                "description": description,
+            }
+        )
+    if characters:
+        script["characters"] = characters
+
+
+def _infer_character_role(name: str, item: dict[str, Any], source: dict[str, Any]) -> str:
+    raw_role = str(item.get("role") or source.get("role") or "").strip()
+    text = " ".join(
+        str(value)
+        for value in (
+            name,
+            raw_role,
+            item.get("description"),
+            source.get("description"),
+            source.get("evidence"),
+        )
+        if value
+    )
+    if raw_role and raw_role not in {"角色", "人物", "未知", "unknown"}:
+        return raw_role
+    role_rules = [
+        ("主角", ("许七安", "主角", "穿越")),
+        ("堂弟", ("许新年", "堂弟")),
+        ("叔父", ("许平志", "叔父", "二叔")),
+        ("府尹", ("府尹", "陈府尹", "陈汉光")),
+        ("打更人", ("打更人", "宋廷风", "朱广孝")),
+        ("司天监术士", ("司天监", "术士", "炼金")),
+        ("狱卒", ("狱卒", "牢头", "监牢")),
+        ("犯人", ("囚犯", "犯人", "入狱")),
+        ("家人", ("婶婶", "姨", "许家")),
+    ]
+    for role, keywords in role_rules:
+        if any(keyword in text for keyword in keywords):
+            return role
+    return "剧情人物"
+
+
+def _character_description(name: str, role: str, item: dict[str, Any], source: dict[str, Any]) -> str:
+    raw = str(item.get("description") or source.get("description") or source.get("evidence") or "").strip()
+    generic_markers = ("分块解析识别的人物", "角色", "人物", "未明确")
+    if raw and not any(marker in raw for marker in generic_markers) and len(raw) >= 18:
+        return _clip_sentence(raw, 60)
+    descriptions = {
+        "主角": f"{name}是改编主线核心，卷入案件与牢狱困境，推动调查、脱罪和成长线展开。",
+        "堂弟": f"{name}与主角同属许家，是家族关系和案件压力的重要连接人物。",
+        "叔父": f"{name}是许家长辈，承担家庭责任，也推动主角面对现实困境。",
+        "府尹": f"{name}代表官府审理力量，影响案件走向并制造审讯压力。",
+        "打更人": f"{name}关联打更人体系，是案件调查和外部势力介入的重要角色。",
+        "司天监术士": f"{name}代表司天监术法线索，为案件提供技术与世界观支撑。",
+        "狱卒": f"{name}负责监牢秩序，推动牢狱场景中的信息传递和冲突。",
+    }
+    return descriptions.get(role, f"{name}在剧情中承担{role}功能，参与主要冲突并推动关键场景发展。")
+
+
+def _normalize_conflict_notes(script: dict[str, Any], analysis: dict[str, Any]) -> None:
+    notes = script.get("adaptation_notes") if isinstance(script.get("adaptation_notes"), dict) else {}
+    characters = script.get("characters") if isinstance(script.get("characters"), list) else []
+    name_to_id = {str(item.get("name")): str(item.get("id")) for item in characters if isinstance(item, dict) and item.get("id")}
+    valid_ids = {str(item.get("id")) for item in characters if isinstance(item, dict) and item.get("id")}
+    conflicts = notes.get("conflicts")
+    if not conflicts:
+        conflicts = analysis.get("conflicts") or []
+    normalized = []
+    for item in conflicts if isinstance(conflicts, list) else [conflicts]:
+        conflict = _coerce_conflict_object(item)
+        if not conflict:
+            continue
+        character_ids = []
+        for value in conflict.get("characters") or []:
+            marker = str(value).strip()
+            if marker in valid_ids:
+                character_ids.append(marker)
+            elif marker in name_to_id:
+                character_ids.append(name_to_id[marker])
+        normalized.append(
+            {
+                "type": str(conflict.get("type") or "剧情冲突").strip() or "剧情冲突",
+                "description": _clip_sentence(str(conflict.get("description") or "").strip(), 80),
+                "characters": _unique(character_ids),
+            }
+        )
+    notes["conflicts"] = normalized
+    script["adaptation_notes"] = notes
+
+
+def _coerce_conflict_object(item: Any) -> dict[str, Any] | None:
+    if isinstance(item, dict):
+        description = str(item.get("description") or item.get("summary") or item.get("content") or "").strip()
+        if not description and len(item) == 1:
+            description = str(next(iter(item.values()))).strip()
+        if not description:
+            return None
+        return {
+            "type": item.get("type") or item.get("category") or "剧情冲突",
+            "description": description,
+            "characters": item.get("characters") or [],
+        }
+    text = str(item or "").strip()
+    if not text:
+        return None
+    parsed = None
+    if text.startswith("{") and text.endswith("}"):
+        for parser in (json.loads, ast.literal_eval):
+            try:
+                parsed = parser(text)
+                break
+            except Exception:
+                parsed = None
+    if isinstance(parsed, dict):
+        return _coerce_conflict_object(parsed)
+    conflict_type = "个人困境" if any(keyword in text for keyword in ("入狱", "流放", "困境", "脱罪")) else "剧情冲突"
+    return {"type": conflict_type, "description": text, "characters": []}
+
+
+def _split_world_settings_from_locations(script: dict[str, Any]) -> None:
+    locations = [item for item in script.get("locations") or [] if isinstance(item, dict)]
+    if not locations:
+        return
+    world_settings = [item for item in locations if _is_world_setting_location(item)]
+    actual_locations = [item for item in locations if not _is_world_setting_location(item)]
+    if not actual_locations:
+        actual_locations = [{"id": "loc_001", "name": "未明确地点", "description": "原文未明确具体发生场景。"}]
+    actual_ids = {str(item.get("id")) for item in actual_locations if item.get("id")}
+    default_location_id = str(actual_locations[0].get("id") or "loc_001")
+    for chapter in script.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for scene in chapter.get("scenes") or []:
+            if isinstance(scene, dict) and str(scene.get("location_id")) not in actual_ids:
+                scene["location_id"] = default_location_id
+    script["locations"] = actual_locations
+    if world_settings:
+        existing_world_settings = [
+            item
+            for item in script.get("world_settings") or []
+            if isinstance(item, dict) and str(item.get("name") or "").strip()
+        ]
+        script["world_settings"] = _unique_dicts(existing_world_settings + [
+            {
+                "id": str(item.get("id") or f"world_{index:03d}"),
+                "name": str(item.get("name") or "").strip(),
+                "description": str(item.get("description") or "世界观背景设定。").strip(),
+            }
+            for index, item in enumerate(world_settings, start=1)
+            if str(item.get("name") or "").strip()
+        ], "name")
+
+
+def _is_world_setting_location(item: dict[str, Any]) -> bool:
+    name = str(item.get("name") or "").strip()
+    description = str(item.get("description") or "").strip()
+    text = f"{name} {description}"
+    explicit_world_places = ("万妖国", "南疆十万大山")
+    world_keywords = ("世界观", "天下", "诸国", "大陆", "王朝疆域")
+    return any(keyword in text for keyword in explicit_world_places + world_keywords)
+
+
+def _fix_dialogues_and_scene_refs(script: dict[str, Any], detail_level: str) -> None:
+    characters = [item for item in script.get("characters") or [] if isinstance(item, dict)]
+    char_by_id = {str(item.get("id")): item for item in characters if item.get("id")}
+    id_by_name = {str(item.get("name")): str(item.get("id")) for item in characters if item.get("id") and item.get("name")}
+    max_dialogues = {"brief": 4, "standard": 6, "detailed": 8}.get(detail_level, 6)
+    for chapter in script.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for scene in chapter.get("scenes") or []:
+            if not isinstance(scene, dict):
+                continue
+            stage_directions = _list_of_strings(scene.get("stage_directions"))
+            scene_characters = [
+                str(value).strip()
+                for value in scene.get("characters") or []
+                if str(value).strip() in char_by_id
+            ]
+            normalized_dialogue = []
+            for line in scene.get("dialogue") or []:
+                if not isinstance(line, dict):
+                    continue
+                fixed = _fix_dialogue_line(line, char_by_id, id_by_name)
+                if fixed is None:
+                    narration = str(line.get("line") or "").strip()
+                    if narration:
+                        stage_directions.append(_clip_sentence(narration, 90))
+                    continue
+                normalized_dialogue.append(fixed)
+                if fixed["speaker_id"]:
+                    scene_characters.append(fixed["speaker_id"])
+            scene["stage_directions"] = _unique(stage_directions) or [str(scene.get("synopsis") or "场景动作延续。")]
+            scene["dialogue"] = _select_key_dialogues(normalized_dialogue, max_dialogues)
+            scene["characters"] = _unique(scene_characters)
+
+
+def _fix_dialogue_line(
+    line: dict[str, Any],
+    char_by_id: dict[str, dict[str, Any]],
+    id_by_name: dict[str, str],
+) -> dict[str, Any] | None:
+    text = str(line.get("line") or "").strip()
+    if not text:
+        return None
+    line_type = str(line.get("line_type") or "dialogue").strip().lower()
+    speaker_id = str(line.get("speaker_id") or "").strip()
+    speaker_name = str(line.get("speaker_name") or "").strip()
+    if speaker_id not in char_by_id and speaker_name in id_by_name:
+        speaker_id = id_by_name[speaker_name]
+    if speaker_id not in char_by_id:
+        return None
+    if line_type == "narration":
+        return None
+    if line_type not in {"dialogue", "monologue"}:
+        line_type = "dialogue"
+    return {
+        "speaker_id": speaker_id,
+        "speaker_name": str(char_by_id[speaker_id].get("name") or speaker_name or speaker_id),
+        "line": _clip_sentence(text, 88),
+        "emotion": str(line.get("emotion") or "neutral"),
+        "line_type": line_type,
+    }
+
+
+def _select_key_dialogues(dialogues: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+    selected = []
+    seen = set()
+    for line in dialogues:
+        text = str(line.get("line") or "").strip()
+        marker = (line.get("speaker_id"), text)
+        if not text or marker in seen:
+            continue
+        seen.add(marker)
+        selected.append(line)
+        if len(selected) >= limit:
+            break
+    return selected
+
+
+def _recalculate_screenplay_coverage(script: dict[str, Any], detail_level: str) -> None:
+    metadata = script.get("metadata") if isinstance(script.get("metadata"), dict) else {}
+    coverage = metadata.get("coverage") if isinstance(metadata.get("coverage"), dict) else {}
+    chapters = [chapter for chapter in script.get("chapters") or [] if isinstance(chapter, dict)]
+    scenes = [
+        scene
+        for chapter in chapters
+        for scene in (chapter.get("scenes") or [])
+        if isinstance(scene, dict)
+    ]
+    coverage["source_chapters"] = metadata.get("total_chapters") or len(chapters)
+    coverage["generated_scenes"] = len(scenes)
+    coverage["preserved_dialogues"] = sum(
+        1
+        for scene in scenes
+        for line in (scene.get("dialogue") or [])
+        if isinstance(line, dict)
+        and line.get("speaker_id")
+        and str(line.get("line_type") or "dialogue") in {"dialogue", "monologue"}
+    )
+    coverage["adaptation_mode"] = detail_level
+    coverage["omitted_reason"] = OMITTED_REASONS[detail_level]
+    metadata["coverage"] = coverage
+    script["metadata"] = metadata
+
+
+def _clip_sentence(text: str, limit: int) -> str:
+    compact = re.sub(r"\s+", " ", str(text or "")).strip()
+    if len(compact) <= limit:
+        return compact
+    clipped = compact[:limit].rstrip("，。；、,.!！?？")
+    return clipped + "…"
+
+
 def _screenplay_prompt(
     project: Project,
     analysis: dict[str, Any],
@@ -1145,7 +1649,7 @@ def _screenplay_json_template(
     generation_settings: dict[str, Any] | None = None,
     detail_level: str = "standard",
 ) -> dict[str, Any]:
-    template = _template_profile((generation_settings or {}).get("templateId"))
+    template = _template_profile_for_generation_settings(generation_settings or {})
     return {
         "script": {
             "schema_version": "1.0",
@@ -1156,7 +1660,7 @@ def _screenplay_json_template(
                 "language": "zh-CN",
                 "target_format": template["target_format"],
                 "template_id": template["id"],
-                "script_type": (generation_settings or {}).get("scriptType") or template["script_type"],
+                "script_type": template["script_type"],
                 "adaptation_style": (generation_settings or {}).get("adaptationStyle"),
                 "total_chapters": len(project.chapters),
                 "adaptation_mode": detail_level,
@@ -1575,6 +2079,14 @@ def _template_profile(template_id: str | None) -> dict[str, Any]:
         },
     }
     return profiles.get(template_id or "tv-drama", profiles["tv-drama"])
+
+
+def _template_profile_for_generation_settings(generation_settings: dict[str, Any]) -> dict[str, Any]:
+    script_type = str(generation_settings.get("scriptType") or "").strip()
+    template_id = str(generation_settings.get("templateId") or "").strip()
+    if script_type == "短剧":
+        template_id = "short-drama"
+    return _template_profile(template_id or None)
 
 
 def _analysis_for_prompt(analysis: dict[str, Any]) -> dict[str, Any]:

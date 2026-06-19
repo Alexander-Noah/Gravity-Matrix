@@ -55,7 +55,7 @@ def get_task_result(task_id: str) -> ParseTaskResultRead:
     task = get_parse_task(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="解析任务不存在。")
-    if task.status != "success":
+    if task.status not in {"completed", "completed_with_warnings"}:
         raise HTTPException(status_code=409, detail="解析任务尚未完成。")
     return ParseTaskResultRead(
         task_id=task.id,

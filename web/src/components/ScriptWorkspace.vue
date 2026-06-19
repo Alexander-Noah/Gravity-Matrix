@@ -18,7 +18,7 @@ const props = defineProps({
   saveStatus: { type: String, default: '' },
 })
 
-const emit = defineEmits(['add-scene', 'copy-yaml', 'download-yaml', 'open-preview', 'open-schema', 'previous', 'save-yaml', 'select-chapter', 'select-scene', 'update:character', 'update:dialogue', 'update:scene-field', 'update:yamlContent', 'validate-yaml'])
+const emit = defineEmits(['add-scene', 'copy-yaml', 'export-document', 'open-preview', 'open-schema', 'previous', 'save-yaml', 'select-chapter', 'select-scene', 'update:character', 'update:dialogue', 'update:scene-field', 'update:yamlContent', 'validate-yaml'])
 
 const yamlContent = ref(props.yamlContent)
 const isSyncingYamlContent = ref(false)
@@ -154,8 +154,8 @@ defineExpose({ scrollToYamlLine })
         <button class="toolbar-button" type="button" :disabled="isGenerating" @click="$emit('copy-yaml')">
           <span>复制 YAML</span>
         </button>
-        <button class="toolbar-button" type="button" :disabled="isGenerating" @click="$emit('download-yaml')">
-          <span>下载 YAML</span>
+        <button class="toolbar-button" type="button" :disabled="isGenerating" @click="$emit('export-document')">
+          <span>导出剧本文档</span>
         </button>
         <button class="toolbar-button is-primary" type="button" :disabled="isGenerating" @click="$emit('open-preview')">
           <span>完整预览</span>

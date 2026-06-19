@@ -7,7 +7,15 @@ const props = defineProps({
   scenes: { type: Array, required: true },
 })
 
-defineEmits(['back', 'export-markdown', 'export-pdf', 'export-txt', 'export-yaml'])
+const emit = defineEmits(['back', 'export-document', 'export-json', 'export-yaml'])
+
+const closeExportMenu = (event, exportType) => {
+  const menu = event.currentTarget.closest('details')
+  if (menu) {
+    menu.open = false
+  }
+  emit(exportType)
+}
 
 const previewStats = computed(() => {
   const characterNames = new Set()
@@ -37,36 +45,41 @@ const previewStats = computed(() => {
         </span>
       </div>
       <div class="preview-export-actions" aria-label="预览导出操作">
-        <button class="editor-tool" type="button" @click="$emit('back')">
+        <button class="editor-tool" type="button" @click="emit('back')">
           <svg class="reverse-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
           </svg>
           <span>返回编辑</span>
         </button>
-        <button class="editor-tool" type="button" @click="$emit('export-yaml')">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path v-for="path in iconPaths.download" :key="path" :d="path" />
-          </svg>
-          <span>导出 YAML</span>
-        </button>
-        <button class="editor-tool" type="button" @click="$emit('export-txt')">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path v-for="path in iconPaths.text" :key="path" :d="path" />
-          </svg>
-          <span>导出 TXT</span>
-        </button>
-        <button class="editor-tool" type="button" @click="$emit('export-markdown')">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path v-for="path in iconPaths.format" :key="path" :d="path" />
-          </svg>
-          <span>导出 Markdown</span>
-        </button>
-        <button class="editor-tool is-primary" type="button" @click="$emit('export-pdf')">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path v-for="path in iconPaths.file" :key="path" :d="path" />
-          </svg>
-          <span>导出 PDF</span>
-        </button>
+        <div class="preview-export-menu">
+          <button class="editor-tool is-primary" type="button" @click="emit('export-document')">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path v-for="path in iconPaths.file" :key="path" :d="path" />
+            </svg>
+            <span>导出剧本文档</span>
+          </button>
+          <details class="export-format-menu">
+            <summary class="editor-tool" aria-label="选择导出格式">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path v-for="path in iconPaths.arrow" :key="path" :d="path" />
+              </svg>
+            </summary>
+            <div class="export-format-list" role="menu">
+              <button type="button" role="menuitem" @click="closeExportMenu($event, 'export-document')">
+                <strong>导出中文文档（推荐）</strong>
+                <span>适合阅读、审稿和发给非技术用户</span>
+              </button>
+              <button type="button" role="menuitem" @click="closeExportMenu($event, 'export-yaml')">
+                <strong>导出 YAML 技术文件</strong>
+                <span>适合再次导入、校验和继续编辑</span>
+              </button>
+              <button type="button" role="menuitem" @click="closeExportMenu($event, 'export-json')">
+                <strong>导出 JSON 数据文件</strong>
+                <span>适合系统对接和二次处理</span>
+              </button>
+            </div>
+          </details>
+        </div>
       </div>
     </section>
 

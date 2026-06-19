@@ -135,13 +135,14 @@ const noticeType = computed(() => (/失败|错误|异常/.test(props.notice) ? '
             <h2 id="relations-title">人物关系</h2>
           </div>
         </div>
-        <div class="relation-list">
+        <div v-if="characterRelations.length" class="relation-list">
           <article v-for="relation in characterRelations" :key="`${relation.source}-${relation.target}`">
             <strong>{{ relation.source }} · {{ relation.target }}</strong>
             <span>{{ relation.relation }}</span>
             <p>{{ relation.note }}</p>
           </article>
         </div>
+        <el-empty v-else description="暂无可展示的人物关系，请重新解析或补充更多小说正文。" />
       </section>
     </div>
 

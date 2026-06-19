@@ -47,6 +47,12 @@ from app.services.frontend_data import (
 )
 from app.services.jobs import cancel_active_jobs, create_job, get_active_job, run_analysis_job, run_script_generation_job
 from app.services.script_diagnosis import diagnose_screenplay_yaml
+from app.services.script_export import (
+    screenplay_yaml_to_chinese_markdown,
+    screenplay_yaml_to_json_text,
+    screenplay_yaml_to_markdown,
+    screenplay_yaml_to_txt,
+)
 from app.services.screenplay_yaml import validate_screenplay_yaml
 from app.services.workbench import build_project_workbench
 import yaml
@@ -610,13 +616,55 @@ def export_script(project_id: int, db: Session = Depends(get_db)) -> Response:
     )
 
 
+@router.get("/projects/{project_id}/script/export/document")
+def export_script_document(project_id: int, db: Session = Depends(get_db)) -> Response:
+    project = _require_project(db, project_id)
+    if not project.script_yaml:
+        raise HTTPException(status_code=404, detail="当前项目还没有生成剧本。")
+
+    try:
+        content = screenplay_yaml_to_chinese_markdown(project.script_yaml)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    filename = f"project-{project.id}-screenplay-document.md"
+    return Response(
+        content=content,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/projects/{project_id}/script/export/json")
+def export_script_json(project_id: int, db: Session = Depends(get_db)) -> Response:
+    project = _require_project(db, project_id)
+    if not project.script_yaml:
+        raise HTTPException(status_code=404, detail="当前项目还没有生成剧本。")
+
+    try:
+        content = screenplay_yaml_to_json_text(project.script_yaml)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    filename = f"project-{project.id}-screenplay-data.json"
+    return Response(
+        content=content,
+        media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/projects/{project_id}/script/export/txt")
 def export_script_txt(project_id: int, db: Session = Depends(get_db)) -> Response:
     project = _require_project(db, project_id)
     if not project.script_yaml:
         raise HTTPException(status_code=404, detail="当前项目还没有生成剧本。")
 
-    content = _screenplay_text(project.script_yaml)
+    try:
+        content = screenplay_yaml_to_txt(project.script_yaml)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     filename = f"project-{project.id}-screenplay.txt"
     return Response(
         content=content,
@@ -631,7 +679,11 @@ def export_script_markdown(project_id: int, db: Session = Depends(get_db)) -> Re
     if not project.script_yaml:
         raise HTTPException(status_code=404, detail="当前项目还没有生成剧本。")
 
-    content = _screenplay_markdown(project.script_yaml)
+    try:
+        content = screenplay_yaml_to_markdown(project.script_yaml)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     filename = f"project-{project.id}-screenplay.md"
     return Response(
         content=content,
@@ -646,7 +698,11 @@ def export_script_pdf(project_id: int, db: Session = Depends(get_db)) -> Respons
     if not project.script_yaml:
         raise HTTPException(status_code=404, detail="当前项目还没有生成剧本。")
 
-    content = _screenplay_pdf(project.script_yaml)
+    try:
+        content = _plain_text_pdf(screenplay_yaml_to_txt(project.script_yaml))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     filename = f"project-{project.id}-screenplay.pdf"
     return Response(
         content=content,
@@ -849,52 +905,6 @@ def _character_name(characters: list[dict], character_id: str) -> str:
         if character.get("id") == character_id:
             return str(character.get("name") or character_id)
     return character_id
-
-
-def _screenplay_text(yaml_text: str) -> str:
-    parsed = _load_screenplay(yaml_text)
-    script = parsed["script"]
-    lines = [
-        str(script.get("metadata", {}).get("title") or "未命名剧本"),
-        "",
-    ]
-    for chapter in script.get("chapters", []):
-        lines.extend([str(chapter.get("title", "未命名章节")), ""])
-        for scene in chapter.get("scenes", []):
-            lines.append(str(scene.get("title", "未命名场景")))
-            lines.append(f"时间：{scene.get('time', '待定')}")
-            if scene.get("synopsis"):
-                lines.append(str(scene["synopsis"]))
-            for direction in scene.get("stage_directions", []):
-                lines.append(str(direction))
-            for dialogue in scene.get("dialogue", []):
-                lines.append(f"{dialogue.get('speaker_name', dialogue.get('speaker_id', '人物'))}：{dialogue.get('line', '')}")
-            lines.append("")
-    return "\n".join(lines).strip() + "\n"
-
-
-def _screenplay_markdown(yaml_text: str) -> str:
-    parsed = _load_screenplay(yaml_text)
-    script = parsed["script"]
-    lines = [f"# {script.get('metadata', {}).get('title') or '未命名剧本'}", ""]
-    for chapter in script.get("chapters", []):
-        lines.extend([f"## {chapter.get('title', '未命名章节')}", ""])
-        for scene in chapter.get("scenes", []):
-            lines.extend([f"### {scene.get('title', '未命名场景')}", "", f"- 时间：{scene.get('time', '待定')}"])
-            if scene.get("synopsis"):
-                lines.extend(["", str(scene["synopsis"])])
-            for direction in scene.get("stage_directions", []):
-                lines.extend(["", f"> {direction}"])
-            for dialogue in scene.get("dialogue", []):
-                speaker = dialogue.get("speaker_name", dialogue.get("speaker_id", "人物"))
-                lines.extend(["", f"**{speaker}**：{dialogue.get('line', '')}"])
-            lines.append("")
-    return "\n".join(lines).strip() + "\n"
-
-
-def _screenplay_pdf(yaml_text: str) -> bytes:
-    text = _screenplay_text(yaml_text)
-    return _plain_text_pdf(text)
 
 
 def _plain_text_pdf(text: str) -> bytes:

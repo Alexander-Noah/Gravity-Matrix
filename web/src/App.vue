@@ -13,16 +13,15 @@ import {
   getParseTask,
   getParseTaskResult,
   getProjectReadiness,
-  getProjectScript,
   getProjectWorkbench,
   saveProjectScript,
   startScriptJob,
   validateProjectScript,
   updateGenerationSettings,
   addProjectScene,
-  exportProjectMarkdown,
-  exportProjectPdf,
-  exportProjectTxt,
+  exportProjectDocument,
+  exportProjectJson,
+  exportProjectYaml,
   deleteProject,
   getScriptTemplates,
   getDefaultTemplate,
@@ -109,6 +108,8 @@ const previewNotice = ref('')
 const selectedTemplateId = ref(localStorage.getItem('gravityMatrixSelectedTemplate') || 'tv-drama')
 const currentUser = ref(getAuthSession().user)
 const isProfileCenterOpen = ref(false)
+const isProfileLoading = ref(false)
+const profileLoadError = ref('')
 const isGuideOpen = ref(false)
 const displayedAnalysisCharacters = ref([])
 const displayedAnalysisMetrics = ref([])
@@ -139,6 +140,7 @@ const scriptWorkspaceRef = ref(null)
 const activeYamlLine = ref(null)
 let isExplicitProjectOpen = false
 let scriptSaveTimeout = null
+let profileLoadRequestId = 0
 
 const CURRENT_PROJECT_STORAGE_KEY = 'gravityMatrixCurrentProjectId'
 
@@ -819,6 +821,14 @@ watch(
   { immediate: true },
 )
 
+watch(isProfileCenterOpen, (isOpen) => {
+  if (!isOpen) {
+    profileLoadRequestId += 1
+    isProfileLoading.value = false
+    profileLoadError.value = ''
+  }
+})
+
 watch(
   () => activeRoute.value.id,
   (routeId) => {
@@ -1078,16 +1088,6 @@ const selectedPreviewScene = computed(() => {
   return displayedPreviewScenes.value.find((scene) => scene.id === selectedSceneId.value) || displayedPreviewScenes.value[0]
 })
 
-const scriptTextPreview = computed(() =>
-  displayedPreviewScenes.value
-    .map((scene) => {
-      const cast = `出场人物：${scene.characters.join('、')}`
-      const dialogues = scene.dialogues.map((dialogue) => `${dialogue.speaker}\n${dialogue.line}`).join('\n\n')
-
-      return `${scene.title}\n${scene.meta}\n${cast}\n\n${scene.action}\n\n${dialogues}`
-    })
-    .join('\n\n---\n\n'),
-)
 const markdownPreview = computed(() =>
   displayedPreviewScenes.value
     .map((scene) => {
@@ -1141,12 +1141,20 @@ const waitForParseTask = async (taskId, { timeoutMs = 45 * 60 * 1000, intervalMs
     analysisProgress.value = task.progress ?? analysisProgress.value
     analysisNotice.value = task.message || analysisNotice.value
 
-    if (task.status === 'success') {
+    if (task.status === 'completed' || task.status === 'success') {
       return getParseTaskResult(taskId)
     }
 
+    if (task.status === 'completed_with_warnings') {
+      const result = await getParseTaskResult(taskId)
+      result.warning = task.message || '部分内容解析失败，可稍后重试'
+      result.failed_chunks = task.failed_chunks || result.failed_chunks || []
+      ElMessage.warning('部分内容解析失败，可稍后重试')
+      return result
+    }
+
     if (task.status === 'failed') {
-      const error = new Error(task.error || 'AI 解析任务失败。')
+      const error = new Error(task.error || '本地模型解析超时，请减少文本长度或稍后重试')
       error.rawResponse = task.raw_response || ''
       error.parseTask = task
       throw error
@@ -1227,6 +1235,45 @@ const syncCurrentWorkbench = async () => {
   return workbench
 }
 
+const normalizeRelationItem = (relation, index) => ({
+  source: relation.source || relation.from || relation.character_a || relation.characterA || `人物 ${index + 1}`,
+  target: relation.target || relation.to || relation.character_b || relation.characterB || '',
+  relation: relation.relation || relation.relationship || relation.type || '人物关系',
+  note: relation.note || relation.description || relation.summary || relation.evidence || '共同推动剧情发展',
+})
+
+const relationKey = (source, target) => [source, target].sort().join('::')
+
+const buildFallbackRelations = (characters, events, dialogues) => {
+  const knownNames = new Set(characters.map((character) => character.name).filter(Boolean))
+  const relations = new Map()
+  const addRelation = (source, target, relation, note) => {
+    if (!source || !target || source === target || !knownNames.has(source) || !knownNames.has(target)) return
+    const key = relationKey(source, target)
+    if (!relations.has(key)) {
+      relations.set(key, { source, target, relation, note })
+    }
+  }
+
+  events.forEach((event) => {
+    const names = Array.isArray(event.characters) ? event.characters.filter((name) => knownNames.has(name)) : []
+    names.forEach((source, sourceIndex) => {
+      names.slice(sourceIndex + 1).forEach((target) => {
+        addRelation(source, target, '共同参与事件', event.summary || event.title || '共同出现在同一剧情事件中')
+      })
+    })
+  })
+
+  dialogues.forEach((dialogue, index) => {
+    const previous = dialogues[index - 1]
+    if (previous?.speaker && dialogue?.speaker && previous.speaker !== dialogue.speaker) {
+      addRelation(previous.speaker, dialogue.speaker, '对话互动', dialogue.line || '在对白中发生互动')
+    }
+  })
+
+  return Array.from(relations.values()).slice(0, 12)
+}
+
 const applyAnalysisResult = (analysis) => {
   const raw = analysis?.analysis || analysis || {}
   const characters = Array.isArray(raw.characters) ? raw.characters : []
@@ -1287,14 +1334,12 @@ const applyAnalysisResult = (analysis) => {
     tone: ['blue', 'mint', 'orange', 'violet'][idx % 4],
   }))
 
-  displayedCharacterRelations.value = Array.isArray(raw.relationships)
-    ? raw.relationships.map((relation, index) => ({
-      source: relation.source || relation.from || `关系 ${index + 1}`,
-      target: relation.target || relation.to || '',
-      relation: relation.relation || relation.type || '',
-      note: relation.evidence || relation.description || '',
-    }))
+  const explicitRelations = Array.isArray(raw.relationships)
+    ? raw.relationships.map(normalizeRelationItem).filter((relation) => relation.source && relation.target)
     : []
+  displayedCharacterRelations.value = explicitRelations.length
+    ? explicitRelations
+    : buildFallbackRelations(characters, events, dialogues)
 
   displayedAnalysisMetrics.value = [
     { label: '人物', value: String(characters.length), icon: 'users', tone: 'violet' },
@@ -1376,19 +1421,98 @@ const handleAuthenticated = async () => {
 }
 
 const openProfileCenter = async () => {
-  try {
-    currentUser.value = await fetchCurrentUser()
-  } catch {
-    currentUser.value = getAuthSession().user
-  }
+  const requestId = ++profileLoadRequestId
   isProfileCenterOpen.value = true
+  isProfileLoading.value = true
+  profileLoadError.value = ''
+
+  const tasks = [
+    fetchCurrentUser().then((user) => {
+      currentUser.value = user
+    }).catch((error) => {
+      currentUser.value = getAuthSession().user
+      throw error
+    }),
+    fetchTemplates(),
+    fetchScriptLibrary(),
+    currentProjectId.value ? syncCurrentWorkbench() : Promise.resolve(null),
+  ]
+
+  const results = await Promise.allSettled(tasks)
+
+  if (requestId !== profileLoadRequestId) {
+    return
+  }
+
+  isProfileLoading.value = false
+  const failedResults = results.filter((result) => result.status === 'rejected')
+
+  if (failedResults.length) {
+    profileLoadError.value = '数据加载失败，请稍后重试'
+    console.error('个人中心数据加载失败', failedResults.map((result) => result.reason))
+    ElMessage.error('数据加载失败，请稍后重试')
+  }
 }
 
-const logout = () => {
+const closeProfileCenter = () => {
+  profileLoadRequestId += 1
   isProfileCenterOpen.value = false
-  clearAuthSession()
-  currentUser.value = null
-  router.push('/auth')
+  isProfileLoading.value = false
+  profileLoadError.value = ''
+}
+
+const requireCurrentProjectForProfile = () => {
+  if (currentProjectId.value) {
+    return true
+  }
+
+  ElMessage.warning('请先创建项目')
+  return false
+}
+
+const continueEditingFromProfile = () => {
+  if (!requireCurrentProjectForProfile()) return
+  closeProfileCenter()
+  isExplicitProjectOpen = true
+  router.push('/workbench')
+  activePage.value = generatedScriptYaml.value || editableScriptYaml.value ? 'script' : 'analysis'
+}
+
+const openLibraryFromProfile = () => {
+  closeProfileCenter()
+  goToPage('library')
+}
+
+const switchTemplateFromProfile = () => {
+  closeProfileCenter()
+  goToPage('templates')
+}
+
+const revalidateFromProfile = async () => {
+  if (!requireCurrentProjectForProfile()) return
+  closeProfileCenter()
+  isExplicitProjectOpen = true
+  router.push('/workbench')
+  activePage.value = 'script'
+  await validateYaml()
+}
+
+const logout = async () => {
+  try {
+    await ElMessageBox.confirm('确定要退出当前账号吗？', '退出登录', {
+      confirmButtonText: '退出登录',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+    closeProfileCenter()
+    clearAuthSession()
+    currentUser.value = null
+    router.push('/auth')
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      devError('退出登录确认失败', error)
+    }
+  }
 }
 
 const openGuide = () => {
@@ -1475,15 +1599,80 @@ const defaultGenerationSettings = computed(() => {
 const selectedTemplateName = computed(() =>
   displayedTemplates.value.find((template) => template.id === selectedTemplateId.value)?.name || '未选择模板',
 )
+const hasCurrentProject = computed(() => Boolean(currentProjectId.value))
+const hasCurrentProjectScriptDraft = computed(() =>
+  hasCurrentProject.value && Boolean((editableScriptYaml.value || generatedScriptYaml.value || '').trim()),
+)
+const hasCurrentProjectAnalysis = computed(() =>
+  hasCurrentProject.value && (
+    displayedAnalysisCharacters.value.length > 0 ||
+    displayedAnalysisScenes.value.length > 0 ||
+    currentProjectProgress.value >= 50 ||
+    currentProjectStages.value.some((step) => step.status === 'done' && step.label.includes('AI'))
+  ),
+)
+const hasPassedFormatValidation = computed(() =>
+  hasCurrentProject.value && schemaValidation.value.yamlValid && schemaValidation.value.requiredFieldsValid,
+)
+const profileProjectProgress = computed(() => {
+  if (!hasCurrentProject.value) return 0
+  if (hasPassedFormatValidation.value) return 100
+  if (hasCurrentProjectScriptDraft.value) return 75
+  if (hasCurrentProjectAnalysis.value) return 50
+  return 25
+})
+const profileProjectStage = computed(() => {
+  if (!hasCurrentProject.value) return '未选择项目'
+  if (hasPassedFormatValidation.value) return '已完成格式校验'
+  if (hasCurrentProjectScriptDraft.value) return '已生成剧本草稿'
+  if (hasCurrentProjectAnalysis.value) return '已完成 AI 解析'
+  return '已导入小说'
+})
+const profileProjectTitle = computed(() => {
+  if (!hasCurrentProject.value) {
+    return '未选择项目'
+  }
+
+  if (!currentProjectTitle.value || currentProjectTitle.value === '未创建项目') {
+    return '项目工作台'
+  }
+
+  return currentProjectTitle.value
+})
+const profileScriptStatus = computed(() => {
+  if (!hasCurrentProject.value) return '暂无剧本'
+  return hasCurrentProjectScriptDraft.value ? '已有剧本草稿' : '尚未生成剧本'
+})
+const profileFormatStatus = computed(() => {
+  if (!hasCurrentProject.value) return '暂无校验'
+  if (hasPassedFormatValidation.value) return '格式正常'
+
+  const hasChecked = schemaValidation.value.checkedAt && schemaValidation.value.checkedAt !== defaultSchemaValidation.checkedAt
+  return hasChecked ? '格式需修正' : '待校验'
+})
 const profileStats = computed(() => ({
   workspaceName: pageTitle.value,
-  currentProject: currentProjectTitle.value,
-  projectProgress: currentProjectProgress.value,
-  workflowStep: currentWorkflowSteps.value.find((step) => step.status === 'active')?.label || activeRoute.value.title,
+  hasCurrentProject: hasCurrentProject.value,
+  currentProject: profileProjectTitle.value,
+  projectProgress: profileProjectProgress.value,
+  projectProgressLabel: hasCurrentProject.value ? `${profileProjectProgress.value}%` : '暂无',
+  workflowStep: hasCurrentProject.value
+    ? profileProjectStage.value
+    : '等待创建项目',
   selectedTemplate: selectedTemplateName.value,
-  scriptStatus: generatedYamlText.value ? '已有 YAML 草稿' : '尚未生成剧本',
+  scriptStatus: profileScriptStatus.value,
   libraryCount: displayedLibraryItems.value.length,
-  schemaStatus: schemaValidation.value.yamlValid && schemaValidation.value.requiredFieldsValid ? '校验通过' : '待校验',
+  formatStatus: profileFormatStatus.value,
+  cards: [
+    { label: '账号状态', value: currentUser.value ? '已登录' : '未登录' },
+    { label: '当前项目', value: profileProjectTitle.value },
+    { label: '工作阶段', value: hasCurrentProject.value ? profileProjectStage.value : '等待创建项目' },
+    { label: '项目进度', value: hasCurrentProject.value ? `${profileProjectProgress.value}%` : '暂无' },
+    { label: '默认生成方式', value: selectedTemplateName.value },
+    { label: '剧本草稿', value: profileScriptStatus.value },
+    { label: '剧本库条目', value: `${displayedLibraryItems.value.length} 个` },
+    { label: '格式校验', value: profileFormatStatus.value },
+  ],
 }))
 
 const getScriptProjectId = (script) => script?.projectId || script?.project_id || script?.raw?.id || null
@@ -1532,25 +1721,19 @@ const exportLibraryScript = async (script, format) => {
 
   try {
     let blob
-    if (format === 'YAML') {
-      const scriptData = await getProjectScript(projectId)
-      blob = new Blob([scriptData.yaml], { type: 'text/yaml;charset=utf-8' })
-    } else if (format === 'Markdown') {
-      blob = await exportProjectMarkdown(projectId)
-    } else if (format === 'PDF') {
-      blob = await exportProjectPdf(projectId)
+    let extension = 'md'
+
+    if (format.includes('YAML')) {
+      blob = await exportProjectYaml(projectId)
+      extension = 'yaml'
+    } else if (format.includes('JSON')) {
+      blob = await exportProjectJson(projectId)
+      extension = 'json'
     } else {
-      blob = await exportProjectTxt(projectId)
+      blob = await exportProjectDocument(projectId)
     }
 
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${script.title}.${format === 'Markdown' ? 'md' : format === 'YAML' ? 'yaml' : format === 'PDF' ? 'pdf' : 'txt'}`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    downloadBlob(blob, `${script.title}.${extension}`)
   } catch (error) {
     ElMessage.error(`导出失败：${getApiErrorMessage(error)}`)
   }
@@ -1664,7 +1847,7 @@ const goToAnalysis = async () => {
     analysisProgress.value = 100
     currentProjectProgress.value = 60
     currentProjectStages.value = buildProjectStages('analysis')
-    analysisNotice.value = 'AI 解析完成，结果已从后端同步。'
+    analysisNotice.value = result.warning || 'AI 解析完成，结果已从后端同步。'
   } catch (error) {
     importNotice.value = showAnalysisErrorNotice(error)
     if (hasEnteredAnalysis || currentProjectId.value) {
@@ -1695,7 +1878,7 @@ const rerunAnalysis = async () => {
     applyAnalysisResult(result.result_json)
     await syncCurrentWorkbench()
     analysisProgress.value = 100
-    analysisNotice.value = '重新解析完成，结果已从后端同步。'
+    analysisNotice.value = result.warning || '重新解析完成，结果已从后端同步。'
   } catch (error) {
     showAnalysisErrorNotice(error)
   }
@@ -1869,18 +2052,6 @@ const copyYaml = async () => {
   }
 }
 
-const downloadYaml = () => {
-  const blob = new Blob([yamlContent.value], { type: 'text/yaml;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-
-  link.href = url
-  link.download = 'generated-script.yaml'
-  link.click()
-  URL.revokeObjectURL(url)
-  editorNotice.value = 'YAML 文件已开始下载。'
-}
-
 const goToSchemaHelp = () => {
   activePage.value = 'schema-doc'
 }
@@ -1913,7 +2084,7 @@ const importSourceNovel = async (script) => {
     applyAnalysisResult(result.result_json)
     await syncCurrentWorkbench()
     analysisProgress.value = 100
-    analysisNotice.value = '素材小说已导入并完成 AI 解析。'
+    analysisNotice.value = result.warning || '素材小说已导入并完成 AI 解析。'
   } catch (error) {
     libraryNotice.value = `素材导入失败：${getApiErrorMessage(error)}`
   }
@@ -1925,6 +2096,10 @@ const goBackToEditor = () => {
 
 const downloadTextFile = (content, filename, type) => {
   const blob = new Blob([content], { type })
+  downloadBlob(blob, filename)
+}
+
+const downloadBlob = (blob, filename) => {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
 
@@ -1934,74 +2109,60 @@ const downloadTextFile = (content, filename, type) => {
   URL.revokeObjectURL(url)
 }
 
-const exportPreviewYaml = () => {
-  downloadTextFile(yamlContent.value, 'generated-script.yaml', 'text/yaml;charset=utf-8')
-  previewNotice.value = 'YAML 文件已开始下载。'
-}
-
-const exportPreviewMarkdown = async () => {
+const exportPreviewDocument = async () => {
   if (currentProjectId.value) {
     try {
-      previewNotice.value = '正在向服务端请求导出 Markdown...'
-      const blob = await exportProjectMarkdown(currentProjectId.value)
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `project-${currentProjectId.value}-script.md`
-      link.click()
-      URL.revokeObjectURL(url)
-      previewNotice.value = '服务端 Markdown 文件下载完成。'
+      previewNotice.value = '正在生成中文剧本文档...'
+      const blob = await exportProjectDocument(currentProjectId.value)
+      downloadBlob(blob, `project-${currentProjectId.value}-screenplay-document.md`)
+      previewNotice.value = '中文剧本文档下载完成。'
     } catch (error) {
       previewNotice.value = '下载失败：' + getApiErrorMessage(error)
     }
     return
   }
 
-  downloadTextFile(markdownPreview.value, 'generated-script.md', 'text/markdown;charset=utf-8')
-  previewNotice.value = 'Markdown 文件已开始下载。'
+  downloadTextFile(markdownPreview.value, 'generated-script-document.md', 'text/markdown;charset=utf-8')
+  previewNotice.value = '中文剧本文档已开始下载。'
 }
 
-const exportPreviewPdf = async () => {
-  if (!currentProjectId.value) {
-    previewNotice.value = '当前预览还没有后端项目，无法生成 PDF 文件。'
+const exportPreviewYaml = async () => {
+  if (currentProjectId.value) {
+    try {
+      previewNotice.value = '正在导出 YAML 技术文件...'
+      const blob = await exportProjectYaml(currentProjectId.value)
+      downloadBlob(blob, `project-${currentProjectId.value}-screenplay.yaml`)
+      previewNotice.value = 'YAML 技术文件下载完成。'
+    } catch (error) {
+      previewNotice.value = '下载失败：' + getApiErrorMessage(error)
+    }
+    return
+  }
+
+  downloadTextFile(yamlContent.value, 'generated-script.yaml', 'text/yaml;charset=utf-8')
+  previewNotice.value = 'YAML 技术文件已开始下载。'
+}
+
+const exportPreviewJson = async () => {
+  if (currentProjectId.value) {
+    try {
+      previewNotice.value = '正在导出 JSON 数据文件...'
+      const blob = await exportProjectJson(currentProjectId.value)
+      downloadBlob(blob, `project-${currentProjectId.value}-screenplay-data.json`)
+      previewNotice.value = 'JSON 数据文件下载完成。'
+    } catch (error) {
+      previewNotice.value = '下载失败：' + getApiErrorMessage(error)
+    }
     return
   }
 
   try {
-    previewNotice.value = '正在向服务端请求导出 PDF...'
-    const blob = await exportProjectPdf(currentProjectId.value)
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `project-${currentProjectId.value}-script.pdf`
-    link.click()
-    URL.revokeObjectURL(url)
-    previewNotice.value = '服务端 PDF 文件下载完成。'
+    const parsed = yaml.load(yamlContent.value)
+    downloadTextFile(JSON.stringify(parsed, null, 2), 'generated-script-data.json', 'application/json;charset=utf-8')
+    previewNotice.value = 'JSON 数据文件已开始下载。'
   } catch (error) {
-    previewNotice.value = '下载失败：' + getApiErrorMessage(error)
+    previewNotice.value = '当前内容无法转换为 JSON：' + getApiErrorMessage(error)
   }
-}
-
-const exportPreviewTxt = async () => {
-  if (currentProjectId.value) {
-    try {
-      previewNotice.value = '正在向服务端请求导出 TXT...'
-      const blob = await exportProjectTxt(currentProjectId.value)
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `project-${currentProjectId.value}-script.txt`
-      link.click()
-      URL.revokeObjectURL(url)
-      previewNotice.value = '服务端 TXT 文件下载完成。'
-    } catch (error) {
-      previewNotice.value = '下载失败：' + getApiErrorMessage(error)
-    }
-    return
-  }
-
-  downloadTextFile(scriptTextPreview.value, 'generated-script.txt', 'text/plain;charset=utf-8')
-  previewNotice.value = 'TXT 文件已开始下载。'
 }
 
 const showRecycleBin = ref(false)
@@ -2116,8 +2277,8 @@ const handleFileUpload = async (event) => {
             @rerun="rerunAnalysis" />
 
           <ScriptPreviewPage v-else-if="activePage === 'preview'" :export-notice="previewNotice" :icon-paths="iconPaths"
-            :scenes="displayedPreviewScenes" @back="goBackToEditor" @export-markdown="exportPreviewMarkdown"
-            @export-pdf="exportPreviewPdf" @export-txt="exportPreviewTxt" @export-yaml="exportPreviewYaml" />
+            :scenes="displayedPreviewScenes" @back="goBackToEditor" @export-document="exportPreviewDocument"
+            @export-json="exportPreviewJson" @export-yaml="exportPreviewYaml" />
 
           <SchemaHelpPage v-else-if="activePage === 'schema-doc'" :content="schemaHelpContent" :icon-paths="iconPaths"
             @back="goBackToEditor" />
@@ -2130,7 +2291,7 @@ const handleFileUpload = async (event) => {
             <ScriptWorkspace ref="scriptWorkspaceRef" v-model:yaml-content="yamlContent" :active-yaml-line="activeYamlLine" :correction-scene="selectedCorrectionScene" :icon-paths="iconPaths" :preview-scene="selectedPreviewScene"
               :schema-validation="schemaValidation" :script-chapters="displayedScriptChapters"
               :is-generating="isScriptGenerating" :status-notice="editorNotice" :yaml-lines="generatedYamlLines" @add-scene="openAddScene"
-              @copy-yaml="copyYaml" @download-yaml="downloadYaml" @open-preview="goToPreview"
+              @copy-yaml="copyYaml" @export-document="exportPreviewDocument" @open-preview="goToPreview"
               @open-schema="goToSchemaHelp" @previous="goBackToAnalysis" @select-chapter="selectScriptChapter" @select-scene="selectScriptScene"
               @save-yaml="saveYamlNow" @update:character="updateScriptCharacter" @update:dialogue="updateSelectedSceneDialogue"
               @update:scene-field="updateSelectedSceneField" @validate-yaml="validateYaml" />
@@ -2144,7 +2305,10 @@ const handleFileUpload = async (event) => {
       </div>
     </main>
 
-    <ProfileCenterDialog v-model="isProfileCenterOpen" :icon-paths="iconPaths" :stats="profileStats" :user="currentUser" @logout="logout" />
+    <ProfileCenterDialog v-model="isProfileCenterOpen" :error="profileLoadError" :icon-paths="iconPaths"
+      :loading="isProfileLoading" :stats="profileStats" :user="currentUser" @continue-edit="continueEditingFromProfile"
+      @logout="logout" @open-library="openLibraryFromProfile" @revalidate="revalidateFromProfile"
+      @switch-template="switchTemplateFromProfile" />
 
     <Teleport to="body">
       <div v-if="isGuideOpen" class="dialog-backdrop" role="presentation" @click.self="closeGuide">

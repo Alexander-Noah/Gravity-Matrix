@@ -18,12 +18,65 @@ from app.services.frontend_data import get_novel_source_project_payload
 from app.services import llm as llm_service
 
 
-PARSE_PROMPT_VERSION = "parse_chunk_v3_single_call_limits"
-CHUNK_LLM_TIMEOUT_SECONDS = settings.llm_timeout_seconds
+PARSE_PROMPT_VERSION = "parse_chunk_v5_relationships"
 CHUNK_CACHE_DIR = BACKEND_DIR / ".cache" / "llm_chunks"
 CHUNK_MAX_ATTEMPTS = max(settings.llm_max_retries + 1, 1)
 
 logger = logging.getLogger(__name__)
+
+
+def _is_local_ollama() -> bool:
+    return (settings.llm_provider or "").strip().lower() == "ollama"
+
+
+def _parse_timeout_seconds() -> int:
+    if _is_local_ollama():
+        return max(settings.llm_timeout_seconds, 900)
+    return settings.llm_timeout_seconds
+
+
+def _parse_max_concurrency() -> int:
+    if _is_local_ollama():
+        return 1
+    return settings.llm_max_concurrency
+
+
+def _parse_chunk_size() -> int:
+    if _is_local_ollama():
+        return min(settings.llm_chunk_size, 1000)
+    return settings.llm_chunk_size
+
+
+def _parse_chunk_limits() -> dict[str, int]:
+    if _is_local_ollama():
+        return {
+            "characters": 4,
+            "locations": 3,
+            "organizations": 3,
+            "events": 3,
+            "dialogues": 4,
+            "relationships": 4,
+            "conflicts": 3,
+            "summary": 50,
+            "description": 30,
+            "evidence": 20,
+        }
+    return {
+        "characters": 8,
+        "locations": 6,
+        "organizations": 5,
+        "events": 5,
+        "dialogues": 8,
+        "relationships": 8,
+        "conflicts": 5,
+        "summary": 60,
+        "description": 30,
+        "evidence": 20,
+    }
+
+
+def _parse_chunk_max_tokens() -> int:
+    return 900 if _is_local_ollama() else 1800
 
 
 @dataclass
@@ -108,16 +161,29 @@ def run_parse_task(task_id: str) -> None:
 
         chunk_results, failed_chunks = asyncio.run(_parse_chunks_concurrently(task_id, chunks))
 
+        if not chunk_results:
+            _update_task(
+                task_id,
+                status="failed",
+                progress=100,
+                message="解析失败",
+                error_message="本地模型解析超时，请减少文本长度或稍后重试",
+                failed_chunks=failed_chunks,
+            )
+            return
+
         _update_task(task_id, progress=88, message="正在合并剧本解析结果")
         result = _merge_chunk_results(title, chunk_results, failed_chunks)
         result["conflicts"] = _merge_conflicts_from_chunk_results(chunk_results) or result.get("conflicts", [])
         result["failed_chunks"] = failed_chunks
         _save_project_result(task.project_id, result)
+        final_status = "completed_with_warnings" if failed_chunks else "completed"
+        final_message = "部分内容解析失败，可稍后重试" if failed_chunks else "解析完成"
         _update_task(
             task_id,
-            status="success",
+            status=final_status,
             progress=100,
-            message="解析完成",
+            message=final_message,
             result_json=result,
             failed_chunks=failed_chunks,
         )
@@ -141,7 +207,7 @@ async def _parse_chunks_concurrently(
     task_id: str,
     chunks: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    semaphore = asyncio.Semaphore(settings.llm_max_concurrency)
+    semaphore = asyncio.Semaphore(_parse_max_concurrency())
     total_chunks = len(chunks)
     completed = 0
     completed_lock = asyncio.Lock()
@@ -255,7 +321,7 @@ def _split_chapters(text: str) -> list[dict[str, str]]:
 
 def _split_long_chapter(text: str) -> list[str]:
     text = text.strip()
-    chunk_size = settings.llm_chunk_size
+    chunk_size = _parse_chunk_size()
     chunk_overlap = min(settings.llm_chunk_overlap, max(chunk_size - 1, 0))
     if len(text) <= chunk_size:
         return [text] if text else []
@@ -276,7 +342,7 @@ def _split_long_chapter(text: str) -> list[str]:
 
 
 def _find_chunk_end(text: str, start: int, ideal_end: int) -> int:
-    min_end = max(start + int(settings.llm_chunk_size * 0.75), start + 1)
+    min_end = max(start + int(_parse_chunk_size() * 0.75), start + 1)
     max_end = min(len(text), ideal_end + 400)
     search = text[min_end:max_end]
     boundaries = ("\n\n", "\r\n\r\n", "\n", "。”", "！”", "？”", "。", "！", "？", "；")
@@ -307,8 +373,8 @@ def _parse_chunk(chunk: dict[str, Any], chunk_number: int) -> dict[str, Any]:
 
     parsed = llm_service._call_deepseek(
         _single_chunk_prompt(chunk, chunk_number),
-        timeout_seconds=CHUNK_LLM_TIMEOUT_SECONDS,
-        max_tokens=1800,
+        timeout_seconds=_parse_timeout_seconds(),
+        max_tokens=_parse_chunk_max_tokens(),
         purpose=f"parse_chunk_{chunk_number}",
     )
     normalized = _normalize_single_chunk_response(parsed, chunk)
@@ -323,7 +389,8 @@ def _parse_chunk(chunk: dict[str, Any], chunk_number: int) -> dict[str, Any]:
 
 
 def _chunk_cache_key(chunk_text: str) -> str:
-    payload = "\n".join([chunk_text or "", settings.llm_model or "", PARSE_PROMPT_VERSION])
+    model = settings.llm_model or settings.ollama_model or ""
+    payload = "\n".join([chunk_text or "", settings.llm_provider or "", model, PARSE_PROMPT_VERSION])
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -353,23 +420,40 @@ def _write_chunk_cache(cache_key: str, result: dict[str, Any]) -> None:
 
 
 def _single_chunk_prompt(chunk: dict[str, Any], chunk_number: int) -> str:
+    limits = _parse_chunk_limits()
     template = {
         "characters": [{"name": "", "aliases": [], "role": "", "description": "", "evidence": ""}],
         "locations": [{"name": "", "description": "", "evidence": ""}],
         "organizations": [{"name": "", "description": "", "evidence": ""}],
         "events": [{"title": "", "summary": "", "characters": [], "location": "", "evidence": ""}],
         "dialogues": [{"speaker": "", "line": "", "line_type": "dialogue", "emotion": "", "evidence": ""}],
+        "relationships": [{"source": "", "target": "", "relation": "", "description": "", "evidence": ""}],
         "conflicts": [],
     }
     return "\n".join(
         [
             "你是小说结构化解析器。只返回严格 JSON 对象，不要 markdown，不要解释。",
-            "一次性解析当前文本块，返回 characters、locations、organizations、events、dialogues、conflicts。",
+            "一次性解析当前文本块，返回 characters、locations、organizations、events、dialogues、relationships、conflicts。",
             "禁止返回 narration，禁止返回旁白，禁止复制大段原文。",
-            "数量限制：characters 最多 8 个；locations 最多 6 个；organizations 最多 5 个；events 最多 5 个；dialogues 最多 8 条；conflicts 最多 5 条。",
-            "长度限制：description 不超过 30 字；summary 不超过 60 字；evidence 不超过 20 字。",
+            (
+                "数量限制："
+                f"characters 最多 {limits['characters']} 个；"
+                f"locations 最多 {limits['locations']} 个；"
+                f"organizations 最多 {limits['organizations']} 个；"
+                f"events 最多 {limits['events']} 个；"
+                f"dialogues 最多 {limits['dialogues']} 条；"
+                f"relationships 最多 {limits['relationships']} 条；"
+                f"conflicts 最多 {limits['conflicts']} 条。"
+            ),
+            (
+                "长度限制："
+                f"description 不超过 {limits['description']} 字；"
+                f"summary 不超过 {limits['summary']} 字；"
+                f"evidence 不超过 {limits['evidence']} 字。"
+            ),
             "dialogues 只保留明确说话人的真实对白；不确定说话人就不要返回该条。",
             "dialogues.line_type 只能是 dialogue 或 monologue。",
+            "relationships 必须只使用 characters 中出现的人物姓名，描述人物之间的亲属、上下级、合作、冲突或对话互动。",
             "不要把动作短语、语气短语、地点、组织、普通名词识别成人物。",
             "返回 JSON 必须符合这个结构：",
             json.dumps(template, ensure_ascii=False),
@@ -385,32 +469,42 @@ def _single_chunk_prompt(chunk: dict[str, Any], chunk_number: int) -> str:
 def _normalize_single_chunk_response(parsed: Any, chunk: dict[str, Any]) -> dict[str, Any] | None:
     if not isinstance(parsed, dict):
         return None
-    characters = _normalize_named_items(_as_list(parsed.get("characters"))[:8], include_role=True)
-    locations = _normalize_named_items(_as_list(parsed.get("locations"))[:6], include_role=False)
-    organizations = _normalize_named_items(_as_list(parsed.get("organizations"))[:5], include_role=False)
+    limits = _parse_chunk_limits()
+    characters = _normalize_named_items(_as_list(parsed.get("characters"))[:limits["characters"]], include_role=True)
+    locations = _normalize_named_items(_as_list(parsed.get("locations"))[:limits["locations"]], include_role=False)
+    organizations = _normalize_named_items(_as_list(parsed.get("organizations"))[:limits["organizations"]], include_role=False)
     character_names = _character_name_set(characters)
     location_names = {str(item.get("name")) for item in locations if item.get("name")}
 
     normalized = {
         "chapter_title": chunk["title"],
-        "characters": [_limit_named_item(item, include_role=True) for item in characters[:8]],
-        "locations": [_limit_named_item(item, include_role=False) for item in locations[:6]],
-        "organizations": [_limit_named_item(item, include_role=False) for item in organizations[:5]],
+        "characters": [_limit_named_item(item, include_role=True) for item in characters[:limits["characters"]]],
+        "locations": [_limit_named_item(item, include_role=False) for item in locations[:limits["locations"]]],
+        "organizations": [_limit_named_item(item, include_role=False) for item in organizations[:limits["organizations"]]],
         "events": [
-            _limit_event(_normalize_event(item, character_names, location_names))
-            for item in _as_list(parsed.get("events"))[:5]
+            _limit_event(_normalize_event(item, character_names, location_names), limits)
+            for item in _as_list(parsed.get("events"))[:limits["events"]]
             if isinstance(item, dict)
         ],
         "dialogues": [
             item
             for item in (
                 _limit_dialogue(_normalize_dialogue_line_with_characters(line, character_names))
-                for line in _as_list(parsed.get("dialogues"))[:8]
+                for line in _as_list(parsed.get("dialogues"))[:limits["dialogues"]]
                 if isinstance(line, dict)
             )
             if item is not None
         ],
-        "conflicts": _limit_string_list(_as_list(parsed.get("conflicts")), 5, 60),
+        "relationships": [
+            item
+            for item in (
+                _limit_relationship(_normalize_relationship(relation, character_names), limits)
+                for relation in _as_list(parsed.get("relationships"))[:limits["relationships"]]
+                if isinstance(relation, dict)
+            )
+            if item is not None
+        ],
+        "conflicts": _limit_string_list(_as_list(parsed.get("conflicts")), limits["conflicts"], limits["summary"]),
     }
     return normalized
 
@@ -436,13 +530,14 @@ def _limit_named_item(item: dict[str, Any], *, include_role: bool) -> dict[str, 
     return result
 
 
-def _limit_event(item: dict[str, Any]) -> dict[str, Any]:
+def _limit_event(item: dict[str, Any], limits: dict[str, int] | None = None) -> dict[str, Any]:
+    limits = limits or _parse_chunk_limits()
     return {
         "title": _clip_text(item.get("title"), 30),
-        "summary": _clip_text(item.get("summary"), 60),
+        "summary": _clip_text(item.get("summary"), limits["summary"]),
         "characters": [_clip_text(name, 20) for name in item.get("characters", [])[:8] if _clip_text(name, 20)],
         "location": _clip_text(item.get("location"), 20),
-        "evidence": _clip_text(item.get("evidence"), 20),
+        "evidence": _clip_text(item.get("evidence"), limits["evidence"]),
     }
 
 
@@ -460,6 +555,23 @@ def _limit_dialogue(line: dict[str, Any]) -> dict[str, Any] | None:
         "line_type": line_type,
         "emotion": _clip_text(line.get("emotion"), 20) or "neutral",
         "evidence": _clip_text(line.get("evidence"), 20),
+    }
+
+
+def _limit_relationship(item: dict[str, Any] | None, limits: dict[str, int] | None = None) -> dict[str, Any] | None:
+    if not item:
+        return None
+    limits = limits or _parse_chunk_limits()
+    source = _clip_text(item.get("source"), 20)
+    target = _clip_text(item.get("target"), 20)
+    if not source or not target or source == target:
+        return None
+    return {
+        "source": source,
+        "target": target,
+        "relation": _clip_text(item.get("relation"), 20) or "关联人物",
+        "description": _clip_text(item.get("description"), limits["summary"]),
+        "evidence": _clip_text(item.get("evidence"), limits["evidence"]),
     }
 
 
@@ -486,7 +598,7 @@ def _call_parse_stage(
     last_raw_response = None
 
     for attempt in range(1, CHUNK_MAX_ATTEMPTS + 1):
-        parsed = llm_service._call_deepseek(prompt, timeout_seconds=CHUNK_LLM_TIMEOUT_SECONDS)
+        parsed = llm_service._call_deepseek(prompt, timeout_seconds=_parse_timeout_seconds())
         normalized = normalize(parsed)
         if normalized is not None:
             return normalized
@@ -760,6 +872,26 @@ def _normalize_dialogue_line(line: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def _normalize_relationship(item: dict[str, Any], character_names: set[str]) -> dict[str, Any] | None:
+    source = _canonical_from_set(
+        _first_present(item, ("source", "from", "character_a", "人物A", "来源人物")),
+        character_names,
+    )
+    target = _canonical_from_set(
+        _first_present(item, ("target", "to", "character_b", "人物B", "目标人物")),
+        character_names,
+    )
+    if not source or not target or source == target:
+        return None
+    return {
+        "source": source,
+        "target": target,
+        "relation": str(_first_present(item, ("relation", "relationship", "type", "关系", "关系类型")) or "").strip(),
+        "description": str(_first_present(item, ("description", "note", "summary", "说明", "描述")) or "").strip(),
+        "evidence": str(_first_present(item, ("evidence", "证据", "原文依据", "依据")) or "").strip(),
+    }
+
+
 def _merge_conflicts_from_chunk_results(chunk_results: list[dict[str, Any]]) -> list[str]:
     conflicts: list[str] = []
     for item in chunk_results:
@@ -768,26 +900,177 @@ def _merge_conflicts_from_chunk_results(chunk_results: list[dict[str, Any]]) -> 
     return llm_service._unique(conflicts)[:20]
 
 
+def _merge_character_items(character_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: dict[str, dict[str, Any]] = {}
+    for item in character_items:
+        name = _clip_text(item.get("name"), 20)
+        if not name:
+            continue
+        current = merged.setdefault(
+            name,
+            {
+                "name": name,
+                "aliases": [],
+                "role": "",
+                "description": "",
+                "evidence": "",
+            },
+        )
+        for alias in item.get("aliases", []) or []:
+            alias_text = _clip_text(alias, 20)
+            if alias_text and alias_text != name and alias_text not in current["aliases"]:
+                current["aliases"].append(alias_text)
+        if not current["role"] and item.get("role"):
+            current["role"] = _clip_text(item.get("role"), 20)
+        if not current["description"] and item.get("description"):
+            current["description"] = _clip_text(item.get("description"), 60)
+        if not current["evidence"] and item.get("evidence"):
+            current["evidence"] = _clip_text(item.get("evidence"), 20)
+
+    result = []
+    for index, item in enumerate(merged.values(), start=1):
+        role = _specific_role(item["name"], item.get("role"), item.get("description"))
+        description = item.get("description") or _default_character_description(item["name"], role, item.get("evidence"))
+        result.append(
+            {
+                "id": f"char_{index:03d}",
+                "name": item["name"],
+                "aliases": item.get("aliases", [])[:3],
+                "role": role,
+                "description": _clip_text(description, 60),
+            }
+        )
+    return result
+
+
+def _specific_role(name: str, role: Any, description: Any = "") -> str:
+    value = _clip_text(role, 20)
+    if value and value not in {"角色", "人物", "主要角色"}:
+        return value
+    text = f"{name}{description}"
+    role_rules = (
+        ("许七安", "主角"),
+        ("堂弟", "堂弟"),
+        ("叔父", "叔父"),
+        ("二叔", "叔父"),
+        ("府尹", "府尹"),
+        ("打更人", "打更人"),
+        ("司天监", "司天监术士"),
+        ("术士", "司天监术士"),
+        ("狱卒", "狱卒"),
+        ("少女", "关键人物"),
+        ("妖", "妖族相关人物"),
+    )
+    for keyword, inferred in role_rules:
+        if keyword in text:
+            return inferred
+    return "剧情人物"
+
+
+def _default_character_description(name: str, role: str, evidence: Any = "") -> str:
+    evidence_text = _clip_text(evidence, 24)
+    if evidence_text:
+        return f"{role}，在情节中与{evidence_text}相关，推动案件和人物冲突。"
+    return f"{role}，在已解析情节中推动事件发展，并影响主角行动选择。"
+
+
+def _relationship_key(source: str, target: str) -> tuple[str, str]:
+    return tuple(sorted((source, target)))
+
+
+def _merge_relationships(chunk_results: list[dict[str, Any]], character_names: set[str]) -> list[dict[str, Any]]:
+    relationships: dict[tuple[str, str], dict[str, Any]] = {}
+
+    def add_relation(source: Any, target: Any, relation: str, note: str = "", evidence: str = "") -> None:
+        source_name = _canonical_from_set(source, character_names)
+        target_name = _canonical_from_set(target, character_names)
+        if not source_name or not target_name or source_name == target_name:
+            return
+        key = _relationship_key(source_name, target_name)
+        relationships.setdefault(
+            key,
+            {
+                "source": source_name,
+                "target": target_name,
+                "relation": relation,
+                "description": note,
+                "evidence": evidence,
+            },
+        )
+
+    for item in chunk_results:
+        analysis = item.get("analysis") or {}
+        for relation in analysis.get("relationships", []) or []:
+            if isinstance(relation, dict):
+                normalized = _normalize_relationship(relation, character_names)
+                if normalized:
+                    add_relation(
+                        normalized.get("source"),
+                        normalized.get("target"),
+                        normalized.get("relation") or "人物关系",
+                        normalized.get("description") or normalized.get("evidence") or "共同参与关键情节。",
+                        normalized.get("evidence") or "",
+                    )
+
+        for event in analysis.get("events", []) or []:
+            names = [name for name in event.get("characters", []) or [] if name in character_names]
+            for index, source in enumerate(names):
+                for target in names[index + 1:]:
+                    add_relation(
+                        source,
+                        target,
+                        "共同参与事件",
+                        event.get("summary") or event.get("title") or "共同出现在同一剧情事件中。",
+                        event.get("evidence") or "",
+                    )
+
+        previous_speaker = None
+        for line in analysis.get("dialogues", []) or []:
+            speaker = line.get("speaker")
+            if previous_speaker and speaker and previous_speaker != speaker:
+                add_relation(
+                    previous_speaker,
+                    speaker,
+                    "对话互动",
+                    line.get("line") or "在对白中发生互动。",
+                    line.get("evidence") or "",
+                )
+            if speaker:
+                previous_speaker = speaker
+
+    return [
+        {
+            "source": item["source"],
+            "target": item["target"],
+            "relation": item["relation"],
+            "note": _clip_text(item.get("description") or item.get("evidence") or "共同推动剧情发展。", 60),
+            "evidence": _clip_text(item.get("evidence"), 20),
+        }
+        for item in list(relationships.values())[:12]
+    ]
+
+
 def _merge_chunk_results(
     title: str,
     chunk_results: list[dict[str, Any]],
     failed_chunks: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    character_names: list[str] = []
+    character_items: list[dict[str, Any]] = []
     location_names: list[str] = []
     organizations: list[dict[str, Any]] = []
     conflicts: list[str] = []
     for item in chunk_results:
         analysis = item.get("analysis") or {}
-        character_names.extend(character.get("name") for character in analysis.get("characters", []) if character.get("name"))
+        character_items.extend(character for character in analysis.get("characters", []) if character.get("name"))
         location_names.extend(location.get("name") for location in analysis.get("locations", []) if location.get("name"))
         organizations.extend(analysis.get("organizations", []))
         conflicts.extend(str(conflict) for conflict in analysis.get("conflicts", []) if conflict)
 
-    characters = [
-        {"id": f"char_{index:03d}", "name": name, "aliases": [], "role": "角色", "description": "分块解析识别的人物。"}
-        for index, name in enumerate(llm_service._unique(character_names) or ["旁白"], start=1)
+    characters = _merge_character_items(character_items) or [
+        {"id": "char_001", "name": "旁白", "aliases": [], "role": "叙述", "description": "暂无明确人物，等待重新解析补充。"}
     ]
+    character_names = {character["name"] for character in characters}
+    relationships = _merge_relationships(chunk_results, character_names)
     locations = [
         {"id": f"loc_{index:03d}", "name": name, "description": "分块解析识别的地点。"}
         for index, name in enumerate(llm_service._unique(location_names) or ["未明确地点"], start=1)
@@ -798,6 +1081,7 @@ def _merge_chunk_results(
         "chapter_analyses": chunk_results,
         "characters": characters,
         "locations": locations,
+        "relationships": relationships,
         "organizations": [
             {
                 "id": f"org_{index:03d}",

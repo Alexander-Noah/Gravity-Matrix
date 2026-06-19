@@ -47,6 +47,12 @@ class DialogueLine(BaseModel):
     line_type: str = "dialogue"
 
 
+class ConflictNote(BaseModel):
+    type: str = "剧情冲突"
+    description: str
+    characters: list[str] = Field(default_factory=list)
+
+
 class SourceRange(BaseModel):
     chapter: int
     start_hint: str
@@ -75,7 +81,7 @@ class ScriptChapter(BaseModel):
 
 class AdaptationNotes(BaseModel):
     themes: list[str] = Field(default_factory=list)
-    conflicts: list[str] = Field(default_factory=list)
+    conflicts: list[str | ConflictNote] = Field(default_factory=list)
     omissions: list[str] = Field(default_factory=list)
     template_rules: list[str] = Field(default_factory=list)
 

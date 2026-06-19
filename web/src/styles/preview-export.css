@@ -69,6 +69,77 @@
   gap: 8px;
 }
 
+.preview-export-menu {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.export-format-menu {
+  position: relative;
+}
+
+.export-format-menu summary {
+  width: 42px;
+  min-width: 42px;
+  justify-content: center;
+  list-style: none;
+}
+
+.export-format-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.export-format-menu summary svg {
+  transform: rotate(90deg);
+}
+
+.export-format-list {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  width: min(300px, calc(100vw - 32px));
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 14px 32px oklch(34% 0.032 275 / 0.12);
+}
+
+.export-format-list button {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.export-format-list button:hover,
+.export-format-list button:focus-visible {
+  outline: none;
+  background: var(--primary-faint);
+}
+
+.export-format-list strong {
+  font-size: 13px;
+  font-weight: 820;
+}
+
+.export-format-list span {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .reverse-icon {
   transform: rotate(180deg);
 }
@@ -356,6 +427,14 @@
 
   .preview-export-actions {
     grid-template-columns: 1fr;
+  }
+
+  .preview-export-menu {
+    width: 100%;
+  }
+
+  .preview-export-menu > .editor-tool {
+    flex: 1 1 auto;
   }
 
   .screenplay-paper {

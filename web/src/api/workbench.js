@@ -151,6 +151,20 @@ export const exportProjectYaml = async (projectId) => {
   return response.data
 }
 
+export const exportProjectDocument = async (projectId) => {
+  const response = await http.get(`/projects/${projectId}/script/export/document`, {
+    responseType: 'blob',
+  })
+  return response.data
+}
+
+export const exportProjectJson = async (projectId) => {
+  const response = await http.get(`/projects/${projectId}/script/export/json`, {
+    responseType: 'blob',
+  })
+  return response.data
+}
+
 export const exportProjectTxt = async (projectId) => {
   const response = await http.get(`/projects/${projectId}/script/export/txt`, {
     responseType: 'blob'

@@ -40,21 +40,26 @@ def create_app() -> FastAPI:
 
 def _log_llm_startup_config() -> None:
     logger.info("LLM_PROVIDER=%s", settings.llm_provider)
-    logger.info("LLM_BASE_URL=%s", settings.llm_base_url)
-    logger.info("LLM_MODEL=%s", settings.llm_model)
+    if (settings.llm_provider or "").strip().lower() == "ollama":
+        logger.info("OLLAMA_BASE_URL=%s", settings.ollama_base_url)
+        logger.info("OLLAMA_MODEL=%s", settings.llm_model or settings.ollama_model)
+    else:
+        logger.info("LLM_BASE_URL=%s", settings.llm_base_url)
+        logger.info("LLM_MODEL=%s", settings.llm_model)
     logger.info("LLM_TIMEOUT_SECONDS=%s", settings.llm_timeout_seconds)
     logger.info("LLM_API_KEY_SET=%s", str(bool(settings.llm_api_key)).lower())
 
 
 def _validate_llm_startup_config() -> None:
-    base_url = (settings.llm_base_url or "").strip()
+    is_ollama = (settings.llm_provider or "").strip().lower() == "ollama"
+    base_url = (settings.ollama_base_url if is_ollama else settings.llm_base_url or "").strip()
     if not base_url:
-        logger.warning("LLM_BASE_URL is empty; AI endpoints will require LLM config.")
+        logger.warning("LLM base URL is empty; AI endpoints will require LLM config.")
         return
     if not base_url.startswith(("http://", "https://")):
         raise RuntimeError(
             "LLM_BASE_URL 必须以 http:// 或 https:// 开头，"
-            f"当前值为：{settings.llm_base_url!r}"
+            f"当前值为：{base_url!r}"
         )
 
 

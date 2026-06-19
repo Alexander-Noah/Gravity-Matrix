@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     llm_fallback_provider: str = "ollama"
     ollama_base_url: str = "http://127.0.0.1:11434"
-    ollama_model: str = "qwen3:4b"
+    ollama_model: str = "qwen3.5:9b"
 
     min_chapters: int = Field(default=3, ge=1)
     max_chapters: int = Field(default=30, ge=1)

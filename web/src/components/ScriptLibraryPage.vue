@@ -23,7 +23,7 @@ const actionNotice = ref('')
 const typeFilters = ['全部', '影视剧', '短剧', '分镜', '广播剧']
 const statusFilters = ['全部', '草稿中', '已完成', '需修正']
 const sortOptions = ['最近编辑', '创建时间', '场景数量', '对白数量']
-const exportFormats = ['YAML', 'TXT', 'Markdown', 'PDF']
+const exportFormats = ['导出中文文档（推荐）', '导出 YAML 技术文件', '导出 JSON 数据文件']
 
 const libraryScripts = computed(() =>
   props.scripts
