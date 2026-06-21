@@ -133,6 +133,12 @@ const libraryNotice = ref('')
 const isLibraryLoading = ref(false)
 const hasLibraryLoaded = ref(false)
 const isScriptGenerating = ref(false)
+const scriptJobStatus = ref({
+  status: 'idle',
+  progress: 0,
+  currentStep: '等待生成剧本',
+  updatedAt: '',
+})
 const currentProjectTitle = ref('未创建项目')
 const currentProjectProgress = ref(0)
 const currentProjectStages = ref(projectStages)
@@ -141,6 +147,7 @@ const activeYamlLine = ref(null)
 let isExplicitProjectOpen = false
 let scriptSaveTimeout = null
 let profileLoadRequestId = 0
+let scriptProgressTimer = null
 
 const CURRENT_PROJECT_STORAGE_KEY = 'gravityMatrixCurrentProjectId'
 
@@ -1131,6 +1138,49 @@ const waitForJob = async (jobId, onProgress, { timeoutMs = 180000, intervalMs = 
     : '任务仍在处理中，请稍后重试或刷新工作台查看结果。')
 }
 
+const updateScriptJobStatus = (job, fallbackStep = '正在生成剧本', { force = false } = {}) => {
+  const rawProgress = Math.min(100, Math.max(0, Number(job?.progress ?? 0)))
+  const status = job?.status || (isScriptGenerating.value ? 'running' : 'idle')
+  const progress = !force && ['queued', 'running'].includes(status)
+    ? Math.max(scriptJobStatus.value.progress || 0, rawProgress)
+    : rawProgress
+  scriptJobStatus.value = {
+    status,
+    progress,
+    currentStep: job?.current_step || job?.currentStep || fallbackStep,
+    updatedAt: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+  }
+}
+
+const stopScriptProgressTicker = () => {
+  if (!scriptProgressTimer) return
+  window.clearInterval(scriptProgressTimer)
+  scriptProgressTimer = null
+}
+
+const startScriptProgressTicker = () => {
+  stopScriptProgressTicker()
+  scriptProgressTimer = window.setInterval(() => {
+    if (!isScriptGenerating.value) {
+      stopScriptProgressTicker()
+      return
+    }
+
+    const current = Number(scriptJobStatus.value.progress || 0)
+    if (current >= 94) return
+
+    const increment = current < 35 ? 2 : current < 75 ? 1 : 0.5
+    const nextProgress = Math.min(94, Number((current + increment).toFixed(1)))
+    scriptJobStatus.value = {
+      ...scriptJobStatus.value,
+      status: 'running',
+      progress: nextProgress,
+      updatedAt: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    }
+    currentProjectProgress.value = Math.max(currentProjectProgress.value, Math.min(95, Math.round(nextProgress)))
+  }, 1400)
+}
+
 const waitForParseTask = async (taskId, { timeoutMs = 45 * 60 * 1000, intervalMs = 1200 } = {}) => {
   const startedAt = Date.now()
   let lastTask = null
@@ -1433,9 +1483,6 @@ const openProfileCenter = async () => {
       currentUser.value = getAuthSession().user
       throw error
     }),
-    fetchTemplates(),
-    fetchScriptLibrary(),
-    currentProjectId.value ? syncCurrentWorkbench() : Promise.resolve(null),
   ]
 
   const results = await Promise.allSettled(tasks)
@@ -1459,42 +1506,6 @@ const closeProfileCenter = () => {
   isProfileCenterOpen.value = false
   isProfileLoading.value = false
   profileLoadError.value = ''
-}
-
-const requireCurrentProjectForProfile = () => {
-  if (currentProjectId.value) {
-    return true
-  }
-
-  ElMessage.warning('请先创建项目')
-  return false
-}
-
-const continueEditingFromProfile = () => {
-  if (!requireCurrentProjectForProfile()) return
-  closeProfileCenter()
-  isExplicitProjectOpen = true
-  router.push('/workbench')
-  activePage.value = generatedScriptYaml.value || editableScriptYaml.value ? 'script' : 'analysis'
-}
-
-const openLibraryFromProfile = () => {
-  closeProfileCenter()
-  goToPage('library')
-}
-
-const switchTemplateFromProfile = () => {
-  closeProfileCenter()
-  goToPage('templates')
-}
-
-const revalidateFromProfile = async () => {
-  if (!requireCurrentProjectForProfile()) return
-  closeProfileCenter()
-  isExplicitProjectOpen = true
-  router.push('/workbench')
-  activePage.value = 'script'
-  await validateYaml()
 }
 
 const logout = async () => {
@@ -1599,80 +1610,8 @@ const defaultGenerationSettings = computed(() => {
 const selectedTemplateName = computed(() =>
   displayedTemplates.value.find((template) => template.id === selectedTemplateId.value)?.name || '未选择模板',
 )
-const hasCurrentProject = computed(() => Boolean(currentProjectId.value))
-const hasCurrentProjectScriptDraft = computed(() =>
-  hasCurrentProject.value && Boolean((editableScriptYaml.value || generatedScriptYaml.value || '').trim()),
-)
-const hasCurrentProjectAnalysis = computed(() =>
-  hasCurrentProject.value && (
-    displayedAnalysisCharacters.value.length > 0 ||
-    displayedAnalysisScenes.value.length > 0 ||
-    currentProjectProgress.value >= 50 ||
-    currentProjectStages.value.some((step) => step.status === 'done' && step.label.includes('AI'))
-  ),
-)
-const hasPassedFormatValidation = computed(() =>
-  hasCurrentProject.value && schemaValidation.value.yamlValid && schemaValidation.value.requiredFieldsValid,
-)
-const profileProjectProgress = computed(() => {
-  if (!hasCurrentProject.value) return 0
-  if (hasPassedFormatValidation.value) return 100
-  if (hasCurrentProjectScriptDraft.value) return 75
-  if (hasCurrentProjectAnalysis.value) return 50
-  return 25
-})
-const profileProjectStage = computed(() => {
-  if (!hasCurrentProject.value) return '未选择项目'
-  if (hasPassedFormatValidation.value) return '已完成格式校验'
-  if (hasCurrentProjectScriptDraft.value) return '已生成剧本草稿'
-  if (hasCurrentProjectAnalysis.value) return '已完成 AI 解析'
-  return '已导入小说'
-})
-const profileProjectTitle = computed(() => {
-  if (!hasCurrentProject.value) {
-    return '未选择项目'
-  }
-
-  if (!currentProjectTitle.value || currentProjectTitle.value === '未创建项目') {
-    return '项目工作台'
-  }
-
-  return currentProjectTitle.value
-})
-const profileScriptStatus = computed(() => {
-  if (!hasCurrentProject.value) return '暂无剧本'
-  return hasCurrentProjectScriptDraft.value ? '已有剧本草稿' : '尚未生成剧本'
-})
-const profileFormatStatus = computed(() => {
-  if (!hasCurrentProject.value) return '暂无校验'
-  if (hasPassedFormatValidation.value) return '格式正常'
-
-  const hasChecked = schemaValidation.value.checkedAt && schemaValidation.value.checkedAt !== defaultSchemaValidation.checkedAt
-  return hasChecked ? '格式需修正' : '待校验'
-})
 const profileStats = computed(() => ({
-  workspaceName: pageTitle.value,
-  hasCurrentProject: hasCurrentProject.value,
-  currentProject: profileProjectTitle.value,
-  projectProgress: profileProjectProgress.value,
-  projectProgressLabel: hasCurrentProject.value ? `${profileProjectProgress.value}%` : '暂无',
-  workflowStep: hasCurrentProject.value
-    ? profileProjectStage.value
-    : '等待创建项目',
   selectedTemplate: selectedTemplateName.value,
-  scriptStatus: profileScriptStatus.value,
-  libraryCount: displayedLibraryItems.value.length,
-  formatStatus: profileFormatStatus.value,
-  cards: [
-    { label: '账号状态', value: currentUser.value ? '已登录' : '未登录' },
-    { label: '当前项目', value: profileProjectTitle.value },
-    { label: '工作阶段', value: hasCurrentProject.value ? profileProjectStage.value : '等待创建项目' },
-    { label: '项目进度', value: hasCurrentProject.value ? `${profileProjectProgress.value}%` : '暂无' },
-    { label: '默认生成方式', value: selectedTemplateName.value },
-    { label: '剧本草稿', value: profileScriptStatus.value },
-    { label: '剧本库条目', value: `${displayedLibraryItems.value.length} 个` },
-    { label: '格式校验', value: profileFormatStatus.value },
-  ],
 }))
 
 const getScriptProjectId = (script) => script?.projectId || script?.project_id || script?.raw?.id || null
@@ -1914,27 +1853,39 @@ const confirmGenerationSettings = async (settings) => {
   generatedScriptYaml.value = ''
   selectedSceneId.value = null
   isScriptGenerating.value = true
+  updateScriptJobStatus({ status: 'running', progress: 5, current_step: '正在提交生成设置' }, '正在提交生成设置', { force: true })
+  startScriptProgressTicker()
 
   if (!currentProjectId.value) {
     editorNotice.value = '当前为静态演示剧本，请先从小说导入流程创建项目后再调用后端生成。'
     isScriptGenerating.value = false
+    stopScriptProgressTicker()
+    updateScriptJobStatus({ status: 'idle', progress: 0, current_step: '等待生成剧本' }, '等待生成剧本', { force: true })
     return
   }
 
   try {
     await updateGenerationSettings(currentProjectId.value, normalizedSettings)
+    updateScriptJobStatus({ status: 'running', progress: 10, current_step: '已保存生成设置，正在启动后端任务' })
     const job = await rerunScriptJob(currentProjectId.value)
     editorNotice.value = job.current_step || '剧本生成任务已启动。'
+    updateScriptJobStatus(job, '剧本生成任务已启动')
 
     await waitForJob(job.id, (currentJob) => {
       editorNotice.value = `${currentJob.current_step}（${currentJob.progress}%）`
+      updateScriptJobStatus(currentJob)
+      currentProjectProgress.value = Math.max(currentProjectProgress.value, Math.min(95, currentJob.progress ?? 0))
     }, { timeoutMs: 300000, intervalMs: 1200 })
 
     const workbench = await syncCurrentWorkbench()
     if (workbench?.script?.yaml) {
       editorNotice.value = '剧本 YAML 已从后端生成并同步到编辑区。'
+      stopScriptProgressTicker()
+      updateScriptJobStatus({ status: 'succeeded', progress: 100, current_step: '剧本 YAML 已同步到编辑区' }, '剧本 YAML 已同步到编辑区', { force: true })
     } else {
       editorNotice.value = '后端任务已结束，但尚未返回剧本 YAML；请稍后点击剧本库重新打开项目。'
+      stopScriptProgressTicker()
+      updateScriptJobStatus({ status: 'succeeded', progress: 100, current_step: '后端已完成，等待同步剧本 YAML' }, '后端已完成，等待同步剧本 YAML', { force: true })
     }
   } catch (error) {
     try {
@@ -1942,11 +1893,24 @@ const confirmGenerationSettings = async (settings) => {
       editorNotice.value = workbench?.script?.yaml
         ? '剧本已在后端生成完成，已重新同步到编辑区。'
         : getApiErrorMessage(error)
+      stopScriptProgressTicker()
+      updateScriptJobStatus({
+        status: workbench?.script?.yaml ? 'succeeded' : 'failed',
+        progress: workbench?.script?.yaml ? 100 : scriptJobStatus.value.progress,
+        current_step: editorNotice.value,
+      }, editorNotice.value, { force: true })
     } catch {
       editorNotice.value = getApiErrorMessage(error)
+      stopScriptProgressTicker()
+      updateScriptJobStatus({
+        status: 'failed',
+        progress: scriptJobStatus.value.progress,
+        current_step: editorNotice.value,
+      }, editorNotice.value, { force: true })
     }
   } finally {
     isScriptGenerating.value = false
+    stopScriptProgressTicker()
   }
 }
 
@@ -2290,7 +2254,7 @@ const handleFileUpload = async (event) => {
               :project-title="currentProjectTitle" @show-analysis="goBackToAnalysis" />
             <ScriptWorkspace ref="scriptWorkspaceRef" v-model:yaml-content="yamlContent" :active-yaml-line="activeYamlLine" :correction-scene="selectedCorrectionScene" :icon-paths="iconPaths" :preview-scene="selectedPreviewScene"
               :schema-validation="schemaValidation" :script-chapters="displayedScriptChapters"
-              :is-generating="isScriptGenerating" :status-notice="editorNotice" :yaml-lines="generatedYamlLines" @add-scene="openAddScene"
+              :generation-status="scriptJobStatus" :is-generating="isScriptGenerating" :status-notice="editorNotice" :yaml-lines="generatedYamlLines" @add-scene="openAddScene"
               @copy-yaml="copyYaml" @export-document="exportPreviewDocument" @open-preview="goToPreview"
               @open-schema="goToSchemaHelp" @previous="goBackToAnalysis" @select-chapter="selectScriptChapter" @select-scene="selectScriptScene"
               @save-yaml="saveYamlNow" @update:character="updateScriptCharacter" @update:dialogue="updateSelectedSceneDialogue"
@@ -2306,9 +2270,7 @@ const handleFileUpload = async (event) => {
     </main>
 
     <ProfileCenterDialog v-model="isProfileCenterOpen" :error="profileLoadError" :icon-paths="iconPaths"
-      :loading="isProfileLoading" :stats="profileStats" :user="currentUser" @continue-edit="continueEditingFromProfile"
-      @logout="logout" @open-library="openLibraryFromProfile" @revalidate="revalidateFromProfile"
-      @switch-template="switchTemplateFromProfile" />
+      :loading="isProfileLoading" :stats="profileStats" :user="currentUser" @logout="logout" />
 
     <Teleport to="body">
       <div v-if="isGuideOpen" class="dialog-backdrop" role="presentation" @click.self="closeGuide">

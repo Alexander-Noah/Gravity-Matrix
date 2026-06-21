@@ -82,6 +82,22 @@
   font-size: 13px;
 }
 
+.profile-section {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: oklch(99% 0.004 275);
+}
+
+.profile-section h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 820;
+}
+
 .profile-info-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -93,8 +109,8 @@
   min-width: 0;
   padding: 13px 14px;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  background: oklch(99% 0.004 275);
+  border-radius: 8px;
+  background: var(--surface);
 }
 
 .profile-info-grid dt {
@@ -111,85 +127,6 @@
   font-weight: 760;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.profile-quick-panel {
-  display: grid;
-  gap: 12px;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: oklch(99% 0.004 275);
-}
-
-.profile-section-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.profile-section-title h3 {
-  margin: 0;
-  color: var(--text);
-  font-size: 15px;
-  font-weight: 820;
-}
-
-.profile-section-title span {
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.profile-action-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.profile-action-grid .editor-tool {
-  min-width: 0;
-  justify-content: center;
-  white-space: normal;
-}
-
-.profile-preference-panel {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 12px;
-  align-items: start;
-  padding: 14px;
-  border: 1px solid oklch(87% 0.045 285);
-  border-radius: 12px;
-  background: var(--primary-faint);
-}
-
-.profile-preference-panel div {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border-radius: 10px;
-  color: var(--primary-strong);
-  background: var(--surface);
-}
-
-.profile-preference-panel svg {
-  width: 17px;
-  height: 17px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 2;
-}
-
-.profile-preference-panel p {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 13px;
-  line-height: 1.7;
 }
 
 @media (max-width: 760px) {

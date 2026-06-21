@@ -6,7 +6,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 import httpx
 from openai import APIStatusError, OpenAI
@@ -97,7 +97,14 @@ def analyze_project(project: Project) -> LLMResult:
     return LLMResult(provider=settings.llm_provider, content=content, fallback_reason=fallback_reason)
 
 
-def generate_screenplay(project: Project, analysis: dict[str, Any] | None = None) -> LLMResult:
+ProgressCallback = Callable[[str, int], None]
+
+
+def generate_screenplay(
+    project: Project,
+    analysis: dict[str, Any] | None = None,
+    progress_callback: ProgressCallback | None = None,
+) -> LLMResult:
     _require_llm_config()
     generation_settings = _project_generation_settings(project)
     detail_level = _detail_level(generation_settings)
@@ -115,7 +122,13 @@ def generate_screenplay(project: Project, analysis: dict[str, Any] | None = None
         False,
     )
 
-    result = _generate_screenplay_in_stages(project, source_analysis, generation_settings, detail_level)
+    result = _generate_screenplay_in_stages(
+        project,
+        source_analysis,
+        generation_settings,
+        detail_level,
+        progress_callback=progress_callback,
+    )
 
     errors = _validate_screenplay_result(result)
     if errors:
@@ -817,15 +830,20 @@ def _generate_screenplay_in_stages(
     analysis: dict[str, Any],
     generation_settings: dict[str, Any],
     detail_level: str,
+    progress_callback: ProgressCallback | None = None,
 ) -> dict[str, Any]:
+    if progress_callback:
+        progress_callback("正在整理剧本人物、地点和改编说明", 42)
     metadata = _call_deepseek(
         _screenplay_metadata_prompt(project, analysis, generation_settings, detail_level),
         max_tokens=2048,
         purpose="screenplay_metadata",
     )
     if not isinstance(metadata, dict):
-        _print_llm_failure("screenplay_metadata", "metadata JSON generation failed.")
-        raise AIParseError("AI 解析失败，请重试：剧本 metadata 生成失败，失败原因已输出到后端控制台。")
+        _print_llm_failure("screenplay_metadata", "metadata JSON generation failed; using analysis fallback.")
+        metadata = _screenplay_metadata_from_analysis(analysis, detail_level)
+    if progress_callback:
+        progress_callback("剧本元数据已准备，开始生成章节", 48)
 
     document = _screenplay_json_template(project, generation_settings, detail_level)
     script = document["script"]
@@ -846,8 +864,15 @@ def _generate_screenplay_in_stages(
     chapters = []
     failed_chapters = []
 
-    for chapter in sorted(project.chapters, key=lambda item: item.number):
+    sorted_chapters = sorted(project.chapters, key=lambda item: item.number)
+    total_chapters = len(sorted_chapters) or 1
+    for chapter_index, chapter in enumerate(sorted_chapters, start=1):
         chapter_analysis = _analysis_for_chapter(analysis, chapter.number)
+        if progress_callback:
+            progress_callback(
+                f"正在生成第 {chapter_index}/{total_chapters} 章：{chapter.title}",
+                50 + round((chapter_index - 1) / total_chapters * 35),
+            )
         try:
             generated = _call_deepseek(
                 _screenplay_chapter_prompt(
@@ -884,6 +909,11 @@ def _generate_screenplay_in_stages(
                 }
             )
         chapters.append(chapter_payload)
+        if progress_callback:
+            progress_callback(
+                f"已完成第 {chapter_index}/{total_chapters} 章：{chapter.title}",
+                50 + round(chapter_index / total_chapters * 35),
+            )
 
     script["chapters"] = chapters
     script["metadata"]["coverage"]["generated_scenes"] = sum(len(chapter.get("scenes", []) or []) for chapter in chapters)
@@ -898,6 +928,8 @@ def _generate_screenplay_in_stages(
         )
         script["adaptation_notes"]["omissions"].append(failed_summary)
 
+    if progress_callback:
+        progress_callback("正在汇总覆盖率并校验剧本结构", 88)
     _finalize_screenplay_document(document, generation_settings, analysis, detail_level)
     return document
 
@@ -951,6 +983,26 @@ def _screenplay_metadata_prompt(
             ),
         ]
     )
+
+
+def _screenplay_metadata_from_analysis(analysis: dict[str, Any], detail_level: str) -> dict[str, Any]:
+    conflicts = analysis.get("conflicts") if isinstance(analysis.get("conflicts"), list) else []
+    omissions = [
+        "剧本元数据由第 2 步解析结果兜底生成；AI metadata JSON 未通过解析。",
+        OMITTED_REASONS[detail_level],
+    ]
+    return {
+        "characters": analysis.get("characters", []),
+        "locations": analysis.get("locations", []),
+        "organizations": analysis.get("organizations", []),
+        "world_settings": [],
+        "adaptation_notes": {
+            "themes": analysis.get("themes", []),
+            "conflicts": conflicts,
+            "omissions": omissions,
+            "template_rules": [],
+        },
+    }
 
 
 def _screenplay_chapter_prompt(

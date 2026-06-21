@@ -10,6 +10,15 @@ const props = defineProps({
   yamlContent: { type: String, default: '' },
   iconPaths: { type: Object, required: true },
   isGenerating: { type: Boolean, default: false },
+  generationStatus: {
+    type: Object,
+    default: () => ({
+      status: 'idle',
+      progress: 0,
+      currentStep: '等待生成剧本',
+      updatedAt: '',
+    }),
+  },
   previewScene: { type: Object, default: null },
   scriptChapters: { type: Array, required: true },
   schemaValidation: { type: Object, required: true },
@@ -28,6 +37,14 @@ const yamlTextLines = computed(() => {
   return lines.length ? lines : ['']
 })
 const yamlEditorRows = computed(() => Math.max(18, yamlLineNumbers.value.length))
+const generationProgress = computed(() => Math.min(100, Math.max(0, Math.round(props.generationStatus?.progress || 0))))
+const generationStep = computed(() => props.generationStatus?.currentStep || '正在生成剧本')
+const generationPhaseItems = computed(() => [
+  { label: '准备素材', threshold: 25 },
+  { label: '整理元数据', threshold: 48 },
+  { label: '生成章节', threshold: 85 },
+  { label: '校验保存', threshold: 100 },
+])
 const outlineTree = computed(() =>
   props.scriptChapters.map((chapter, chapterIndex) => ({
     id: `chapter-${chapter.id || chapter.title || chapterIndex}`,
@@ -162,6 +179,34 @@ defineExpose({ scrollToYamlLine })
         </button>
       </div>
     </header>
+
+    <section v-if="isGenerating" class="script-generation-panel" aria-live="polite" aria-labelledby="script-generation-title">
+      <div class="generation-copy">
+        <span class="generation-kicker">后端任务进行中</span>
+        <h3 id="script-generation-title">{{ generationStep }}</h3>
+        <p>生成完成后会自动同步 YAML、章节结构和校验结果。</p>
+      </div>
+
+      <div class="generation-meter" role="progressbar" aria-label="剧本生成进度" :aria-valuenow="generationProgress" aria-valuemin="0" aria-valuemax="100">
+        <div class="generation-meter-top">
+          <span>剧本生成进度</span>
+          <strong>{{ generationProgress }}%</strong>
+        </div>
+        <div class="generation-track">
+          <span :style="{ width: `${generationProgress}%` }"></span>
+        </div>
+        <ol class="generation-phases">
+          <li
+            v-for="phase in generationPhaseItems"
+            :key="phase.label"
+            :class="{ 'is-done': generationProgress >= phase.threshold, 'is-active': generationProgress < phase.threshold && generationProgress >= phase.threshold - 24 }"
+          >
+            <span></span>
+            {{ phase.label }}
+          </li>
+        </ol>
+      </div>
+    </section>
 
     <div class="console-grid">
       <aside class="outline-pane" aria-label="剧本结构">

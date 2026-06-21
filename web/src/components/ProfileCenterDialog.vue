@@ -12,10 +12,6 @@ const props = defineProps({
 
 const emit = defineEmits([
   'update:modelValue',
-  'continue-edit',
-  'open-library',
-  'switch-template',
-  'revalidate',
   'logout',
 ])
 
@@ -54,6 +50,7 @@ const logout = () => {
 const displayName = computed(() => props.user?.name || props.user?.username || '创作者')
 const displayEmail = computed(() => props.user?.email || '未绑定邮箱')
 const avatarChar = computed(() => displayName.value.slice(0, 1) || '创')
+const accountStatus = computed(() => props.user ? '已登录' : '未登录')
 const roleLabel = computed(() => {
   if (props.user?.is_admin || props.user?.role === 'admin') {
     return '管理员'
@@ -65,9 +62,16 @@ const roleLabel = computed(() => {
 
   return '创作者'
 })
-const profileCards = computed(() => props.stats.cards || [])
-const hasCurrentProject = computed(() => Boolean(props.stats.hasCurrentProject))
-const actionHint = computed(() => hasCurrentProject.value ? '' : '请先创建项目')
+const accountRows = computed(() => [
+  { label: '昵称', value: displayName.value },
+  { label: '邮箱', value: displayEmail.value },
+  { label: '身份', value: roleLabel.value },
+  { label: '账号状态', value: accountStatus.value },
+])
+const preferenceRows = computed(() => [
+  { label: '默认生成方式', value: props.stats.selectedTemplate || '影视剧剧本模板' },
+  { label: '界面语言', value: '中文' },
+])
 
 watch(
   () => props.modelValue,
@@ -107,40 +111,39 @@ onBeforeUnmount(unlockBackgroundScroll)
           </div>
         </div>
 
-        <dl class="profile-info-grid">
-          <div v-for="card in profileCards" :key="card.label">
-            <dt>{{ card.label }}</dt>
-            <dd>{{ card.value }}</dd>
-          </div>
-        </dl>
-
-        <section class="profile-quick-panel" aria-labelledby="profile-quick-title">
-          <div class="profile-section-title">
-            <h3 id="profile-quick-title">快捷操作</h3>
-            <span v-if="actionHint">{{ actionHint }}</span>
-          </div>
-          <div class="profile-action-grid">
-            <button class="editor-tool is-primary" type="button" :disabled="!hasCurrentProject"
-              :title="actionHint" @click="emit('continue-edit')">
-              继续编辑当前剧本
-            </button>
-            <button class="editor-tool" type="button" @click="emit('open-library')">打开剧本库</button>
-            <button class="editor-tool" type="button" @click="emit('switch-template')">切换默认模板</button>
-            <button class="editor-tool" type="button" :disabled="!hasCurrentProject"
-              :title="actionHint" @click="emit('revalidate')">
-              重新校验格式
-            </button>
-          </div>
+        <section class="profile-section" aria-labelledby="profile-account-title">
+          <h3 id="profile-account-title">基本资料</h3>
+          <dl class="profile-info-grid">
+            <div v-for="row in accountRows" :key="row.label">
+              <dt>{{ row.label }}</dt>
+              <dd>{{ row.value }}</dd>
+            </div>
+          </dl>
         </section>
 
-        <div class="profile-preference-panel">
-          <div>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path v-for="path in iconPaths.spark" :key="path" :d="path" />
-            </svg>
-          </div>
-          <p>{{ roleLabel }}正在使用「{{ stats.workspaceName || 'AI 小说转剧本' }}」。后续生成剧本时，会优先沿用当前默认生成方式、剧本草稿和最近项目上下文。</p>
-        </div>
+        <section class="profile-section" aria-labelledby="profile-security-title">
+          <h3 id="profile-security-title">账号安全</h3>
+          <dl class="profile-info-grid">
+            <div>
+              <dt>登录方式</dt>
+              <dd>邮箱和密码</dd>
+            </div>
+            <div>
+              <dt>密码状态</dt>
+              <dd>已加密保存</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="profile-section" aria-labelledby="profile-preference-title">
+          <h3 id="profile-preference-title">个人偏好</h3>
+          <dl class="profile-info-grid">
+            <div v-for="row in preferenceRows" :key="row.label">
+              <dt>{{ row.label }}</dt>
+              <dd>{{ row.value }}</dd>
+            </div>
+          </dl>
+        </section>
       </div>
 
       <footer class="dialog-actions">

@@ -76,7 +76,7 @@ def run_script_generation_job(db: Session, job_id: int) -> None:
         if analysis is None:
             raise ValueError("请先完成第 2 步 AI 解析，再生成剧本 YAML。")
 
-        _mark_running(db, job, "正在生成场景和对白", 65)
+        _mark_running(db, job, "正在准备剧本生成", 40)
         logger.info(
             "script_job input project_id=%s analysis_characters=%s analysis_locations=%s real_ai=%s mock_fallback=%s",
             project.id,
@@ -85,7 +85,10 @@ def run_script_generation_job(db: Session, job_id: int) -> None:
             True,
             False,
         )
-        result = generate_screenplay(project, analysis)
+        def update_script_progress(step: str, progress: int) -> None:
+            _mark_running(db, job, step, progress)
+
+        result = generate_screenplay(project, analysis, progress_callback=update_script_progress)
 
         _mark_running(db, job, "正在校验并保存剧本 YAML", 90)
         project.script_yaml = dump_screenplay_yaml(result.content)
