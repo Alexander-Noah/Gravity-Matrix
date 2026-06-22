@@ -1,14 +1,16 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.project import AppSetting, Chapter, Job, JobType, Project
+from app.models.user import User
 from app.schemas.project import (
     AnalysisRead,
     GenerationSettingsRequest,
@@ -53,6 +55,7 @@ from app.services.script_export import (
     screenplay_yaml_to_markdown,
     screenplay_yaml_to_txt,
 )
+from app.services import llm as llm_service
 from app.services.screenplay_yaml import validate_screenplay_yaml
 from app.services.workbench import build_project_workbench
 import yaml
@@ -61,6 +64,7 @@ router = APIRouter(tags=["projects"])
 
 DEFAULT_TEMPLATE_KEY = "default_template_id"
 FALLBACK_TEMPLATE_ID = "tv-drama"
+RECYCLE_BIN_RETENTION_DAYS = 30
 
 SCRIPT_TEMPLATES = [
     TemplateRead(
@@ -308,6 +312,7 @@ def get_scripts_library(db: Session = Depends(get_db)) -> ScriptLibraryRead:
 
 @router.get("/projects/recycle-bin", response_model=RecycleBinRead)
 def get_recycle_bin(db: Session = Depends(get_db)) -> RecycleBinRead:
+    _purge_expired_recycle_bin_projects(db)
     projects = (
         db.query(Project)
         .filter(Project.deleted_at.is_not(None))
@@ -322,6 +327,7 @@ def get_recycle_bin(db: Session = Depends(get_db)) -> RecycleBinRead:
 
 @router.delete("/projects/recycle-bin", response_model=RecycleBinClearResponse)
 def clear_recycle_bin(db: Session = Depends(get_db)) -> RecycleBinClearResponse:
+    _purge_expired_recycle_bin_projects(db)
     projects = db.query(Project).filter(Project.deleted_at.is_not(None)).all()
     deleted_count = len(projects)
     for project in projects:
@@ -372,6 +378,7 @@ def delete_project(project_id: int, db: Session = Depends(get_db)) -> ProjectDel
 
 @router.post("/projects/{project_id}/restore", response_model=ProjectRead)
 def restore_project(project_id: int, db: Session = Depends(get_db)) -> ProjectRead:
+    _purge_expired_recycle_bin_projects(db)
     project = _require_project(db, project_id, include_deleted=True)
     if project.deleted_at is None:
         return _project_to_read(project)
@@ -443,6 +450,7 @@ def get_project_readiness(project_id: int, db: Session = Depends(get_db)) -> Pro
 def start_analysis_job(
     project_id: int,
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Job:
     _require_project(db, project_id)
@@ -450,7 +458,7 @@ def start_analysis_job(
     if active_job is not None:
         return active_job
 
-    job = create_job(db, project_id, JobType.analysis)
+    job = create_job(db, project_id, JobType.analysis, llm_service.build_user_llm_config(current_user))
     background_tasks.add_task(_run_analysis_job_task, job.id)
     return job
 
@@ -459,6 +467,7 @@ def start_analysis_job(
 def rerun_analysis_job(
     project_id: int,
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Job:
     project = _require_project(db, project_id)
@@ -472,7 +481,7 @@ def rerun_analysis_job(
     ).update({"status": "failed", "current_step": "已被重新解析任务取代", "error_message": "rerun"})
     db.commit()
 
-    job = create_job(db, project_id, JobType.analysis)
+    job = create_job(db, project_id, JobType.analysis, llm_service.build_user_llm_config(current_user))
     background_tasks.add_task(_run_analysis_job_task, job.id)
     return job
 
@@ -490,6 +499,7 @@ def get_analysis(project_id: int, db: Session = Depends(get_db)) -> AnalysisRead
 def start_script_job(
     project_id: int,
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Job:
     _require_project(db, project_id)
@@ -497,7 +507,7 @@ def start_script_job(
     if active_job is not None:
         return active_job
 
-    job = create_job(db, project_id, JobType.script_generation)
+    job = create_job(db, project_id, JobType.script_generation, llm_service.build_user_llm_config(current_user))
     background_tasks.add_task(_run_script_generation_job_task, job.id)
     return job
 
@@ -506,6 +516,7 @@ def start_script_job(
 def rerun_script_job(
     project_id: int,
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Job:
     project = _require_project(db, project_id)
@@ -515,7 +526,7 @@ def rerun_script_job(
         project.status = "analysis_completed"
     db.commit()
 
-    job = create_job(db, project_id, JobType.script_generation)
+    job = create_job(db, project_id, JobType.script_generation, llm_service.build_user_llm_config(current_user))
     background_tasks.add_task(_run_script_generation_job_task, job.id)
     return job
 
@@ -767,7 +778,38 @@ def _get_default_template_id(db: Session) -> str:
 
 def _project_to_recycle_read(project: Project) -> RecycleBinProjectRead:
     base = _project_to_read(project).model_dump()
-    return RecycleBinProjectRead(**base, deleted_at=project.deleted_at)
+    deleted_at = _as_aware_utc(project.deleted_at)
+    expires_at = deleted_at + timedelta(days=RECYCLE_BIN_RETENTION_DAYS)
+    remaining_seconds = (expires_at - datetime.now(timezone.utc)).total_seconds()
+    remaining_days = max(0, int((remaining_seconds + 86399) // 86400))
+    return RecycleBinProjectRead(
+        **base,
+        deleted_at=deleted_at,
+        expires_at=expires_at,
+        remaining_days=remaining_days,
+    )
+
+
+def _purge_expired_recycle_bin_projects(db: Session) -> int:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=RECYCLE_BIN_RETENTION_DAYS)
+    expired_projects = (
+        db.query(Project)
+        .filter(Project.deleted_at.is_not(None), Project.deleted_at <= cutoff)
+        .all()
+    )
+    for project in expired_projects:
+        db.delete(project)
+    if expired_projects:
+        db.commit()
+    return len(expired_projects)
+
+
+def _as_aware_utc(value: datetime | None) -> datetime:
+    if value is None:
+        return datetime.now(timezone.utc)
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def _project_readiness(project: Project) -> ProjectReadinessRead:

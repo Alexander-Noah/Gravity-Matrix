@@ -1,5 +1,7 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
+from app.api.deps import get_current_user
+from app.models.user import User
 from app.schemas.project import (
     ParseTaskCreateRequest,
     ParseTaskCreateResponse,
@@ -12,12 +14,17 @@ from app.services.parse_tasks import (
     get_parse_task,
     run_parse_task,
 )
+from app.services import llm as llm_service
 
 router = APIRouter(tags=["parse-tasks"])
 
 
 @router.post("/parse/tasks", response_model=ParseTaskCreateResponse, status_code=202)
-def create_task(payload: ParseTaskCreateRequest, background_tasks: BackgroundTasks) -> ParseTaskCreateResponse:
+def create_task(
+    payload: ParseTaskCreateRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+) -> ParseTaskCreateResponse:
     if not payload.source_text and not payload.source_file_id and payload.project_id is None:
         raise HTTPException(status_code=422, detail="请提供 source_text、source_file_id 或 project_id。")
 
@@ -29,6 +36,7 @@ def create_task(payload: ParseTaskCreateRequest, background_tasks: BackgroundTas
         source_text=payload.source_text,
         source_file_id=payload.source_file_id,
         project_id=payload.project_id,
+        llm_config=llm_service.build_user_llm_config(current_user),
     )
     background_tasks.add_task(run_parse_task, task.id)
     return ParseTaskCreateResponse(task_id=task.id)

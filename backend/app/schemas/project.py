@@ -92,6 +92,8 @@ class ProjectListRead(BaseModel):
 
 class RecycleBinProjectRead(ProjectRead):
     deleted_at: datetime
+    expires_at: datetime
+    remaining_days: int
 
 
 class RecycleBinRead(BaseModel):

@@ -3,7 +3,15 @@ import { computed, defineAsyncComponent, h, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import yaml from 'js-yaml'
-import { clearAuthSession, fetchCurrentUser, getAuthSession, hasActiveAuthSession } from './api/auth'
+import {
+  clearAuthSession,
+  fetchCurrentUser,
+  getAuthSession,
+  getProfileLlmConfig,
+  hasActiveAuthSession,
+  testProfileLlmConfig,
+  updateProfileLlmConfig,
+} from './api/auth'
 import { getApiErrorMessage } from './api/http'
 import {
   createParseTask,
@@ -19,14 +27,17 @@ import {
   validateProjectScript,
   updateGenerationSettings,
   addProjectScene,
+  clearRecycleBinProjects,
   exportProjectDocument,
   exportProjectJson,
   exportProjectYaml,
   deleteProject,
+  getRecycleBin,
   getScriptTemplates,
   getDefaultTemplate,
   updateProject,
   cloneProject,
+  restoreProject,
   previewImport,
   getScriptsLibrary,
   importLibrarySource,
@@ -110,6 +121,10 @@ const currentUser = ref(getAuthSession().user)
 const isProfileCenterOpen = ref(false)
 const isProfileLoading = ref(false)
 const profileLoadError = ref('')
+const profileLlmConfig = ref(null)
+const isProfileLlmSaving = ref(false)
+const isProfileLlmTesting = ref(false)
+const profileLlmTestResult = ref(null)
 const isGuideOpen = ref(false)
 const displayedAnalysisCharacters = ref([])
 const displayedAnalysisMetrics = ref([])
@@ -1483,6 +1498,9 @@ const openProfileCenter = async () => {
       currentUser.value = getAuthSession().user
       throw error
     }),
+    getProfileLlmConfig().then((config) => {
+      profileLlmConfig.value = config
+    }),
   ]
 
   const results = await Promise.allSettled(tasks)
@@ -1506,6 +1524,48 @@ const closeProfileCenter = () => {
   isProfileCenterOpen.value = false
   isProfileLoading.value = false
   profileLoadError.value = ''
+  profileLlmTestResult.value = null
+}
+
+const saveProfileLlmConfig = async (config) => {
+  isProfileLlmSaving.value = true
+  profileLoadError.value = ''
+  try {
+    const payload = {
+      provider: config.provider,
+      base_url: config.base_url,
+      model: config.model,
+    }
+    if (config.api_key) {
+      payload.api_key = config.api_key
+    }
+    const savedConfig = await updateProfileLlmConfig(payload)
+    profileLlmConfig.value = savedConfig
+    currentUser.value = await fetchCurrentUser()
+    profileLlmTestResult.value = null
+    ElMessage.success('大模型 API 配置已保存')
+  } catch (error) {
+    profileLoadError.value = getApiErrorMessage(error)
+    ElMessage.error(profileLoadError.value)
+  } finally {
+    isProfileLlmSaving.value = false
+  }
+}
+
+const testProfileLlmConnection = async (prompt) => {
+  isProfileLlmTesting.value = true
+  profileLoadError.value = ''
+  try {
+    const result = await testProfileLlmConfig(prompt)
+    profileLlmTestResult.value = result
+    ElMessage.success('大模型连接成功')
+  } catch (error) {
+    profileLlmTestResult.value = null
+    profileLoadError.value = getApiErrorMessage(error)
+    ElMessage.error(profileLoadError.value)
+  } finally {
+    isProfileLlmTesting.value = false
+  }
 }
 
 const logout = async () => {
@@ -1684,7 +1744,7 @@ const deleteLibraryScript = async (script) => {
 
   try {
     await ElMessageBox.confirm(
-      `确定要删除剧本《${script.title}》吗？此操作无法恢复。`,
+      `确定要删除剧本《${script.title}》吗？删除后会进入回收站，30 天内可以恢复。`,
       '删除剧本',
       {
         confirmButtonText: '删除',
@@ -2131,10 +2191,44 @@ const exportPreviewJson = async () => {
 
 const showRecycleBin = ref(false)
 const recycleBinItems = ref([])
+const isRecycleBinLoading = ref(false)
 
-const openRecycleBin = () => {
-  recycleBinItems.value = JSON.parse(localStorage.getItem('gravityMatrixRecycleBin') || '[]')
+const formatRecycleDate = (value) => {
+  if (!value) return '未知时间'
+  return new Date(value).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+const mapRecycleBinItem = (project) => ({
+  id: project.id,
+  title: `《${project.title}》剧本`,
+  sourceNovel: `《${project.title}》`,
+  deletedAt: formatRecycleDate(project.deleted_at),
+  expiresAt: formatRecycleDate(project.expires_at),
+  remainingDays: project.remaining_days ?? 0,
+  raw: project,
+})
+
+const loadRecycleBin = async () => {
+  isRecycleBinLoading.value = true
+  try {
+    const result = await getRecycleBin()
+    recycleBinItems.value = (result.items || []).map(mapRecycleBinItem)
+  } catch (error) {
+    ElMessage.error(`回收站加载失败：${getApiErrorMessage(error)}`)
+  } finally {
+    isRecycleBinLoading.value = false
+  }
+}
+
+const openRecycleBin = async () => {
   showRecycleBin.value = true
+  await loadRecycleBin()
 }
 
 const closeRecycleBin = () => {
@@ -2151,13 +2245,26 @@ const clearRecycleBin = async () => {
   } catch {
     return
   }
-  localStorage.removeItem('gravityMatrixRecycleBin')
-  recycleBinItems.value = []
-  ElMessage.success('回收站已清空')
+  try {
+    const result = await clearRecycleBinProjects()
+    recycleBinItems.value = []
+    await fetchScriptLibrary()
+    ElMessage.success(`回收站已清空，共永久删除 ${result.deleted ?? 0} 个项目`)
+  } catch (error) {
+    ElMessage.error(`清空失败：${getApiErrorMessage(error)}`)
+  }
 }
 
-const restoreFromRecycleBin = () => {
-  previewNotice.value = '当前后端删除是永久删除，回收站只保留本地删除记录，暂不支持恢复。'
+const restoreFromRecycleBin = async (item) => {
+  if (!item?.id) return
+  try {
+    await restoreProject(item.id)
+    await loadRecycleBin()
+    await fetchScriptLibrary()
+    ElMessage.success(`${item.title} 已恢复到剧本库`)
+  } catch (error) {
+    ElMessage.error(`恢复失败：${getApiErrorMessage(error)}`)
+  }
 }
 
 
@@ -2270,7 +2377,9 @@ const handleFileUpload = async (event) => {
     </main>
 
     <ProfileCenterDialog v-model="isProfileCenterOpen" :error="profileLoadError" :icon-paths="iconPaths"
-      :loading="isProfileLoading" :stats="profileStats" :user="currentUser" @logout="logout" />
+      :llm-config="profileLlmConfig" :llm-saving="isProfileLlmSaving" :llm-testing="isProfileLlmTesting"
+      :llm-test-result="profileLlmTestResult" :loading="isProfileLoading" :stats="profileStats" :user="currentUser"
+      @logout="logout" @save-llm-config="saveProfileLlmConfig" @test-llm="testProfileLlmConnection" />
 
     <Teleport to="body">
       <div v-if="isGuideOpen" class="dialog-backdrop" role="presentation" @click.self="closeGuide">
@@ -2338,27 +2447,36 @@ const handleFileUpload = async (event) => {
               <div>
                 <span>项目管理</span>
                 <h2 id="recycle-bin-title">回收站</h2>
-                <p>{{ recycleBinItems.length === 0 ? '没有待处理记录' : `共 ${recycleBinItems.length} 条本地删除记录` }}</p>
+                <p>{{ recycleBinItems.length === 0 ? '没有待恢复项目' : `共 ${recycleBinItems.length} 个项目，保留 30 天` }}</p>
               </div>
             </div>
             <button class="dialog-close" type="button" aria-label="关闭回收站" @click="closeRecycleBin">×</button>
           </header>
 
           <div class="dialog-body recycle-dialog-body">
-            <div v-if="recycleBinItems.length === 0" class="recycle-empty-state">
+            <div v-if="isRecycleBinLoading" class="recycle-empty-state">
+              <span class="recycle-empty-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path v-for="path in iconPaths.trash" :key="path" :d="path" />
+                </svg>
+              </span>
+              <strong>正在读取回收站</strong>
+              <p>正在同步后端软删除项目和过期清理结果。</p>
+            </div>
+            <div v-else-if="recycleBinItems.length === 0" class="recycle-empty-state">
               <span class="recycle-empty-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24">
                   <path v-for="path in iconPaths.trash" :key="path" :d="path" />
                 </svg>
               </span>
               <strong>回收站是空的</strong>
-              <p>删除记录会显示在这里，便于核对最近移除的剧本。</p>
+              <p>删除后的剧本会在这里保留 30 天，超过时间后自动永久清空。</p>
             </div>
             <div v-else>
               <div class="recycle-note">
                 <div>
-                  <strong>本地删除历史</strong>
-                  <p>当前后端删除为永久删除，回收站仅记录本地删除历史，暂不支持恢复。</p>
+                  <strong>30 天自动清空</strong>
+                  <p>项目删除后会先进入回收站；保留期内可恢复，超过 30 天后自动永久删除。</p>
                 </div>
                 <span>{{ recycleBinItems.length }} 条</span>
               </div>
@@ -2368,6 +2486,7 @@ const handleFileUpload = async (event) => {
                     <tr>
                       <th>剧本名称</th>
                       <th>删除时间</th>
+                      <th>剩余保留</th>
                       <th>操作</th>
                     </tr>
                   </thead>
@@ -2379,7 +2498,10 @@ const handleFileUpload = async (event) => {
                       </td>
                       <td>{{ item.deletedAt }}</td>
                       <td>
-                        <button class="recycle-disabled-action" type="button" disabled @click="restoreFromRecycleBin">暂不支持恢复</button>
+                        <span class="recycle-retention">{{ item.remainingDays }} 天</span>
+                      </td>
+                      <td>
+                        <button class="recycle-restore-action" type="button" @click="restoreFromRecycleBin(item)">恢复</button>
                       </td>
                     </tr>
                   </tbody>
@@ -2389,7 +2511,7 @@ const handleFileUpload = async (event) => {
           </div>
 
           <footer class="dialog-actions recycle-actions">
-            <button class="editor-tool is-danger" type="button" :disabled="recycleBinItems.length === 0" @click="clearRecycleBin">清空回收站</button>
+            <button class="editor-tool is-danger" type="button" :disabled="isRecycleBinLoading || recycleBinItems.length === 0" @click="clearRecycleBin">清空回收站</button>
             <button class="editor-tool is-primary" type="button" @click="closeRecycleBin">关闭</button>
           </footer>
         </section>

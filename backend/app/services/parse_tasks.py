@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 def _is_local_ollama() -> bool:
-    return (settings.llm_provider or "").strip().lower() == "ollama"
+    return llm_service._effective_llm_provider() == "ollama"
 
 
 def _parse_timeout_seconds() -> int:
@@ -88,6 +88,7 @@ class ParseTask:
     source_text: str | None = None
     source_file_id: str | None = None
     project_id: int | None = None
+    llm_config: dict[str, Any] | None = None
     result_json: dict[str, Any] | None = None
     result_yaml: str | None = None
     error_message: str | None = None
@@ -112,12 +113,14 @@ def create_parse_task(
     source_text: str | None = None,
     source_file_id: str | None = None,
     project_id: int | None = None,
+    llm_config: dict[str, Any] | None = None,
 ) -> ParseTask:
     task = ParseTask(
         id=str(uuid.uuid4()),
         source_text=source_text,
         source_file_id=source_file_id,
         project_id=project_id,
+        llm_config=llm_config,
     )
     with _task_lock:
         parse_tasks[task.id] = task
@@ -149,44 +152,45 @@ def run_parse_task(task_id: str) -> None:
         return
 
     try:
-        _update_task(task_id, status="running", progress=5, message="正在读取小说文本")
-        source_text, title = _task_source_text(task)
-        if not source_text.strip():
-            raise ValueError("解析文本不能为空。")
+        with llm_service.llm_config_context(task.llm_config):
+            _update_task(task_id, status="running", progress=5, message="正在读取小说文本")
+            source_text, title = _task_source_text(task)
+            if not source_text.strip():
+                raise ValueError("解析文本不能为空。")
 
-        _update_task(task_id, progress=10, message="正在切分章节")
-        chunks = split_text_into_chunks(source_text)
-        if not chunks:
-            raise ValueError("未能切分出可解析文本块。")
+            _update_task(task_id, progress=10, message="正在切分章节")
+            chunks = split_text_into_chunks(source_text)
+            if not chunks:
+                raise ValueError("未能切分出可解析文本块。")
 
-        chunk_results, failed_chunks = asyncio.run(_parse_chunks_concurrently(task_id, chunks))
+            chunk_results, failed_chunks = asyncio.run(_parse_chunks_concurrently(task_id, chunks))
 
-        if not chunk_results:
+            if not chunk_results:
+                _update_task(
+                    task_id,
+                    status="failed",
+                    progress=100,
+                    message="解析失败",
+                    error_message="本地模型解析超时，请减少文本长度或稍后重试",
+                    failed_chunks=failed_chunks,
+                )
+                return
+
+            _update_task(task_id, progress=88, message="正在合并剧本解析结果")
+            result = _merge_chunk_results(title, chunk_results, failed_chunks)
+            result["conflicts"] = _merge_conflicts_from_chunk_results(chunk_results) or result.get("conflicts", [])
+            result["failed_chunks"] = failed_chunks
+            _save_project_result(task.project_id, result)
+            final_status = "completed_with_warnings" if failed_chunks else "completed"
+            final_message = "部分内容解析失败，可稍后重试" if failed_chunks else "解析完成"
             _update_task(
                 task_id,
-                status="failed",
+                status=final_status,
                 progress=100,
-                message="解析失败",
-                error_message="本地模型解析超时，请减少文本长度或稍后重试",
+                message=final_message,
+                result_json=result,
                 failed_chunks=failed_chunks,
             )
-            return
-
-        _update_task(task_id, progress=88, message="正在合并剧本解析结果")
-        result = _merge_chunk_results(title, chunk_results, failed_chunks)
-        result["conflicts"] = _merge_conflicts_from_chunk_results(chunk_results) or result.get("conflicts", [])
-        result["failed_chunks"] = failed_chunks
-        _save_project_result(task.project_id, result)
-        final_status = "completed_with_warnings" if failed_chunks else "completed"
-        final_message = "部分内容解析失败，可稍后重试" if failed_chunks else "解析完成"
-        _update_task(
-            task_id,
-            status=final_status,
-            progress=100,
-            message=final_message,
-            result_json=result,
-            failed_chunks=failed_chunks,
-        )
     except Exception as exc:
         raw_response = getattr(exc, "raw_response", None) or llm_service.get_last_llm_raw_response()
         raw_response_head = raw_response[:1000] if raw_response else None
@@ -389,8 +393,9 @@ def _parse_chunk(chunk: dict[str, Any], chunk_number: int) -> dict[str, Any]:
 
 
 def _chunk_cache_key(chunk_text: str) -> str:
-    model = settings.llm_model or settings.ollama_model or ""
-    payload = "\n".join([chunk_text or "", settings.llm_provider or "", model, PARSE_PROMPT_VERSION])
+    model = llm_service._effective_llm_model()
+    provider = llm_service._effective_llm_provider()
+    payload = "\n".join([chunk_text or "", provider, model, PARSE_PROMPT_VERSION])
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 

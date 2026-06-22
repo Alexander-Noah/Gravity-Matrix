@@ -479,15 +479,42 @@
   line-height: 1.45;
 }
 
-.recycle-disabled-action {
+.recycle-disabled-action,
+.recycle-restore-action {
   min-height: 30px;
   border: 1px solid oklch(85% 0.015 235);
   border-radius: 999px;
   padding: 0 10px;
-  color: var(--text-muted);
-  background: var(--surface-muted);
   font-size: 12px;
   font-weight: 760;
+}
+
+.recycle-disabled-action {
+  color: var(--text-muted);
+  background: var(--surface-muted);
+}
+
+.recycle-restore-action {
+  cursor: pointer;
+  color: var(--primary-strong);
+  background: var(--primary-faint);
+}
+
+.recycle-restore-action:hover {
+  border-color: oklch(72% 0.08 245);
+  background: oklch(95.5% 0.03 245);
+}
+
+.recycle-retention {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border-radius: 999px;
+  padding: 0 9px;
+  color: oklch(43% 0.08 142);
+  background: oklch(95.8% 0.035 145);
+  font-size: 12px;
+  font-weight: 780;
 }
 
 .recycle-actions {

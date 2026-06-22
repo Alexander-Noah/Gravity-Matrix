@@ -73,6 +73,7 @@ class Job(Base):
     current_step: Mapped[str] = mapped_column(String(255), default="等待开始", nullable=False)
     result_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    llm_config_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

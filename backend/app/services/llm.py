@@ -5,6 +5,8 @@ import json
 import logging
 import re
 import time
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -28,6 +30,7 @@ OMITTED_REASONS = {
 
 logger = logging.getLogger(__name__)
 _last_llm_raw_response: str | None = None
+_llm_config_override: ContextVar[dict[str, Any] | None] = ContextVar("llm_config_override", default=None)
 
 
 class AIParseError(RuntimeError):
@@ -48,6 +51,69 @@ class LLMResult:
     provider: str
     content: dict[str, Any]
     fallback_reason: str | None = None
+
+
+@contextmanager
+def llm_config_context(config: dict[str, Any] | None):
+    token = _llm_config_override.set(config or None)
+    try:
+        yield
+    finally:
+        _llm_config_override.reset(token)
+
+
+def build_user_llm_config(user: Any | None) -> dict[str, Any] | None:
+    if user is None:
+        return None
+
+    provider = str(getattr(user, "llm_provider", None) or settings.llm_provider or "openai_compatible").strip()
+    base_url = str(getattr(user, "llm_base_url", None) or "").strip()
+    api_key = str(getattr(user, "llm_api_key", None) or "").strip()
+    model = str(getattr(user, "llm_model", None) or "").strip()
+
+    if not base_url or not model:
+        return None
+    if provider.lower() != "ollama" and not api_key:
+        return None
+
+    return {
+        "provider": provider,
+        "base_url": base_url,
+        "api_key": api_key,
+        "model": model,
+        "timeout_seconds": settings.llm_timeout_seconds,
+    }
+
+
+def is_user_llm_configured(user: Any | None) -> bool:
+    return build_user_llm_config(user) is not None
+
+
+def call_model_text(prompt: str, *, system_prompt: str = "你是一个简洁可靠的中文助手。") -> str:
+    _require_llm_config()
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": prompt},
+    ]
+    if _effective_llm_provider() == "ollama":
+        return _ollama_text_content(messages, max_tokens=512)
+
+    client = OpenAI(
+        api_key=_effective_llm_api_key(),
+        base_url=_effective_llm_base_url(),
+        timeout=_effective_llm_timeout_seconds(),
+    )
+    response = _create_chat_completion_with_policy(
+        client,
+        {
+            "model": _effective_llm_model(),
+            "messages": messages,
+            "temperature": 0.2,
+            "max_tokens": 512,
+        },
+        purpose="profile_llm_test",
+    )
+    return response.choices[0].message.content or ""
 
 
 def analyze_project(project: Project) -> LLMResult:
@@ -152,7 +218,7 @@ def _require_llm_config() -> None:
             raise AIParseError("本地 Ollama 未配置，请检查 OLLAMA_BASE_URL 和 OLLAMA_MODEL。")
         return
 
-    if not (settings.llm_api_key and settings.llm_base_url and settings.llm_model):
+    if not (_effective_llm_api_key() and _effective_llm_base_url() and _effective_llm_model()):
         raise AIParseError("AI 服务未配置，请检查 API Key、Base URL 或模型配置。")
 
 
@@ -197,7 +263,7 @@ def _call_deepseek(
         client = OpenAI(
             api_key=_effective_llm_api_key(),
             base_url=_effective_llm_base_url(),
-            timeout=timeout_seconds or settings.llm_timeout_seconds,
+            timeout=timeout_seconds or _effective_llm_timeout_seconds(),
         )
         request = _deepseek_request_payload(prompt, max_tokens=max_tokens)
         response = _create_chat_completion_with_policy(client, request, purpose=purpose)
@@ -295,7 +361,9 @@ def _ollama_chat_content(
     timeout_seconds: int | None = None,
     max_tokens: int = 4096,
 ) -> str:
-    base_url = (settings.ollama_base_url or "http://127.0.0.1:11434").rstrip("/")
+    base_url = (_override_value("base_url") or settings.ollama_base_url or "http://127.0.0.1:11434").rstrip("/")
+    if base_url.endswith("/v1"):
+        base_url = base_url[:-3]
     payload = {
         "model": _effective_llm_model(),
         "messages": messages,
@@ -310,7 +378,36 @@ def _ollama_chat_content(
     response = httpx.post(
         f"{base_url}/api/chat",
         json=payload,
-        timeout=timeout_seconds or settings.llm_timeout_seconds,
+        timeout=timeout_seconds or _effective_llm_timeout_seconds(),
+    )
+    response.raise_for_status()
+    data = response.json()
+    message = data.get("message") or {}
+    return str(message.get("content") or "")
+
+
+def _ollama_text_content(
+    messages: list[dict[str, str]],
+    timeout_seconds: int | None = None,
+    max_tokens: int = 512,
+) -> str:
+    base_url = (_override_value("base_url") or settings.ollama_base_url or "http://127.0.0.1:11434").rstrip("/")
+    if base_url.endswith("/v1"):
+        base_url = base_url[:-3]
+    payload = {
+        "model": _effective_llm_model(),
+        "messages": messages,
+        "stream": False,
+        "think": False,
+        "options": {
+            "temperature": 0.2,
+            "num_predict": max_tokens,
+        },
+    }
+    response = httpx.post(
+        f"{base_url}/api/chat",
+        json=payload,
+        timeout=timeout_seconds or _effective_llm_timeout_seconds(),
     )
     response.raise_for_status()
     data = response.json()
@@ -394,6 +491,10 @@ def _deepseek_request_payload(prompt: str, max_tokens: int = 4096) -> dict[str, 
 
 
 def _effective_llm_model() -> str:
+    override_model = _override_value("model")
+    if override_model:
+        return override_model
+
     if _effective_llm_provider() == "ollama":
         return settings.llm_model or settings.ollama_model or "qwen3.5:9b"
 
@@ -404,24 +505,44 @@ def _effective_llm_model() -> str:
 
 
 def _effective_llm_provider() -> str:
-    return (settings.llm_provider or "openai_compatible").strip().lower()
+    return (_override_value("provider") or settings.llm_provider or "openai_compatible").strip().lower()
 
 
 def _effective_llm_base_url() -> str:
     if _effective_llm_provider() == "ollama":
-        base_url = (settings.llm_base_url or settings.ollama_base_url or "http://127.0.0.1:11434").strip()
+        base_url = (_override_value("base_url") or settings.llm_base_url or settings.ollama_base_url or "http://127.0.0.1:11434").strip()
         base_url = base_url.rstrip("/")
         if not base_url.endswith("/v1"):
             base_url = f"{base_url}/v1"
         return base_url
 
-    return (settings.llm_base_url or "").strip()
+    return (_override_value("base_url") or settings.llm_base_url or "").strip()
 
 
 def _effective_llm_api_key() -> str:
     if _effective_llm_provider() == "ollama":
-        return settings.llm_api_key or "ollama"
-    return settings.llm_api_key
+        return _override_value("api_key") or settings.llm_api_key or "ollama"
+    return _override_value("api_key") or settings.llm_api_key
+
+
+def _effective_llm_timeout_seconds() -> int:
+    value = _override_value("timeout_seconds")
+    if value is None:
+        return settings.llm_timeout_seconds
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return settings.llm_timeout_seconds
+
+
+def _override_value(key: str) -> Any:
+    config = _llm_config_override.get()
+    if not config:
+        return None
+    value = config.get(key)
+    if isinstance(value, str):
+        value = value.strip()
+    return value or None
 
 
 def _should_use_json_response_format() -> bool:

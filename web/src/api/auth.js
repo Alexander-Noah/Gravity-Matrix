@@ -74,3 +74,20 @@ export const fetchCurrentUser = async () => {
 
   return response.data
 }
+
+export const getProfileLlmConfig = async () => {
+  const response = await http.get('/profile/llm-config')
+  return response.data
+}
+
+export const updateProfileLlmConfig = async (config) => {
+  const response = await http.put('/profile/llm-config', config)
+  return response.data
+}
+
+export const testProfileLlmConfig = async (prompt) => {
+  const response = await http.post('/profile/llm-config/test', { prompt }, {
+    timeout: 60000,
+  })
+  return response.data
+}
